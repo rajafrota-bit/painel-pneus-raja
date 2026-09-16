@@ -484,6 +484,7 @@
     pressaoRound: "geral",
     pressaoFiltroSel: new Set(),
     pressaoFaixaSel: new Set(),
+    selVeiculoPressao: null,
   };
 
   // ------------------------------------------------------------------
@@ -1084,7 +1085,32 @@
     </div>`;
   }
 
-  function renderTireDiagram(vehicle) {
+  // Chip de pneu pro mapa do veículo na aba Pressão de Ar (reaproveita renderTireDiagram, que
+  // já cuida de agrupar por eixo/estepe — só a "cara" de cada pneu muda). Cor = faixa de
+  // pressão (mesma paleta do donut, FAIXA_PRESSAO_TONE); "zero" (semLeitura) e "sem padrão"
+  // (semPadrao) têm tratamento visual próprio, igual ao tireChip original faz com vazio/semDado.
+  function pressaoTireChip(t) {
+    if (t.semPadrao) {
+      return `<div class="tire-chip" style="border-color:var(--border-strong);background:var(--bg-elev);" title="${escapeHtml(t.posicao)} · Pneu ${escapeHtml(t.pneu || "—")} · Medida não reconhecida — sem padrão de pressão pra comparar">
+        <div class="tire-chip-val" style="color:var(--text-faint);font-size:12px;">—</div>
+        <div class="tire-chip-pos">${escapeHtml(t.posicao)}</div>
+        <div class="tire-chip-pneu" style="white-space:nowrap;">Nº ${escapeHtml(t.pneu || "—")}</div>
+      </div>`;
+    }
+    const k = t.semLeitura ? "zero" : t.faixa;
+    const color = FAIXA_PRESSAO_TONE[k] || "var(--text-faint)";
+    const label = FAIXA_PRESSAO_LABEL[k] || "—";
+    const valorTxt = t.semLeitura ? "0" : (t.pctPadrao != null ? `${t.pctPadrao}%` : "—");
+    const detalhePsi = t.semLeitura ? "sem leitura registrada" : (t.pressaoAtual != null ? `${t.pressaoAtual} psi (padrão ${t.padraoPsi} psi)` : "");
+    const titulo = `${t.posicao} · Pneu ${t.pneu || "—"}${t.produto ? ` · ${t.produto}` : ""} · ${label}${detalhePsi ? ` · ${detalhePsi}` : ""}`;
+    return `<div class="tire-chip" style="border-color:${color};background:${color}22" title="${escapeHtml(titulo)}">
+      <div class="tire-chip-val" style="color:${color};">${valorTxt}</div>
+      <div class="tire-chip-pos">${escapeHtml(t.posicao)}</div>
+      <div class="tire-chip-pneu" style="white-space:nowrap;">Nº ${escapeHtml(t.pneu || "—")}</div>
+    </div>`;
+  }
+
+  function renderTireDiagram(vehicle, chipFn = tireChip) {
     // A Map preserva a ordem de primeira inserção — como vehicle.tires já está na mesma ordem
     // da planilha de origem (confirmada como ordem física dianteira→traseira pelos prints de
     // referência), essa ordem natural é o que usamos para posicionar os eixos, em vez de tentar
@@ -1104,7 +1130,7 @@
     const axles = axleGroups.map((g) => {
       if (g.kind === "outro") {
         return `<div class="axle-row">
-          <div class="axle-tiers" style="justify-content:center;">${g.tires.map((x) => tireChip(x.t)).join("")}</div>
+          <div class="axle-tiers" style="justify-content:center;">${g.tires.map((x) => chipFn(x.t)).join("")}</div>
         </div>`;
       }
       const label = axleLabel(g);
@@ -1113,8 +1139,8 @@
       return `<div class="axle-row">
         ${label ? `<div class="axle-label">${escapeHtml(label)}</div>` : ""}
         <div class="axle-tiers">
-          <div class="axle-side left">${left.map(tireChip).join("")}</div>
-          <div class="axle-side">${right.map(tireChip).join("")}</div>
+          <div class="axle-side left">${left.map(chipFn).join("")}</div>
+          <div class="axle-side">${right.map(chipFn).join("")}</div>
         </div>
       </div>`;
     }).join("");
@@ -1122,7 +1148,7 @@
     const estepesHtml = estepes ? `
       <div class="axle-estepes">
         <div class="axle-label" style="margin-bottom:8px;">Estepes</div>
-        <div class="axle-tiers" style="justify-content:center;">${estepes.tires.map((x) => tireChip(x.t)).join("")}</div>
+        <div class="axle-tiers" style="justify-content:center;">${estepes.tires.map((x) => chipFn(x.t)).join("")}</div>
       </div>` : "";
 
     return `<div class="tire-diagram">${axles}${estepesHtml}</div>`;
@@ -1225,6 +1251,40 @@
       <div class="card-title" style="margin-top:18px;">Esquema do veículo <span style="color:var(--danger)">· ${escapeHtml(v.tipoDesc)}</span></div>
       ${renderTireDiagram(vehicle)}
       <div class="table-note" style="padding-left:0;">Posições tracejadas em <span style="color:var(--danger)">vermelho</span> = sem pneu (VAZIO). As demais (cinza, com "—") têm pneu montado, sem detalhar sulco ou número — o esquema de posições ${vehicle.temContexto ? "foi confirmado pelos dados deste veículo no painel de Sulco Baixo." : vehicle.temEsquemaTipico ? "foi estimado a partir do layout típico de outros veículos do mesmo tipo (este veículo não aparece no Sulco Baixo)." : "mostra só as posições vazias conhecidas — este veículo não aparece no Sulco Baixo e não há outro veículo do mesmo tipo pra usar de referência."}</div>
+    </div>`;
+  }
+
+  // ------------------------------------------------------------------
+  // Esquema do veículo pro quadro "Veículos com pneus fora do padrão" (Pressão de Ar)
+  // ------------------------------------------------------------------
+  function renderPressaoDetail(d) {
+    const v = state.selVeiculoPressao ? d.veiculosForaPadrao.find((x) => x.veiculo === state.selVeiculoPressao) : null;
+    if (!v) {
+      return `<div class="card detail-card">
+        <div class="card-title">Esquema do veículo</div>
+        <div class="detail-empty">Clique numa linha da tabela pra ver o mapa de pressão de cada pneu do veículo — quais estão OK, muito baixo, baixo, etc.</div>
+      </div>`;
+    }
+    // `d.rows` já é o universo de pneus lidos no escopo/rodada ativa (o mesmo que monta a
+    // tabela) — filtrar por veículo aqui dá TODOS os pneus dele nesse escopo, não só os fora
+    // do padrão, pra desenhar o esquema completo (inclusive os pneus "correta", em verde).
+    const vehicle = { veiculo: v.veiculo, filial: v.filial, tipoDesc: v.tipoDesc, tires: d.rows.filter((t) => t.veiculo === v.veiculo) };
+    return `<div class="card detail-card">
+      <div class="detail-plate-label">Veículo selecionado</div>
+      <div class="detail-plate">${escapeHtml(v.veiculo)}</div>
+      <div class="detail-sub">${escapeHtml(filialSigla(v.filial))} — ${escapeHtml(filialFullName(v.filial))} · ${escapeHtml(v.tipoDesc || "—")}</div>
+      ${severityPill("danger", `${v.qtd} pneu(s) fora do padrão`)}
+      <div class="card-title" style="margin-top:18px;">Esquema do veículo <span style="color:var(--danger)">· ${escapeHtml(v.tipoDesc || "")}</span></div>
+      ${renderTireDiagram(vehicle, pressaoTireChip)}
+      <div class="table-note" style="padding-left:0;">
+        Cor de cada pneu = faixa de pressão: <span style="color:${FAIXA_PRESSAO_TONE.muito_baixa}">muito baixa</span> ·
+        <span style="color:${FAIXA_PRESSAO_TONE.baixa}">baixa</span> ·
+        <span style="color:${FAIXA_PRESSAO_TONE.correta}">correta (OK)</span> ·
+        <span style="color:${FAIXA_PRESSAO_TONE.alta}">alta</span> ·
+        <span style="color:${FAIXA_PRESSAO_TONE.muito_alta}">muito alta</span> ·
+        <span style="color:${FAIXA_PRESSAO_TONE.zero}">pressão zero (sem leitura)</span>.
+        Número em cada pneu = % da pressão coletada em relação ao padrão da medida (ou "0" quando não há leitura; "—" quando a medida não tem padrão cadastrado).
+      </div>
     </div>`;
   }
 
@@ -1503,14 +1563,17 @@
     const pieData = Object.entries(faixaCountsChart).filter(([, v]) => v > 0)
       .map(([k, v]) => ({ key: k, name: FAIXA_PRESSAO_LABEL[k], value: v, color: FAIXA_PRESSAO_TONE[k] }));
 
-    // Quadro "Veículos com pneus fora do padrão" (pedido do Joao, 2026-09-16): lista, por
-    // veículo, quais pneus vieram fora da faixa "correta" — excluindo semLeitura (pressão zero
-    // é falta de dado, não pressão fora do padrão) e semPadrao (medida não reconhecida, não dá
-    // pra classificar). Parte de `rows` (já tem filial/busca/seleção de barra + rodada aplicados)
-    // e respeita TAMBÉM os outros 2 filtros cruzados da aba (quadros e faixa do donut), pra ficar
-    // consistente com o resto da página: clicar em "Muito baixa" no donut, por exemplo, estreita
-    // esta lista só pros veículos com pneu muito baixo.
-    const foraPadraoDetalhe = rows.filter((t) => !t.semLeitura && !t.semPadrao && t.faixa !== "correta"
+    // Quadro "Veículos com pneus fora do padrão" (pedido do Joao, 2026-09-16; ajustado
+    // 2026-09-16 pra tratar pressão zero como fora do padrão também). Fora do padrão =
+    // qualquer pneu que não seja "correta" — inclui as 4 faixas ruins (muito_baixa, baixa,
+    // alta, muito_alta) E semLeitura (pressão 0: sem calibragem nenhuma é o pior caso, não faz
+    // sentido tratar como "sem dado" e deixar de fora). Só semPadrao continua excluído (medida
+    // não reconhecida, não dá pra classificar contra padrão nenhum). Parte de `rows` (já tem
+    // filial/busca/seleção de barra + rodada aplicados) e respeita TAMBÉM os outros 2 filtros
+    // cruzados da aba (quadros e faixa do donut), pra ficar consistente com o resto da página:
+    // clicar em "Muito baixa" no donut, por exemplo, estreita esta lista só pros veículos com
+    // pneu muito baixo.
+    const foraPadraoDetalhe = rows.filter((t) => !t.semPadrao && (t.semLeitura || t.faixa !== "correta")
       && (sel.size === 0 || Array.from(sel).some((tipo) => QUADRO_CRIT[tipo](t)))
       && passaFaixa(t));
     const porVeiculoForaPadrao = new Map();
@@ -1518,7 +1581,7 @@
       if (!porVeiculoForaPadrao.has(t.veiculo)) {
         porVeiculoForaPadrao.set(t.veiculo, { veiculo: t.veiculo, filial: t.filial, tipoDesc: t.tipoDesc, itens: [] });
       }
-      porVeiculoForaPadrao.get(t.veiculo).itens.push({ posicao: t.posicao, faixa: t.faixa, pctPadrao: t.pctPadrao, pressaoAtual: t.pressaoAtual });
+      porVeiculoForaPadrao.get(t.veiculo).itens.push({ posicao: t.posicao, faixaKey: chaveFaixa(t), pctPadrao: t.pctPadrao, pressaoAtual: t.pressaoAtual });
     });
     const veiculosForaPadrao = Array.from(porVeiculoForaPadrao.values())
       .map((v) => ({ ...v, qtd: v.itens.length }))
@@ -1569,28 +1632,30 @@
       </div>
       <div class="card">
         <div class="card-title">Veículos com pneus fora do padrão</div>
-        <div class="chart-hint">${d.foraPadraoDetalhe.length} pneu(s) em ${d.veiculosForaPadrao.length} veículo(s)${scopeLabel} — ${rodadaLabel}. Não inclui pressão zero (sem leitura) nem medida sem padrão cadastrado.</div>
-        <div class="table-wrap" style="margin-top:8px;">
-          <table>
-            <thead><tr>${sortTh("fp_placa", "Placa")}${sortTh("fp_filial", "Filial")}${sortTh("fp_tipo", "Tipo")}${sortTh("fp_qtd", "Qtd. fora do padrão")}<th>Detalhe</th></tr></thead>
-            <tbody>
-              ${d.veiculosForaPadrao.length === 0 ? emptyRow(5, "Nenhum veículo com pneu fora do padrão nesse filtro.") :
-                applySort(d.veiculosForaPadrao, {
-                  fp_placa: (v) => v.veiculo, fp_filial: (v) => normalizeText(filialFullName(v.filial)),
-                  fp_tipo: (v) => v.tipoDesc, fp_qtd: (v) => v.qtd,
-                }).map((v) => {
-                  const grave = v.itens.some((i) => i.faixa === "muito_baixa" || i.faixa === "muito_alta");
-                  const detalhe = v.itens.map((i) => `${i.posicao ? "Pos " + i.posicao : "pneu"}: ${FAIXA_PRESSAO_LABEL[i.faixa] || i.faixa} (${i.pctPadrao}%)`).join(" · ");
-                  return `<tr>
-                    <td class="mono" style="font-weight:600;">${escapeHtml(v.veiculo)}</td>
-                    <td>${escapeHtml(filialSigla(v.filial))} <span style="color:var(--text-faint)">— ${escapeHtml(filialFullName(v.filial))}</span></td>
-                    <td style="color:var(--text-dim);">${escapeHtml(v.tipoDesc || "—")}</td>
-                    <td class="mono">${v.qtd}</td>
-                    <td>${severityPill(grave ? "danger" : "warning", detalhe)}</td>
-                  </tr>`;
-                }).join("")}
-            </tbody>
-          </table>
+        <div class="chart-hint">${d.foraPadraoDetalhe.length} pneu(s) em ${d.veiculosForaPadrao.length} veículo(s)${scopeLabel} — ${rodadaLabel}. Inclui pressão zero (sem leitura); não inclui medida sem padrão cadastrado.</div>
+        <div class="sulco-layout" style="margin-top:8px;">
+          <div class="table-wrap" style="margin:0;">
+            <table>
+              <thead><tr>${sortTh("fp_placa", "Placa")}${sortTh("fp_filial", "Filial")}${sortTh("fp_tipo", "Tipo")}${sortTh("fp_qtd", "Qtd. fora do padrão")}</tr></thead>
+              <tbody>
+                ${d.veiculosForaPadrao.length === 0 ? emptyRow(4, "Nenhum veículo com pneu fora do padrão nesse filtro.") :
+                  applySort(d.veiculosForaPadrao, {
+                    fp_placa: (v) => v.veiculo, fp_filial: (v) => normalizeText(filialFullName(v.filial)),
+                    fp_tipo: (v) => v.tipoDesc, fp_qtd: (v) => v.qtd,
+                  }).map((v) => {
+                    const grave = v.itens.some((i) => i.faixaKey === "muito_baixa" || i.faixaKey === "muito_alta" || i.faixaKey === "zero");
+                    return `<tr class="pressao-fora-row ${state.selVeiculoPressao === v.veiculo ? "selected" : ""}" data-veiculo="${escapeHtml(v.veiculo)}">
+                      <td class="mono" style="font-weight:600;">${escapeHtml(v.veiculo)}</td>
+                      <td>${escapeHtml(filialSigla(v.filial))} <span style="color:var(--text-faint)">— ${escapeHtml(filialFullName(v.filial))}</span></td>
+                      <td style="color:var(--text-dim);">${escapeHtml(v.tipoDesc || "—")}</td>
+                      <td>${severityPill(grave ? "danger" : "warning", String(v.qtd))}</td>
+                    </tr>`;
+                  }).join("")}
+              </tbody>
+            </table>
+            <div class="table-note">Clique numa linha pra ver o mapa do veículo com o status de cada pneu.</div>
+          </div>
+          ${renderPressaoDetail(d)}
         </div>
       </div>`;
   }
@@ -1671,6 +1736,7 @@
     bindSortHeaders();
     bindSulcoRows();
     bindVaziasRows();
+    bindPressaoForaRows();
     drawCharts();
 
     window.scrollTo(0, scrollY);
@@ -1693,11 +1759,20 @@
     }));
   }
 
+  function bindPressaoForaRows() {
+    document.querySelectorAll(".pressao-fora-row").forEach((tr) => tr.addEventListener("click", () => {
+      const v = tr.getAttribute("data-veiculo");
+      state.selVeiculoPressao = state.selVeiculoPressao === v ? null : v;
+      render();
+    }));
+  }
+
   function bindNav() {
     document.querySelectorAll(".nav-btn").forEach((btn) => btn.addEventListener("click", () => {
       state.panel = btn.getAttribute("data-panel");
       state.filtroFilial = "all"; state.busca = ""; state.selFiliais.clear(); state.inspMes = null;
       state.sortKey = null; state.sortDir = 1; state.selVeiculoSulco = null; state.selVeiculoVazias = null;
+      state.selVeiculoPressao = null;
       state.pressaoFiltroSel.clear(); state.pressaoFaixaSel.clear();
       state.sidebarOpen = false;
       document.getElementById("sidebar").classList.remove("open");
