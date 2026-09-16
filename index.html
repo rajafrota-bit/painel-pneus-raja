@@ -1503,9 +1503,31 @@
     const pieData = Object.entries(faixaCountsChart).filter(([, v]) => v > 0)
       .map(([k, v]) => ({ key: k, name: FAIXA_PRESSAO_LABEL[k], value: v, color: FAIXA_PRESSAO_TONE[k] }));
 
+    // Quadro "Veículos com pneus fora do padrão" (pedido do Joao, 2026-09-16): lista, por
+    // veículo, quais pneus vieram fora da faixa "correta" — excluindo semLeitura (pressão zero
+    // é falta de dado, não pressão fora do padrão) e semPadrao (medida não reconhecida, não dá
+    // pra classificar). Parte de `rows` (já tem filial/busca/seleção de barra + rodada aplicados)
+    // e respeita TAMBÉM os outros 2 filtros cruzados da aba (quadros e faixa do donut), pra ficar
+    // consistente com o resto da página: clicar em "Muito baixa" no donut, por exemplo, estreita
+    // esta lista só pros veículos com pneu muito baixo.
+    const foraPadraoDetalhe = rows.filter((t) => !t.semLeitura && !t.semPadrao && t.faixa !== "correta"
+      && (sel.size === 0 || Array.from(sel).some((tipo) => QUADRO_CRIT[tipo](t)))
+      && passaFaixa(t));
+    const porVeiculoForaPadrao = new Map();
+    foraPadraoDetalhe.forEach((t) => {
+      if (!porVeiculoForaPadrao.has(t.veiculo)) {
+        porVeiculoForaPadrao.set(t.veiculo, { veiculo: t.veiculo, filial: t.filial, tipoDesc: t.tipoDesc, itens: [] });
+      }
+      porVeiculoForaPadrao.get(t.veiculo).itens.push({ posicao: t.posicao, faixa: t.faixa, pctPadrao: t.pctPadrao, pressaoAtual: t.pressaoAtual });
+    });
+    const veiculosForaPadrao = Array.from(porVeiculoForaPadrao.values())
+      .map((v) => ({ ...v, qtd: v.itens.length }))
+      .sort((a, b) => b.qtd - a.qtd || a.veiculo.localeCompare(b.veiculo));
+
     return {
       round, disponivel, rows, universoFilial, foraPadrao, semLeitura, semPadrao, cobertura, faixaCounts,
       pctCorreta, pctInspecionados, pctPressaoZero, insp, barData, pieData, pressaoQuadro3Geral,
+      foraPadraoDetalhe, veiculosForaPadrao,
     };
   }
 
@@ -1543,6 +1565,32 @@
           <div class="card-title">Composição por faixa${scopeLabel}</div>
           ${pressaoFaixaHint()}
           <div id="chart-pressao-pie"></div>
+        </div>
+      </div>
+      <div class="card">
+        <div class="card-title">Veículos com pneus fora do padrão</div>
+        <div class="chart-hint">${d.foraPadraoDetalhe.length} pneu(s) em ${d.veiculosForaPadrao.length} veículo(s)${scopeLabel} — ${rodadaLabel}. Não inclui pressão zero (sem leitura) nem medida sem padrão cadastrado.</div>
+        <div class="table-wrap" style="margin-top:8px;">
+          <table>
+            <thead><tr>${sortTh("fp_placa", "Placa")}${sortTh("fp_filial", "Filial")}${sortTh("fp_tipo", "Tipo")}${sortTh("fp_qtd", "Qtd. fora do padrão")}<th>Detalhe</th></tr></thead>
+            <tbody>
+              ${d.veiculosForaPadrao.length === 0 ? emptyRow(5, "Nenhum veículo com pneu fora do padrão nesse filtro.") :
+                applySort(d.veiculosForaPadrao, {
+                  fp_placa: (v) => v.veiculo, fp_filial: (v) => normalizeText(filialFullName(v.filial)),
+                  fp_tipo: (v) => v.tipoDesc, fp_qtd: (v) => v.qtd,
+                }).map((v) => {
+                  const grave = v.itens.some((i) => i.faixa === "muito_baixa" || i.faixa === "muito_alta");
+                  const detalhe = v.itens.map((i) => `${i.posicao ? "Pos " + i.posicao : "pneu"}: ${FAIXA_PRESSAO_LABEL[i.faixa] || i.faixa} (${i.pctPadrao}%)`).join(" · ");
+                  return `<tr>
+                    <td class="mono" style="font-weight:600;">${escapeHtml(v.veiculo)}</td>
+                    <td>${escapeHtml(filialSigla(v.filial))} <span style="color:var(--text-faint)">— ${escapeHtml(filialFullName(v.filial))}</span></td>
+                    <td style="color:var(--text-dim);">${escapeHtml(v.tipoDesc || "—")}</td>
+                    <td class="mono">${v.qtd}</td>
+                    <td>${severityPill(grave ? "danger" : "warning", detalhe)}</td>
+                  </tr>`;
+                }).join("")}
+            </tbody>
+          </table>
         </div>
       </div>`;
   }
