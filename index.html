@@ -1091,8 +1091,12 @@
   // (semPadrao) têm tratamento visual próprio, igual ao tireChip original faz com vazio/semDado.
   function pressaoTireChip(t) {
     if (t.semPadrao) {
-      return `<div class="tire-chip" style="border-color:var(--border-strong);background:var(--bg-elev);" title="${escapeHtml(t.posicao)} · Pneu ${escapeHtml(t.pneu || "—")} · Medida não reconhecida — sem padrão de pressão pra comparar">
-        <div class="tire-chip-val" style="color:var(--text-faint);font-size:12px;">—</div>
+      // Medida não reconhecida: não temos padrão pra comparar, mas a leitura em si (psi) pode
+      // existir — mostra ela quando tiver, em vez de forçar "—" (pedido do Joao, 2026-09-16:
+      // mostrar a pressão de fato, não %).
+      const valorSemPadrao = t.pressaoAtual != null ? `${t.pressaoAtual}` : "—";
+      return `<div class="tire-chip" style="border-color:var(--border-strong);background:var(--bg-elev);" title="${escapeHtml(t.posicao)} · Pneu ${escapeHtml(t.pneu || "—")} · Medida não reconhecida — sem padrão de pressão pra comparar${t.pressaoAtual != null ? ` · pressão atual ${t.pressaoAtual} psi` : ""}">
+        <div class="tire-chip-val" style="color:var(--text-faint);${valorSemPadrao === "—" ? "font-size:12px;" : ""}">${valorSemPadrao}</div>
         <div class="tire-chip-pos">${escapeHtml(t.posicao)}</div>
         <div class="tire-chip-pneu" style="white-space:nowrap;">Nº ${escapeHtml(t.pneu || "—")}</div>
       </div>`;
@@ -1100,8 +1104,11 @@
     const k = t.semLeitura ? "zero" : t.faixa;
     const color = FAIXA_PRESSAO_TONE[k] || "var(--text-faint)";
     const label = FAIXA_PRESSAO_LABEL[k] || "—";
-    const valorTxt = t.semLeitura ? "0" : (t.pctPadrao != null ? `${t.pctPadrao}%` : "—");
-    const detalhePsi = t.semLeitura ? "sem leitura registrada" : (t.pressaoAtual != null ? `${t.pressaoAtual} psi (padrão ${t.padraoPsi} psi)` : "");
+    // Valor do chip é a pressão atual de fato (psi), não o % do padrão — pedido do Joao
+    // (2026-09-16). O % continua disponível no tooltip, pra quem passar o mouse.
+    const valorTxt = t.semLeitura ? "0" : (t.pressaoAtual != null ? `${t.pressaoAtual}` : "—");
+    const pctTxt = t.pctPadrao != null ? ` · ${t.pctPadrao}% do padrão` : "";
+    const detalhePsi = t.semLeitura ? "sem leitura registrada" : (t.padraoPsi != null ? `padrão ${t.padraoPsi} psi${pctTxt}` : "");
     const titulo = `${t.posicao} · Pneu ${t.pneu || "—"}${t.produto ? ` · ${t.produto}` : ""} · ${label}${detalhePsi ? ` · ${detalhePsi}` : ""}`;
     return `<div class="tire-chip" style="border-color:${color};background:${color}22" title="${escapeHtml(titulo)}">
       <div class="tire-chip-val" style="color:${color};">${valorTxt}</div>
@@ -1283,7 +1290,7 @@
         <span style="color:${FAIXA_PRESSAO_TONE.alta}">alta</span> ·
         <span style="color:${FAIXA_PRESSAO_TONE.muito_alta}">muito alta</span> ·
         <span style="color:${FAIXA_PRESSAO_TONE.zero}">pressão zero (sem leitura)</span>.
-        Número em cada pneu = % da pressão coletada em relação ao padrão da medida (ou "0" quando não há leitura; "—" quando a medida não tem padrão cadastrado).
+        Número em cada pneu = pressão atual (psi) — "0" quando não há leitura, "—" quando o pneu não tem registro de pressão nem medida cadastrada. Passe o mouse pra ver o padrão da medida e o % em relação a ele.
       </div>
     </div>`;
   }
