@@ -665,7 +665,7 @@
   // `quadro`/`selected` são opcionais: só usados pelos KPIs "clicáveis" (padrão BI de
   // filtro cruzado, ver Pressão de Ar). Chamadas existentes sem esses 2 params continuam
   // gerando o mesmo HTML de antes.
-  function kpiCard(label, value, hint, icon, tone, quadro, selected) {
+  function kpiCard(label, value, hint, icon, tone, quadro, selected, extraHtml) {
     const classes = ["card", "kpi"];
     if (quadro) classes.push("kpi-clicavel");
     if (selected) classes.push("kpi-selected");
@@ -678,6 +678,44 @@
       </div>
       <div class="kpi-value">${escapeHtml(String(value))}</div>
       ${hint ? `<div class="kpi-hint">${escapeHtml(hint)}</div>` : ""}
+      ${extraHtml || ""}
+    </div>`;
+  }
+  // Histórico do "% pressão correta" no card do quadro (pedido do Joao, 2026-09-17): mostra
+  // os últimos dias em que os dados foram atualizados (não é diário de verdade — só existe
+  // ponto novo quando a planilha é atualizada e o painel é regerado, ver
+  // build_pressao_correta_historico em generate_data.py), do mais recente pro mais antigo,
+  // menor conforme mais antigo, com seta comparando cada ponto com o ANTERIOR a ele (verde
+  // subiu, vermelho caiu, traço = igual). É a frota inteira/todas as filiais/última leitura
+  // conhecida de cada pneu — pode não bater exatamente com o valor grande do card quando um
+  // filtro de filial ou quinzena está ativo (por isso o rótulo deixa isso explícito).
+  function pressaoCorretaTrendHtml() {
+    const hist = (DATA.pressaoCorretaHistorico || []).filter((p) => p.pctCorreta != null);
+    if (hist.length < 2) return "";
+    const ultimos = hist.slice(-3);
+    const linhas = ultimos.map((p) => {
+      const idx = hist.indexOf(p);
+      const anterior = idx > 0 ? hist[idx - 1] : null;
+      let seta, cor;
+      if (!anterior) { seta = "·"; cor = "var(--text-faint)"; }
+      else if (p.pctCorreta > anterior.pctCorreta) { seta = "▲"; cor = "var(--success)"; }
+      else if (p.pctCorreta < anterior.pctCorreta) { seta = "▼"; cor = "var(--danger)"; }
+      else { seta = "—"; cor = "var(--text-faint)"; }
+      const diaMes = /^\d{4}-\d{2}-\d{2}/.test(p.data) ? `${p.data.slice(8, 10)}/${p.data.slice(5, 7)}` : p.data;
+      return { pctCorreta: p.pctCorreta, diaMes, seta, cor };
+    }).reverse();
+    const linhasHtml = linhas.map((l, i) => {
+      const fonte = i === 0 ? "12.5px" : i === 1 ? "11.5px" : "11px";
+      const peso = i === 0 ? "700" : "600";
+      return `<div style="display:flex;align-items:center;gap:5px;font-size:${fonte};font-weight:${peso};color:var(--text-dim);margin-top:3px;">
+        <span style="color:${l.cor};width:10px;display:inline-block;text-align:center;">${l.seta}</span>
+        <span style="color:var(--text);">${fmtPct(l.pctCorreta)}</span>
+        <span style="color:var(--text-faint);font-weight:400;">${l.diaMes}</span>
+      </div>`;
+    }).join("");
+    return `<div style="margin-top:8px;padding-top:8px;border-top:1px dashed var(--border-strong);">
+      <div style="font-size:9px;text-transform:uppercase;letter-spacing:.06em;color:var(--text-faint);margin-bottom:2px;">Histórico · todas as filiais</div>
+      ${linhasHtml}
     </div>`;
   }
   function severityPill(level, label) {
@@ -1620,7 +1658,7 @@
       ${panelHeader("Pressão de Ar", desc, filiais, roundsPressao)}
       <div class="kpi-grid">
         ${kpiCard("% veículos inspecionados", fmtPct(d.insp.pctAtingido), `${Math.max(0, d.insp.denom - d.insp.pendentes)} de ${d.insp.denom} veículos${scopeLabel} — ${rodadaLabel}`, ICONS.truck, d.insp.pctAtingido >= 85 ? "var(--success)" : d.insp.pctAtingido >= 70 ? "var(--warning)" : "var(--danger)", "veiculos_inspecionados", isSel("veiculos_inspecionados"))}
-        ${kpiCard("% pressão correta", fmtPct(d.pctCorreta), `${d.faixaCounts.correta} de ${d.rows.length - d.semLeitura.length - d.semPadrao.length} pneus com leitura e padrão conhecidos${scopeLabel}`, ICONS.ring, d.pctCorreta >= 70 ? "var(--success)" : d.pctCorreta >= 40 ? "var(--warning)" : "var(--danger)", "pressao_correta", isSel("pressao_correta"))}
+        ${kpiCard("% pressão correta", fmtPct(d.pctCorreta), `${d.faixaCounts.correta} de ${d.rows.length - d.semLeitura.length - d.semPadrao.length} pneus com leitura e padrão conhecidos${scopeLabel}`, ICONS.ring, d.pctCorreta >= 70 ? "var(--success)" : d.pctCorreta >= 40 ? "var(--warning)" : "var(--danger)", "pressao_correta", isSel("pressao_correta"), pressaoCorretaTrendHtml())}
         ${kpiCard("% pneus inspecionados", fmtPct(d.pctInspecionados), pressaoQuadro3Hint(d, scopeLabel, rodadaLabel), ICONS.clipboard, d.pctInspecionados >= 85 ? "var(--success)" : d.pctInspecionados >= 60 ? "var(--warning)" : "var(--danger)", "pneus_inspecionados", isSel("pneus_inspecionados"))}
         ${kpiCard("% pressão zero", fmtPct(d.pctPressaoZero), `${d.semLeitura.length} de ${d.rows.length} pneus sem leitura${scopeLabel}`, ICONS.alert, d.pctPressaoZero >= 15 ? "var(--danger)" : d.pctPressaoZero >= 5 ? "var(--warning)" : "var(--success)", "pressao_zero", isSel("pressao_zero"))}
       </div>
