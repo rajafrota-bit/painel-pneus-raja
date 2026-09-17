@@ -703,18 +703,69 @@
     if (p.pctCorreta < anterior.pctCorreta) return { seta: "▼", cor: "var(--danger)" };
     return { seta: "—", cor: "var(--text-faint)" };
   }
+  // Monta a série do histórico de "% pressão correta" pro ESCOPO DE FILIAL ativo agora
+  // (pedido do Joao, 2026-09-17: "quero que puxe o historico por filial também. Se eu
+  // clicar em limeira quero ver o historico só de limeira"). Reusa `activeScope()` — o
+  // mesmo helper que já decide filial/seleção de barras pro resto da aba (donut, gráfico,
+  // quadros clicáveis), então clicar numa barra OU escolher no dropdown "Todas as filiais"
+  // já atualiza esse histórico automaticamente, sem código novo de filtro.
+  // - escopo "all" (nada selecionado): usa DATA.pressaoCorretaHistorico (frota inteira).
+  // - escopo 1 filial: usa DATA.pressaoCorretaHistoricoPorFilial[filial] direto.
+  // - escopo Set de várias filiais (Ctrl+clique): SOMA corretos/totalComPadrao ponto a
+  //   ponto (mesma data) entre as filiais selecionadas e recalcula o %, igual a rosca e
+  //   os quadros já fazem quando várias filiais estão marcadas juntas.
+  // dados.js gerado ANTES desta mudança não tem `pressaoCorretaHistoricoPorFilial` — nesse
+  // caso cai de volta pro histórico geral (sem quebrar o card em painel antigo).
+  function pressaoCorretaSerieParaEscopo() {
+    const escopo = activeScope();
+    const porFilial = DATA.pressaoCorretaHistoricoPorFilial;
+    if (escopo === "all" || !porFilial) return DATA.pressaoCorretaHistorico || [];
+    const filiais = escopo instanceof Set ? Array.from(escopo) : [escopo];
+    const series = filiais.map((f) => porFilial[f]).filter(Boolean);
+    if (!series.length) return [];
+    if (series.length === 1) return series[0];
+    // Soma por data (todas as séries vêm do mesmo gerador, com a mesma lista de datas —
+    // mas por segurança casamos por `data`, não por índice, e tratamos filial sem ponto
+    // naquela data como 0/0, não como ausente).
+    const porData = new Map();
+    series.forEach((serie) => serie.forEach((p) => {
+      const acc = porData.get(p.data) || { data: p.data, corretos: 0, totalComPadrao: 0 };
+      acc.corretos += p.corretos || 0;
+      acc.totalComPadrao += p.totalComPadrao || 0;
+      porData.set(p.data, acc);
+    }));
+    return Array.from(porData.values())
+      .sort((a, b) => a.data.localeCompare(b.data))
+      .map((p) => ({ ...p, pctCorreta: p.totalComPadrao ? Math.round((p.corretos / p.totalComPadrao) * 1000) / 10 : null }));
+  }
+  // Rótulo do escopo pro cabeçalho do histórico — mesma convenção de `scopeLabelText()`
+  // (usada nos outros hints da aba), só que sem o " — " na frente e com "Todas as
+  // filiais" por extenso quando nada está filtrado (em vez de string vazia).
+  function pressaoCorretaEscopoLabel() {
+    const escopo = activeScope();
+    if (escopo === "all") return "Todas as filiais";
+    if (escopo instanceof Set) {
+      return escopo.size === 1 ? filialFullName(Array.from(escopo)[0]) : Array.from(escopo).map(filialSigla).join(" + ");
+    }
+    return filialFullName(escopo);
+  }
   // Seta ao lado do valor grande "% pressão correta" (pedido do Joao, 2026-09-17): reaproveita
-  // a seta do ponto mais recente do histórico — é literalmente a mesma seta que já aparece na
-  // 1ª linha do histórico embaixo, só que também colada no número grande. Mesma ressalva de
-  // escopo do histórico (todas as filiais/geral) se aplica aqui.
+  // a seta do ponto mais recente do histórico (já filtrado pro escopo ativo) — é literalmente
+  // a mesma seta que já aparece na 1ª linha do histórico embaixo, só que também colada no
+  // número grande. IMPORTANTE (mesmo com filial selecionada): o histórico reconstrói a leitura
+  // mais recente de CADA pneu conhecido até aquele dia (todo o parque já lido alguma vez); o
+  // valor grande do card respeita o toggle quinzena/Geral (só pneus lidos NESTE mês). São
+  // populações diferentes por definição — o histórico pode (e vai, às vezes) mostrar um número
+  // diferente do valor grande mesmo no mesmo dia. Não é bug de conta, é escopo diferente por
+  // trás do mesmo rótulo "% pressão correta" — por isso o tooltip abaixo avisa disso.
   function pressaoCorretaValueArrowHtml() {
-    const hist = (DATA.pressaoCorretaHistorico || []).filter((p) => p.pctCorreta != null);
+    const hist = pressaoCorretaSerieParaEscopo().filter((p) => p.pctCorreta != null);
     if (hist.length < 2) return "";
     const { seta, cor } = setaPressaoCorreta(hist, hist.length - 1);
-    return `<span style="color:${cor};font-size:20px;font-weight:700;" title="Tendência (todas as filiais) vs. a atualização anterior">${seta}</span>`;
+    return `<span style="color:${cor};font-size:20px;font-weight:700;" title="Tendência (${escapeHtml(pressaoCorretaEscopoLabel())}) vs. a atualização anterior — histórico usa todo pneu já lido alguma vez, pode diferir do valor ao lado (que respeita a quinzena/mês selecionados)">${seta}</span>`;
   }
   function pressaoCorretaTrendHtml() {
-    const hist = (DATA.pressaoCorretaHistorico || []).filter((p) => p.pctCorreta != null);
+    const hist = pressaoCorretaSerieParaEscopo().filter((p) => p.pctCorreta != null);
     if (hist.length < 2) return "";
     const ultimos = hist.slice(-3);
     const linhas = ultimos.map((p) => {
@@ -733,7 +784,7 @@
       </div>`;
     }).join("");
     return `<div style="margin-top:8px;padding-top:8px;border-top:1px dashed var(--border-strong);">
-      <div style="font-size:9px;text-transform:uppercase;letter-spacing:.06em;color:var(--text-faint);margin-bottom:2px;">Histórico · todas as filiais</div>
+      <div style="font-size:9px;text-transform:uppercase;letter-spacing:.06em;color:var(--text-faint);margin-bottom:2px;" title="Reconstrói a última leitura conhecida de cada pneu até aquele dia — todo o parque já lido alguma vez, não só o deste mês. Pode diferir do valor grande do card.">Histórico · ${escapeHtml(pressaoCorretaEscopoLabel())}</div>
       ${linhasHtml}
     </div>`;
   }
