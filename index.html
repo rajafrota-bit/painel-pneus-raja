@@ -665,7 +665,7 @@
   // `quadro`/`selected` são opcionais: só usados pelos KPIs "clicáveis" (padrão BI de
   // filtro cruzado, ver Pressão de Ar). Chamadas existentes sem esses 2 params continuam
   // gerando o mesmo HTML de antes.
-  function kpiCard(label, value, hint, icon, tone, quadro, selected, extraHtml) {
+  function kpiCard(label, value, hint, icon, tone, quadro, selected, extraHtml, valueArrowHtml) {
     const classes = ["card", "kpi"];
     if (quadro) classes.push("kpi-clicavel");
     if (selected) classes.push("kpi-selected");
@@ -676,7 +676,10 @@
         <span class="kpi-label">${escapeHtml(label)}</span>
         <span class="kpi-icon" style="color:${tone};background:${tone}1f;border:1px solid ${tone}40;">${icon}</span>
       </div>
-      <div class="kpi-value">${escapeHtml(String(value))}</div>
+      <div style="display:flex;align-items:baseline;gap:8px;">
+        <div class="kpi-value">${escapeHtml(String(value))}</div>
+        ${valueArrowHtml || ""}
+      </div>
       ${hint ? `<div class="kpi-hint">${escapeHtml(hint)}</div>` : ""}
       ${extraHtml || ""}
     </div>`;
@@ -689,18 +692,34 @@
   // subiu, vermelho caiu, traço = igual). É a frota inteira/todas as filiais/última leitura
   // conhecida de cada pneu — pode não bater exatamente com o valor grande do card quando um
   // filtro de filial ou quinzena está ativo (por isso o rótulo deixa isso explícito).
+  // Compara um ponto do histórico com o ANTERIOR a ele na série completa (não só dentro do
+  // recorte exibido) e devolve o símbolo/cor da seta — compartilhado entre o histórico pequeno
+  // embaixo do card e a seta ao lado do valor grande (mesma fonte, mesma regra).
+  function setaPressaoCorreta(hist, idx) {
+    const p = hist[idx];
+    const anterior = idx > 0 ? hist[idx - 1] : null;
+    if (!anterior) return { seta: "·", cor: "var(--text-faint)" };
+    if (p.pctCorreta > anterior.pctCorreta) return { seta: "▲", cor: "var(--success)" };
+    if (p.pctCorreta < anterior.pctCorreta) return { seta: "▼", cor: "var(--danger)" };
+    return { seta: "—", cor: "var(--text-faint)" };
+  }
+  // Seta ao lado do valor grande "% pressão correta" (pedido do Joao, 2026-09-17): reaproveita
+  // a seta do ponto mais recente do histórico — é literalmente a mesma seta que já aparece na
+  // 1ª linha do histórico embaixo, só que também colada no número grande. Mesma ressalva de
+  // escopo do histórico (todas as filiais/geral) se aplica aqui.
+  function pressaoCorretaValueArrowHtml() {
+    const hist = (DATA.pressaoCorretaHistorico || []).filter((p) => p.pctCorreta != null);
+    if (hist.length < 2) return "";
+    const { seta, cor } = setaPressaoCorreta(hist, hist.length - 1);
+    return `<span style="color:${cor};font-size:20px;font-weight:700;" title="Tendência (todas as filiais) vs. a atualização anterior">${seta}</span>`;
+  }
   function pressaoCorretaTrendHtml() {
     const hist = (DATA.pressaoCorretaHistorico || []).filter((p) => p.pctCorreta != null);
     if (hist.length < 2) return "";
     const ultimos = hist.slice(-3);
     const linhas = ultimos.map((p) => {
       const idx = hist.indexOf(p);
-      const anterior = idx > 0 ? hist[idx - 1] : null;
-      let seta, cor;
-      if (!anterior) { seta = "·"; cor = "var(--text-faint)"; }
-      else if (p.pctCorreta > anterior.pctCorreta) { seta = "▲"; cor = "var(--success)"; }
-      else if (p.pctCorreta < anterior.pctCorreta) { seta = "▼"; cor = "var(--danger)"; }
-      else { seta = "—"; cor = "var(--text-faint)"; }
+      const { seta, cor } = setaPressaoCorreta(hist, idx);
       const diaMes = /^\d{4}-\d{2}-\d{2}/.test(p.data) ? `${p.data.slice(8, 10)}/${p.data.slice(5, 7)}` : p.data;
       return { pctCorreta: p.pctCorreta, diaMes, seta, cor };
     }).reverse();
@@ -1519,8 +1538,15 @@
     const faixaCounts = { muito_baixa: 0, baixa: 0, correta: 0, alta: 0, muito_alta: 0 };
     comPadraoELeitura.forEach((t) => { faixaCounts[t.faixa] = (faixaCounts[t.faixa] || 0) + 1; });
 
-    // Quadro 2: % pneus com pressão correta, entre os com leitura e padrão conhecidos.
-    const pctCorreta = comPadraoELeitura.length ? (faixaCounts.correta / comPadraoELeitura.length) * 100 : 0;
+    // Quadro 2: % pneus com pressão correta. O denominador é "pneus com padrão de medida
+    // conhecido" (só exclui semPadrao) — NÃO "com leitura e padrão conhecidos" como era antes
+    // (2026-09-17: o Joao notou que esse número não batia com a rosca "Composição por faixa" ao
+    // lado, que já conta pressão zero como uma fatia própria no total). Igual foi decidido pro
+    // quadro "fora do padrão" nesta mesma sessão, pressão zero é tratada como "não correta" (não
+    // como "sem dado a ignorar") — então agora entra no denominador, só não conta como acerto.
+    // Isso faz esse % bater exatamente com o "Correta" da rosca (mesmo `rows`, mesma exclusão).
+    const totalComPadraoConhecido = rows.length - semPadrao.length;
+    const pctCorreta = totalComPadraoConhecido ? (faixaCounts.correta / totalComPadraoConhecido) * 100 : 0;
     // Quadro 3: % pneus inspecionados nesta quinzena/mês, sobre o universo de pneus do escopo.
     // No modo "Geral" NÃO é rows/universoFilial (seria sempre 100%, rows===universoFilial por
     // construção) e também NÃO é união (pedido explícito do Joao, 2026-09-14): é a SOMA direta
@@ -1634,7 +1660,7 @@
 
     return {
       round, disponivel, rows, universoFilial, foraPadrao, semLeitura, semPadrao, cobertura, faixaCounts,
-      pctCorreta, pctInspecionados, pctPressaoZero, insp, barData, pieData, pressaoQuadro3Geral,
+      pctCorreta, totalComPadraoConhecido, pctInspecionados, pctPressaoZero, insp, barData, pieData, pressaoQuadro3Geral,
       foraPadraoDetalhe, veiculosForaPadrao,
     };
   }
@@ -1658,7 +1684,7 @@
       ${panelHeader("Pressão de Ar", desc, filiais, roundsPressao)}
       <div class="kpi-grid">
         ${kpiCard("% veículos inspecionados", fmtPct(d.insp.pctAtingido), `${Math.max(0, d.insp.denom - d.insp.pendentes)} de ${d.insp.denom} veículos${scopeLabel} — ${rodadaLabel}`, ICONS.truck, d.insp.pctAtingido >= 85 ? "var(--success)" : d.insp.pctAtingido >= 70 ? "var(--warning)" : "var(--danger)", "veiculos_inspecionados", isSel("veiculos_inspecionados"))}
-        ${kpiCard("% pressão correta", fmtPct(d.pctCorreta), `${d.faixaCounts.correta} de ${d.rows.length - d.semLeitura.length - d.semPadrao.length} pneus com leitura e padrão conhecidos${scopeLabel}`, ICONS.ring, d.pctCorreta >= 70 ? "var(--success)" : d.pctCorreta >= 40 ? "var(--warning)" : "var(--danger)", "pressao_correta", isSel("pressao_correta"), pressaoCorretaTrendHtml())}
+        ${kpiCard("% pressão correta", fmtPct(d.pctCorreta), `${d.faixaCounts.correta} de ${d.totalComPadraoConhecido} pneus com padrão de medida conhecido${scopeLabel} — mesmo total da rosca ao lado (pressão zero conta como "não correta")`, ICONS.ring, d.pctCorreta >= 70 ? "var(--success)" : d.pctCorreta >= 40 ? "var(--warning)" : "var(--danger)", "pressao_correta", isSel("pressao_correta"), pressaoCorretaTrendHtml(), pressaoCorretaValueArrowHtml())}
         ${kpiCard("% pneus inspecionados", fmtPct(d.pctInspecionados), pressaoQuadro3Hint(d, scopeLabel, rodadaLabel), ICONS.clipboard, d.pctInspecionados >= 85 ? "var(--success)" : d.pctInspecionados >= 60 ? "var(--warning)" : "var(--danger)", "pneus_inspecionados", isSel("pneus_inspecionados"))}
         ${kpiCard("% pressão zero", fmtPct(d.pctPressaoZero), `${d.semLeitura.length} de ${d.rows.length} pneus sem leitura${scopeLabel}`, ICONS.alert, d.pctPressaoZero >= 15 ? "var(--danger)" : d.pctPressaoZero >= 5 ? "var(--warning)" : "var(--success)", "pressao_zero", isSel("pressao_zero"))}
       </div>
