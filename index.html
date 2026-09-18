@@ -794,6 +794,95 @@
       ${linhasHtml}
     </div>`;
   }
+
+  // ------------------------------------------------------------------
+  // Histórico/seta dos 4 primeiros quadros da aba Sulco Baixo (pedido do Joao,
+  // 2026-09-18: "quero essa mesma regra pros 4 primeiros quadros do sulco baixo" — mesmo
+  // padrão de valor grande + seta + histórico sem repetir hoje já usado em "% pressão
+  // correta", com filtro por filial desde o início (ele pediu explicitamente dessa vez).
+  // Diferença importante de cor: em pressão, MAIS "% correta" é sempre melhor (verde =
+  // subiu). Em sulco é o oposto — mais veículo/pneu afetado é sempre PIOR, então aqui
+  // "subiu" é vermelho e "desceu" é verde. `setaTendenciaPior` existe só por causa dessa
+  // inversão; `setaPressaoCorreta` (pressão) continua com a convenção normal, sem mudança.
+  // ------------------------------------------------------------------
+  function setaTendenciaPior(atual, anterior) {
+    if (atual == null || anterior == null) return { seta: "·", cor: "var(--text-faint)" };
+    if (atual > anterior) return { seta: "▲", cor: "var(--danger)" };
+    if (atual < anterior) return { seta: "▼", cor: "var(--success)" };
+    return { seta: "—", cor: "var(--text-faint)" };
+  }
+  // Série de pontos {data, veiculosAfetados, totalRegistrados, pneusParaTrocar,
+  // pneusEmAtencao} pro escopo de filial ativo — mesmo padrão de
+  // pressaoCorretaSerieParaEscopo() (soma os 4 números quando várias filiais estão
+  // selecionadas via Ctrl+clique, e recalcula quem depende de razão — % da frota — em
+  // cima da soma, não da média das razões individuais).
+  function sulcoKpisSerieParaEscopo() {
+    const escopo = activeScope();
+    const porFilial = DATA.sulcoKpisHistoricoPorFilial;
+    if (escopo === "all" || !porFilial) return DATA.sulcoKpisHistorico || [];
+    const filiais = escopo instanceof Set ? Array.from(escopo) : [escopo];
+    const series = filiais.map((f) => porFilial[f]).filter(Boolean);
+    if (!series.length) return [];
+    if (series.length === 1) return series[0];
+    const porData = new Map();
+    series.forEach((serie) => serie.forEach((p) => {
+      const acc = porData.get(p.data) || { data: p.data, veiculosAfetados: 0, totalRegistrados: 0, pneusParaTrocar: 0, pneusEmAtencao: 0 };
+      acc.veiculosAfetados += p.veiculosAfetados || 0;
+      acc.totalRegistrados += p.totalRegistrados || 0;
+      acc.pneusParaTrocar += p.pneusParaTrocar || 0;
+      acc.pneusEmAtencao += p.pneusEmAtencao || 0;
+      porData.set(p.data, acc);
+    }));
+    return Array.from(porData.values()).sort((a, b) => a.data.localeCompare(b.data));
+  }
+  // `metricFn` extrai o número a exibir de um ponto da série (ex.: p => p.veiculosAfetados,
+  // ou p => % calculada a partir de veiculosAfetados/totalRegistrados). `formatFn` formata
+  // esse número pro texto (fmtInt ou fmtPct). Reaproveitado pelas 4 versões abaixo (uma por
+  // quadro) em vez de 4 cópias quase idênticas da mesma lógica de seta/histórico.
+  function sulcoKpiValueArrowHtml(metricFn) {
+    const serie = sulcoKpisSerieParaEscopo().map((p) => metricFn(p));
+    if (serie.length < 2) return "";
+    const { seta, cor } = setaTendenciaPior(serie[serie.length - 1], serie[serie.length - 2]);
+    return `<span style="color:${cor};font-size:20px;font-weight:700;" title="Tendência (${escapeHtml(pressaoCorretaEscopoLabel())}) vs. a atualização anterior">${seta}</span>`;
+  }
+  function sulcoKpiTrendHtml(metricFn, formatFn) {
+    const pontos = sulcoKpisSerieParaEscopo();
+    const serie = pontos.map((p) => metricFn(p));
+    if (serie.length < 2) return "";
+    // mesma regra da Vigésima terceira mudança (pressão): o ponto de hoje já é o valor
+    // grande, o histórico abaixo lista só os pontos ANTERIORES a ele.
+    const semMaisRecente = pontos.slice(0, -1);
+    const ultimos = semMaisRecente.slice(-3);
+    const linhas = ultimos.map((p) => {
+      const idx = pontos.indexOf(p);
+      const valor = metricFn(p);
+      const anterior = idx > 0 ? metricFn(pontos[idx - 1]) : null;
+      const { seta, cor } = setaTendenciaPior(valor, anterior);
+      const diaMes = /^\d{4}-\d{2}-\d{2}/.test(p.data) ? `${p.data.slice(8, 10)}/${p.data.slice(5, 7)}` : p.data;
+      return { valor, diaMes, seta, cor };
+    }).reverse();
+    if (!linhas.length) return "";
+    const linhasHtml = linhas.map((l, i) => {
+      const fonte = i === 0 ? "12.5px" : i === 1 ? "11.5px" : "11px";
+      const peso = i === 0 ? "700" : "600";
+      return `<div style="display:flex;align-items:center;gap:5px;font-size:${fonte};font-weight:${peso};color:var(--text-dim);margin-top:3px;">
+        <span style="color:${l.cor};width:10px;display:inline-block;text-align:center;">${l.seta}</span>
+        <span style="color:var(--text);">${formatFn(l.valor)}</span>
+        <span style="color:var(--text-faint);font-weight:400;">${l.diaMes}</span>
+      </div>`;
+    }).join("");
+    return `<div style="margin-top:8px;padding-top:8px;border-top:1px dashed var(--border-strong);">
+      <div style="font-size:9px;text-transform:uppercase;letter-spacing:.06em;color:var(--text-faint);margin-bottom:2px;" title="1 ponto por dia — atualizar de novo no mesmo dia substitui o ponto de hoje, não duplica. Não repete a data de hoje, que já é o valor grande acima.">Histórico · ${escapeHtml(pressaoCorretaEscopoLabel())}</div>
+      ${linhasHtml}
+    </div>`;
+  }
+  // % da frota afetada arredondado (1 casa) — usado IGUAL tanto na seta do valor grande quanto
+  // no histórico, pra não correr risco de arredondamento fazer os dois discordarem sobre se
+  // subiu/desceu/empatou (ex.: 52.44% vs 52.46% arredondam pro mesmo 52.4%, então tem que ser
+  // sempre o valor JÁ arredondado que entra no setaTendenciaPior, não o raw ratio).
+  function sulcoPctFrotaMetric(p) {
+    return p.totalRegistrados ? Math.round((p.veiculosAfetados / p.totalRegistrados) * 1000) / 10 : null;
+  }
   function severityPill(level, label) {
     const cls = level === "danger" ? "pill-danger" : level === "warning" ? "pill-warning" : level === "success" ? "pill-success" : "pill-neutral";
     return `<span class="pill ${cls}"><span class="pill-dot"></span>${escapeHtml(label)}</span>`;
@@ -1422,10 +1511,10 @@
     return `
       ${panelHeader("Sulco Baixo", desc, filiais, sulcoFilterToggle)}
       <div class="kpi-grid">
-        ${kpiCard(state.sulcoSoTrocar ? "Veículos com pneu p/ trocar" : "Veículos afetados", d.filtered.length, `de ${d.denom} veículos registrados${scopeLabelText()}`, ICONS.truck, "var(--warning)")}
-        ${kpiCard("% da frota afetada", fmtPct(d.pctFrota), `veículos afetados ÷ frota registrada${scopeLabelText()}`, ICONS.gauge, d.pctFrota >= 30 ? "var(--danger)" : d.pctFrota >= 15 ? "var(--warning)" : "var(--success)")}
-        ${kpiCard("Pneus para trocar (≤ 3mm)", d.trocarCount, "troca imediata", ICONS.alert, "var(--danger)")}
-        ${kpiCard("Pneus em atenção (3,1–5mm)", d.atencaoCount, state.sulcoSoTrocar ? "não exibidos na tabela agora" : "programar substituição", ICONS.gauge, "var(--warning)")}
+        ${kpiCard(state.sulcoSoTrocar ? "Veículos com pneu p/ trocar" : "Veículos afetados", d.filtered.length, `de ${d.denom} veículos registrados${scopeLabelText()}${state.sulcoSoTrocar ? " — histórico abaixo é sempre do critério padrão (≤5mm)" : ""}`, ICONS.truck, "var(--warning)", undefined, undefined, sulcoKpiTrendHtml((p) => p.veiculosAfetados, fmtInt), sulcoKpiValueArrowHtml((p) => p.veiculosAfetados))}
+        ${kpiCard("% da frota afetada", fmtPct(d.pctFrota), `veículos afetados ÷ frota registrada${scopeLabelText()}${state.sulcoSoTrocar ? " — histórico abaixo é sempre do critério padrão (≤5mm)" : ""}`, ICONS.gauge, d.pctFrota >= 30 ? "var(--danger)" : d.pctFrota >= 15 ? "var(--warning)" : "var(--success)", undefined, undefined, sulcoKpiTrendHtml(sulcoPctFrotaMetric, fmtPct), sulcoKpiValueArrowHtml(sulcoPctFrotaMetric))}
+        ${kpiCard("Pneus para trocar (≤ 3mm)", d.trocarCount, "troca imediata", ICONS.alert, "var(--danger)", undefined, undefined, sulcoKpiTrendHtml((p) => p.pneusParaTrocar, fmtInt), sulcoKpiValueArrowHtml((p) => p.pneusParaTrocar))}
+        ${kpiCard("Pneus em atenção (3,1–5mm)", d.atencaoCount, state.sulcoSoTrocar ? "não exibidos na tabela agora" : "programar substituição", ICONS.gauge, "var(--warning)", undefined, undefined, sulcoKpiTrendHtml((p) => p.pneusEmAtencao, fmtInt), sulcoKpiValueArrowHtml((p) => p.pneusEmAtencao))}
         ${kpiCard("Filial mais crítica (%)", filialSigla(d.top.filial), d.top.veiculos > 0 ? `${d.top.veiculos} de ${registradosTotal(d.top.filial)} (${fmtPct(d.top.pct)}) — ${filialFullName(d.top.filial)}` : "—", ICONS.building, "var(--danger)")}
       </div>
       <div class="card">
