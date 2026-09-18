@@ -749,22 +749,17 @@
     }
     return filialFullName(escopo);
   }
-  // Seta ao lado do valor grande "% pressão correta" (pedido do Joao, 2026-09-17): reaproveita
-  // a seta do ponto mais recente do histórico (já filtrado pro escopo ativo) — é literalmente
-  // a mesma seta que já aparece na 1ª linha do histórico embaixo, só que também colada no
-  // número grande. Desde 2026-09-18 (pedido do Joao: "não faz sentido eu medir nesse mês o que
-  // foi lido mês passado, quero acompanhar meu mês atual"), o histórico usa a MESMA régua do
-  // valor grande — cada ponto só conta pneu cuja leitura mais recente até aquele dia foi feita
-  // no mesmo mês civil daquele dia (ver build_pressao_correta_historico_detalhado, generate_
-  // data.py). Antes (2026-09-17) o histórico contava todo pneu já lido alguma vez, mesmo com
-  // leitura de mês passado, o que fazia esse número divergir do valor grande mesmo no mesmo
-  // dia — corrigido, não é mais esperado que divirjam por esse motivo.
-  function pressaoCorretaValueArrowHtml() {
-    const hist = pressaoCorretaSerieParaEscopo().filter((p) => p.pctCorreta != null);
-    if (hist.length < 2) return "";
-    const { seta, cor } = setaPressaoCorreta(hist, hist.length - 1);
-    return `<span style="color:${cor};font-size:20px;font-weight:700;" title="Tendência (${escapeHtml(pressaoCorretaEscopoLabel())}) vs. a atualização anterior — só pneu lido no mesmo mês de cada ponto, mesma regra do valor ao lado">${seta}</span>`;
-  }
+  // Removida em 2026-09-18 (pedido do Joao): existia uma seta colada no valor grande "%
+  // pressão correta", reaproveitando a seta do ponto mais recente do histórico (pedido
+  // original de 2026-09-17, quando o valor grande e o histórico ainda podiam divergir mesmo
+  // no mesmo dia — a seta grande era uma forma de mostrar a tendência de qualquer jeito).
+  // Depois das correções de 2026-09-18 (histórico e card "Geral" passaram a usar a MESMA
+  // regra de "mês atual"), os dois ficaram sempre iguais no dia mais recente — então a seta
+  // grande virou uma repetição exata (mesmo número, mesma seta) da 1ª linha do bloco
+  // "Histórico" logo abaixo. O Joao notou e pediu pra tirar a repetição: função
+  // `pressaoCorretaValueArrowHtml` removida e o 9º argumento de `kpiCard` (valueArrowHtml)
+  // deixou de ser passado nesta chamada — a tendência continua visível, só que uma vez só,
+  // na própria linha do histórico.
   function pressaoCorretaTrendHtml() {
     const hist = pressaoCorretaSerieParaEscopo().filter((p) => p.pctCorreta != null);
     if (hist.length < 2) return "";
@@ -1794,7 +1789,7 @@
       ${panelHeader("Pressão de Ar", desc, filiais, roundsPressao)}
       <div class="kpi-grid">
         ${kpiCard("% veículos inspecionados", fmtPct(d.insp.pctAtingido), veiculosQuadro1Hint(d, scopeLabel, rodadaLabel), ICONS.truck, d.insp.pctAtingido >= 85 ? "var(--success)" : d.insp.pctAtingido >= 70 ? "var(--warning)" : "var(--danger)", "veiculos_inspecionados", isSel("veiculos_inspecionados"))}
-        ${kpiCard("% pressão correta", fmtPct(d.pctCorreta), `${d.faixaCounts.correta} de ${d.totalComPadraoConhecido} pneus com padrão de medida conhecido${scopeLabel} — mesmo total da rosca ao lado (pressão zero conta como "não correta")`, ICONS.ring, d.pctCorreta >= 70 ? "var(--success)" : d.pctCorreta >= 40 ? "var(--warning)" : "var(--danger)", "pressao_correta", isSel("pressao_correta"), pressaoCorretaTrendHtml(), pressaoCorretaValueArrowHtml())}
+        ${kpiCard("% pressão correta", fmtPct(d.pctCorreta), `${d.faixaCounts.correta} de ${d.totalComPadraoConhecido} pneus com padrão de medida conhecido${scopeLabel} — mesmo total da rosca ao lado (pressão zero conta como "não correta")`, ICONS.ring, d.pctCorreta >= 70 ? "var(--success)" : d.pctCorreta >= 40 ? "var(--warning)" : "var(--danger)", "pressao_correta", isSel("pressao_correta"), pressaoCorretaTrendHtml())}
         ${kpiCard("% pneus inspecionados", fmtPct(d.pctInspecionados), pressaoQuadro3Hint(d, scopeLabel, rodadaLabel), ICONS.clipboard, d.pctInspecionados >= 85 ? "var(--success)" : d.pctInspecionados >= 60 ? "var(--warning)" : "var(--danger)", "pneus_inspecionados", isSel("pneus_inspecionados"))}
         ${kpiCard("% pressão zero", fmtPct(d.pctPressaoZero), `${d.semLeitura.length} de ${d.rows.length} pneus sem leitura${scopeLabel}`, ICONS.alert, d.pctPressaoZero >= 15 ? "var(--danger)" : d.pctPressaoZero >= 5 ? "var(--warning)" : "var(--success)", "pressao_zero", isSel("pressao_zero"))}
       </div>
