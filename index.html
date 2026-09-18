@@ -485,6 +485,11 @@
     pressaoFiltroSel: new Set(),
     pressaoFaixaSel: new Set(),
     selVeiculoPressao: null,
+    // Seleção de fatia na rosca "Composição das pendências" (aba Inspeções Pendentes, modo
+    // Geral) — mesmo padrão da rosca de Pressão de Ar (clique/Ctrl+clique), pedido do Joao em
+    // 2026-09-18 ("quero que o gráfico de rosca seja interativo também, do mesmo jeito que o da
+    // pressão").
+    inspGeralFaixaSel: new Set(),
   };
 
   // ------------------------------------------------------------------
@@ -978,6 +983,31 @@
   // ------------------------------------------------------------------
   // Painel: Inspeções Pendentes
   // ------------------------------------------------------------------
+  // Rótulos das 3 fatias da rosca "Composição das pendências" (modo Geral) — mesmas chaves já
+  // usadas em `r.status` (cronico/so_q1/so_q2), reaproveitadas como `key` do donut pra permitir
+  // clique/Ctrl+clique, igual à rosca "Composição por faixa" de Pressão de Ar.
+  const INSP_GERAL_FAIXA_LABEL = { cronico: "Pendente nas 2 quinzenas", so_q1: "Só pendente na 1ª quinzena", so_q2: "Só pendente na 2ª quinzena" };
+  // Clicar numa fatia/legenda da rosca filtra o gráfico de barras por filial e a tabela abaixo
+  // pra só aquela(s) situação(ões) — Ctrl+clique soma mais de uma, mesmo padrão BI já usado em
+  // Pressão de Ar. NÃO filtra a própria rosca (mesmo motivo já documentado em `togglePressaoFaixa`
+  // — filtrar o donut pela própria seleção faria as outras fatias sumirem dele mesmo).
+  function toggleInspGeralFaixa(faixa, multi) {
+    if (multi) {
+      if (state.inspGeralFaixaSel.has(faixa)) state.inspGeralFaixaSel.delete(faixa);
+      else state.inspGeralFaixaSel.add(faixa);
+    } else {
+      if (state.inspGeralFaixaSel.size === 1 && state.inspGeralFaixaSel.has(faixa)) state.inspGeralFaixaSel.clear();
+      else { state.inspGeralFaixaSel.clear(); state.inspGeralFaixaSel.add(faixa); }
+    }
+    render();
+  }
+  function inspGeralFaixaHint() {
+    if (state.inspGeralFaixaSel.size === 0) {
+      return `<div class="chart-hint">Clique numa fatia acima pra filtrar o gráfico de barras e a tabela · Ctrl+clique pra combinar várias.</div>`;
+    }
+    const names = Array.from(state.inspGeralFaixaSel).map((k) => INSP_GERAL_FAIXA_LABEL[k] || k).join(", ");
+    return `<div class="chart-hint">Filtrando por situação: <strong style="color:var(--text-dim)">${escapeHtml(names)}</strong><button class="clear-sel-btn" id="clear-insp-faixa-sel">limpar seleção</button></div>`;
+  }
   function computeInspecoes() {
     // Mês selecionado no dropdown (ou o mais recente disponível, por padrão). historicoMensal
     // guarda um snapshot insp1/insp2 por mês; sem ele (DATA antigo), cai de volta pros campos
@@ -1021,18 +1051,27 @@
       const pendentesReais = filtered.filter(pendenteFn).length;
       const pct = denom ? (pendentesReais / denom) * 100 : 0;
       const pctAtingido = 100 - pct;
+      // Seleção da rosca "Composição das pendências" (clique/Ctrl+clique numa fatia). NÃO entra
+      // nos números acima (cronico/soQ1/soQ2/pendentesReais/pct) — esses continuam sendo o
+      // resumo "de verdade" do mês, igual ao "% pressão correta" de Pressão de Ar não mudar só
+      // porque uma faixa foi selecionada na rosca de lá. A seleção só cruza pro gráfico de
+      // barras (abaixo) e pra tabela (via `filteredTabela`, retornado separado de `filtered`).
+      const selFaixaInsp = state.inspGeralFaixaSel;
+      const passaFaixaInsp = (r) => selFaixaInsp.size === 0 || selFaixaInsp.has(r.status);
       const byFilialMap = new Map();
-      rows.filter(pendenteFn).forEach((r) => byFilialMap.set(r.filial, (byFilialMap.get(r.filial) || 0) + 1));
+      const rowsParaBarra = selFaixaInsp.size === 0 ? rows.filter(pendenteFn) : rows.filter(passaFaixaInsp);
+      rowsParaBarra.forEach((r) => byFilialMap.set(r.filial, (byFilialMap.get(r.filial) || 0) + 1));
       const barData = Array.from(byFilialMap, ([filial, veiculos]) => {
         const reg = registradosTotal(filial);
         return { filial, veiculos, pct: reg ? (veiculos / reg) * 100 : 0 };
       }).sort((a, b) => b.veiculos - a.veiculos);
       const pieData = [
-        { name: "Pendente nas 2 quinzenas", value: cronico, color: "var(--danger)" },
-        { name: "Só pendente na 1ª quinzena", value: soQ1, color: "var(--text-faint)" },
-        { name: "Só pendente na 2ª quinzena", value: soQ2, color: "var(--warning)" },
+        { key: "cronico", name: INSP_GERAL_FAIXA_LABEL.cronico, value: cronico, color: "var(--danger)" },
+        { key: "so_q1", name: INSP_GERAL_FAIXA_LABEL.so_q1, value: soQ1, color: "var(--text-faint)" },
+        { key: "so_q2", name: INSP_GERAL_FAIXA_LABEL.so_q2, value: soQ2, color: "var(--warning)" },
       ].filter((p) => p.value > 0);
-      return { filtered, barData, source: unionAll, cronico, soQ1, soQ2, pendentesReais, pct, pctAtingido, denom, scopeFilial, pieData, geral: true, insp1Ok, insp2Ok, mesAtivo };
+      const filteredTabela = filtered.filter(passaFaixaInsp);
+      return { filtered, filteredTabela, barData, source: unionAll, cronico, soQ1, soQ2, pendentesReais, pct, pctAtingido, denom, scopeFilial, pieData, geral: true, insp1Ok, insp2Ok, mesAtivo };
     }
     const source = state.inspRound === "insp1" ? mesDados.insp1 : mesDados.insp2;
     let rows = source;
@@ -1101,6 +1140,7 @@
           </div>
           <div class="card">
             <div class="card-title">Composição das pendências no mês${scopeLabel}</div>
+            ${inspGeralFaixaHint()}
             <div id="chart-insp-pie"></div>
           </div>
         </div>
@@ -1108,8 +1148,8 @@
           <table>
             <thead><tr>${sortTh("veiculo", "Veículo")}${sortTh("filial", "Filial")}${sortTh("classe", "Classe")}${sortTh("q1", "1ª quinz.")}${sortTh("q2", "2ª quinz.")}${sortTh("situacao", "Situação")}</tr></thead>
             <tbody>
-              ${d.filtered.length === 0 ? emptyRow(6, "Nenhum veículo encontrado.") :
-                applySort(d.filtered, {
+              ${d.filteredTabela.length === 0 ? emptyRow(6, "Nenhum veículo encontrado.") :
+                applySort(d.filteredTabela, {
                   veiculo: (r) => r.veiculo, filial: (r) => normalizeText(filialFullName(r.filial)),
                   classe: (r) => r.classe || "", q1: (r) => r.emQ1 ? 1 : 0, q2: (r) => r.emQ2 ? 1 : 0,
                   situacao: (r) => r.status === "cronico" ? 2 : r.status === "so_q2" ? 1 : 0,
@@ -1123,7 +1163,7 @@
                 </tr>`).join("")}
             </tbody>
           </table>
-          <div class="table-note">${d.filtered.length} de ${d.source.length} veículos únicos no mês${scopeLabel} · aparecer em só uma quinzena não confirma regularização, apenas que não constou pendente na outra checagem.</div>
+          <div class="table-note">${d.filteredTabela.length} de ${d.source.length} veículos únicos no mês${scopeLabel} · aparecer em só uma quinzena não confirma regularização, apenas que não constou pendente na outra checagem.</div>
         </div>`;
     }
 
@@ -2048,7 +2088,7 @@
       state.filtroFilial = "all"; state.busca = ""; state.selFiliais.clear(); state.inspMes = null;
       state.sortKey = null; state.sortDir = 1; state.selVeiculoSulco = null; state.selVeiculoVazias = null;
       state.selVeiculoPressao = null;
-      state.pressaoFiltroSel.clear(); state.pressaoFaixaSel.clear();
+      state.pressaoFiltroSel.clear(); state.pressaoFaixaSel.clear(); state.inspGeralFaixaSel.clear();
       state.sidebarOpen = false;
       document.getElementById("sidebar").classList.remove("open");
       document.getElementById("overlay").classList.remove("open");
@@ -2058,7 +2098,7 @@
 
   function bindToolbar() {
     const selF = document.getElementById("ctl-filial");
-    if (selF) selF.addEventListener("change", () => { state.filtroFilial = selF.value; state.selFiliais.clear(); state.pressaoFiltroSel.clear(); state.pressaoFaixaSel.clear(); render(); });
+    if (selF) selF.addEventListener("change", () => { state.filtroFilial = selF.value; state.selFiliais.clear(); state.pressaoFiltroSel.clear(); state.pressaoFaixaSel.clear(); state.inspGeralFaixaSel.clear(); render(); });
     const inputB = document.getElementById("ctl-busca");
     if (inputB) inputB.addEventListener("input", () => {
       state.busca = inputB.value;
@@ -2071,10 +2111,10 @@
       }
     });
     document.querySelectorAll(".seg-btn[data-round]").forEach((btn) => btn.addEventListener("click", () => {
-      state.inspRound = btn.getAttribute("data-round"); state.selFiliais.clear(); render();
+      state.inspRound = btn.getAttribute("data-round"); state.selFiliais.clear(); state.inspGeralFaixaSel.clear(); render();
     }));
     const selMes = document.getElementById("ctl-mes-insp");
-    if (selMes) selMes.addEventListener("change", () => { state.inspMes = selMes.value; state.selFiliais.clear(); render(); });
+    if (selMes) selMes.addEventListener("change", () => { state.inspMes = selMes.value; state.selFiliais.clear(); state.inspGeralFaixaSel.clear(); render(); });
     document.querySelectorAll(".seg-btn[data-sulco-filter]").forEach((btn) => btn.addEventListener("click", () => {
       state.sulcoSoTrocar = btn.getAttribute("data-sulco-filter") === "trocar"; render();
     }));
@@ -2090,6 +2130,8 @@
     if (clearQuadroBtn) clearQuadroBtn.addEventListener("click", (ev) => { ev.stopPropagation(); state.pressaoFiltroSel.clear(); render(); });
     const clearFaixaBtn = document.getElementById("clear-faixa-sel");
     if (clearFaixaBtn) clearFaixaBtn.addEventListener("click", (ev) => { ev.stopPropagation(); state.pressaoFaixaSel.clear(); render(); });
+    const clearInspFaixaBtn = document.getElementById("clear-insp-faixa-sel");
+    if (clearInspFaixaBtn) clearInspFaixaBtn.addEventListener("click", (ev) => { ev.stopPropagation(); state.inspGeralFaixaSel.clear(); render(); });
   }
 
   // Clique numa barra: seleciona só ela (ou desmarca se já era a única selecionada).
@@ -2113,7 +2155,7 @@
     } else if (state.panel === "inspecoes") {
       const d = computeInspecoes();
       renderBarChart("chart-insp-bar", d.barData, "veiculos", state.selFiliais, toggleFilialSelection, "var(--chart2)", { percent: false });
-      if (d.geral) renderDonut("chart-insp-pie", d.pieData);
+      if (d.geral) renderDonut("chart-insp-pie", d.pieData, state.inspGeralFaixaSel, toggleInspGeralFaixa);
     } else if (state.panel === "sulco") {
       const d = computeSulco();
       renderBarChart("chart-sulco-bar", d.barData, "pneus", state.selFiliais, toggleFilialSelection, "var(--danger)", { percent: false });
