@@ -749,27 +749,37 @@
     }
     return filialFullName(escopo);
   }
-  // Removida em 2026-09-18 (pedido do Joao): existia uma seta colada no valor grande "%
-  // pressão correta", reaproveitando a seta do ponto mais recente do histórico (pedido
-  // original de 2026-09-17, quando o valor grande e o histórico ainda podiam divergir mesmo
-  // no mesmo dia — a seta grande era uma forma de mostrar a tendência de qualquer jeito).
-  // Depois das correções de 2026-09-18 (histórico e card "Geral" passaram a usar a MESMA
-  // regra de "mês atual"), os dois ficaram sempre iguais no dia mais recente — então a seta
-  // grande virou uma repetição exata (mesmo número, mesma seta) da 1ª linha do bloco
-  // "Histórico" logo abaixo. O Joao notou e pediu pra tirar a repetição: função
-  // `pressaoCorretaValueArrowHtml` removida e o 9º argumento de `kpiCard` (valueArrowHtml)
-  // deixou de ser passado nesta chamada — a tendência continua visível, só que uma vez só,
-  // na própria linha do histórico.
+  // Seta ao lado do valor grande "% pressão correta" (2026-09-17, ajustado 2026-09-18): o
+  // valor grande É o ponto mais recente da série (hoje) — o histórico abaixo (ver
+  // `pressaoCorretaTrendHtml`) não repete essa data, só mostra os pontos ANTERIORES a ela.
+  // Essa seta compara o ponto de hoje com o dia anterior, igual qualquer outra linha do
+  // histórico compara com o dia anterior a ELA — é o mesmo tipo de seta, só que pro ponto
+  // que agora "mora" no valor grande em vez de aparecer como uma linha do histórico.
+  function pressaoCorretaValueArrowHtml() {
+    const hist = pressaoCorretaSerieParaEscopo().filter((p) => p.pctCorreta != null);
+    if (hist.length < 2) return "";
+    const { seta, cor } = setaPressaoCorreta(hist, hist.length - 1);
+    return `<span style="color:${cor};font-size:20px;font-weight:700;" title="Tendência (${escapeHtml(pressaoCorretaEscopoLabel())}) vs. a atualização anterior — só pneu lido no mesmo mês de cada ponto, mesma regra do valor ao lado">${seta}</span>`;
+  }
+  // Histórico dos pontos ANTERIORES ao mais recente. O ponto mais recente (hoje) já é o
+  // próprio valor grande do card, com sua seta ao lado (`pressaoCorretaValueArrowHtml`) —
+  // pedido do Joao, 2026-09-18: "quero que valor mais recente [...] não seja refletido no
+  // maior", com o exemplo "xxx 14/09, 41,4 15/09, 42 16/09, GRANDE - 41,8 17/09" — ou seja,
+  // o histórico embaixo do card lista só os pontos ANTES de hoje (não repete a data/valor
+  // de hoje, que já é o "GRANDE"). Cada linha do histórico mostra sua PRÓPRIA seta,
+  // comparando com o ponto anterior a ELA na série completa (não com o valor grande).
   function pressaoCorretaTrendHtml() {
     const hist = pressaoCorretaSerieParaEscopo().filter((p) => p.pctCorreta != null);
     if (hist.length < 2) return "";
-    const ultimos = hist.slice(-3);
+    const semMaisRecente = hist.slice(0, -1); // tira o ponto de hoje, que já é o valor grande
+    const ultimos = semMaisRecente.slice(-3);
     const linhas = ultimos.map((p) => {
       const idx = hist.indexOf(p);
       const { seta, cor } = setaPressaoCorreta(hist, idx);
       const diaMes = /^\d{4}-\d{2}-\d{2}/.test(p.data) ? `${p.data.slice(8, 10)}/${p.data.slice(5, 7)}` : p.data;
       return { pctCorreta: p.pctCorreta, diaMes, seta, cor };
     }).reverse();
+    if (!linhas.length) return "";
     const linhasHtml = linhas.map((l, i) => {
       const fonte = i === 0 ? "12.5px" : i === 1 ? "11.5px" : "11px";
       const peso = i === 0 ? "700" : "600";
@@ -780,7 +790,7 @@
       </div>`;
     }).join("");
     return `<div style="margin-top:8px;padding-top:8px;border-top:1px dashed var(--border-strong);">
-      <div style="font-size:9px;text-transform:uppercase;letter-spacing:.06em;color:var(--text-faint);margin-bottom:2px;" title="Cada ponto conta só pneu lido no mês daquele ponto (mesma régua do valor grande) — não mistura leitura de mês passado.">Histórico · ${escapeHtml(pressaoCorretaEscopoLabel())}</div>
+      <div style="font-size:9px;text-transform:uppercase;letter-spacing:.06em;color:var(--text-faint);margin-bottom:2px;" title="Cada ponto conta só pneu lido no mês daquele ponto (mesma régua do valor grande) — não mistura leitura de mês passado. Não repete a data de hoje, que já é o valor grande acima.">Histórico · ${escapeHtml(pressaoCorretaEscopoLabel())}</div>
       ${linhasHtml}
     </div>`;
   }
@@ -1789,7 +1799,7 @@
       ${panelHeader("Pressão de Ar", desc, filiais, roundsPressao)}
       <div class="kpi-grid">
         ${kpiCard("% veículos inspecionados", fmtPct(d.insp.pctAtingido), veiculosQuadro1Hint(d, scopeLabel, rodadaLabel), ICONS.truck, d.insp.pctAtingido >= 85 ? "var(--success)" : d.insp.pctAtingido >= 70 ? "var(--warning)" : "var(--danger)", "veiculos_inspecionados", isSel("veiculos_inspecionados"))}
-        ${kpiCard("% pressão correta", fmtPct(d.pctCorreta), `${d.faixaCounts.correta} de ${d.totalComPadraoConhecido} pneus com padrão de medida conhecido${scopeLabel} — mesmo total da rosca ao lado (pressão zero conta como "não correta")`, ICONS.ring, d.pctCorreta >= 70 ? "var(--success)" : d.pctCorreta >= 40 ? "var(--warning)" : "var(--danger)", "pressao_correta", isSel("pressao_correta"), pressaoCorretaTrendHtml())}
+        ${kpiCard("% pressão correta", fmtPct(d.pctCorreta), `${d.faixaCounts.correta} de ${d.totalComPadraoConhecido} pneus com padrão de medida conhecido${scopeLabel} — mesmo total da rosca ao lado (pressão zero conta como "não correta")`, ICONS.ring, d.pctCorreta >= 70 ? "var(--success)" : d.pctCorreta >= 40 ? "var(--warning)" : "var(--danger)", "pressao_correta", isSel("pressao_correta"), pressaoCorretaTrendHtml(), pressaoCorretaValueArrowHtml())}
         ${kpiCard("% pneus inspecionados", fmtPct(d.pctInspecionados), pressaoQuadro3Hint(d, scopeLabel, rodadaLabel), ICONS.clipboard, d.pctInspecionados >= 85 ? "var(--success)" : d.pctInspecionados >= 60 ? "var(--warning)" : "var(--danger)", "pneus_inspecionados", isSel("pneus_inspecionados"))}
         ${kpiCard("% pressão zero", fmtPct(d.pctPressaoZero), `${d.semLeitura.length} de ${d.rows.length} pneus sem leitura${scopeLabel}`, ICONS.alert, d.pctPressaoZero >= 15 ? "var(--danger)" : d.pctPressaoZero >= 5 ? "var(--warning)" : "var(--success)", "pressao_zero", isSel("pressao_zero"))}
       </div>
