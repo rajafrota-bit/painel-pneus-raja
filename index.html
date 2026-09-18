@@ -1525,6 +1525,20 @@
     return `${linha("1ª quinzena", g.insp1)}\n${linha("2ª quinzena", g.insp2)}\nGeral — ${g.somaCount} de ${g.somaTotal} pneus${scopeLabel}`;
   }
 
+  // Hint do quadro 1 (% veículos inspecionados) — mesmo formato do quadro 3 (pedido do Joao,
+  // 2026-09-18): no modo Geral, detalha 1ª/2ª quinzena separado, com "Geral" sendo a SOMA das
+  // duas (não união) — mesma régua do quadro de pneus, pros dois baterem com a mesma lógica.
+  function veiculosQuadro1Hint(d, scopeLabel, rodadaLabel) {
+    if (d.round !== "geral") {
+      return `${Math.max(0, d.insp.denom - d.insp.pendentes)} de ${d.insp.denom} veículos${scopeLabel} — ${rodadaLabel}`;
+    }
+    const g = d.veiculosQuadro1Geral;
+    const linha = (label, q) => q.disponivel
+      ? `${label} — ${q.count} de ${q.total} veículos (${fmtPct(q.total ? (q.count / q.total) * 100 : 0)})`
+      : `${label} — ainda sem leitura`;
+    return `${linha("1ª quinzena", g.insp1)}\n${linha("2ª quinzena", g.insp2)}\nGeral — ${g.somaCount} de ${g.somaTotal} veículos${scopeLabel}`;
+  }
+
   function computePressao() {
     const round = state.pressaoRound;
     // Filtro de filial(dropdown)+busca SEM a seleção de barras (scopeRows) — usado só pra montar
@@ -1615,16 +1629,15 @@
     const totalComPadraoConhecido = rows.length - semPadrao.length;
     const pctCorreta = totalComPadraoConhecido ? (faixaCounts.correta / totalComPadraoConhecido) * 100 : 0;
     // Quadro 3: % pneus inspecionados nesta quinzena/mês, sobre o universo de pneus do escopo.
-    // No modo "Geral", o resumo ("Geral — X de Y pneus") passou a ser `rows.length` sobre
-    // `universoFilial.length` (2026-09-18) — ou seja, o tamanho de `pneusInspecionadosGeralSet`
-    // de verdade, já corrigido (ver comentário acima). ANTES (pedido do Joao, 2026-09-14) esse
-    // resumo era a SOMA das 2 quinzenas em vez de união, pra não dar sempre 100% (bug de uma
-    // versão anterior em que "Geral" comparava o universo com ele mesmo). Isso deixou de ser
-    // necessário desde que "Geral" passou a ser um subconjunto real do universo (não mais
-    // universoFilial inteiro) — usar a soma das quinzenas aqui agora só criaria uma divergência
-    // NOVA e sem necessidade contra o `rows.length` usado por todos os outros quadros/gráficos
-    // desta mesma tela. As linhas "1ª quinzena"/"2ª quinzena" continuam mostrando os números de
-    // cada quinzena isolada, sem mudança — só o resumo "Geral" final foi alinhado.
+    // No modo "Geral" o resumo ("Geral — X de Y pneus") é a SOMA direta das 2 quinzenas — conta
+    // o universo 2x (uma vez por quinzena) e soma quem foi lido em cada uma, pra bater "1ª: X de
+    // Y" + "2ª: X de Y" = "Geral: soma dos X de soma dos Y" (pedido explícito do Joao,
+    // 2026-09-14, reafirmado 2026-09-18 depois de eu ter trocado errado pra uma versão
+    // deduplicada sem ele ter pedido — revertido). Essa soma é DIFERENTE do conjunto
+    // `pneusInspecionadosGeralSet`/`rows` (que usa o campo `geral` do backend, sem duplicar
+    // pneu lido nas duas quinzenas) — `pneusInspecionadosGeralSet` continua sendo o que filtra
+    // os outros quadros (correta/zero/donut/colunas/fora do padrão); só o RESUMO deste quadro 3
+    // é somado, por decisão explícita do Joao, não união.
     const pressaoQuadro3Geral = {
       insp1: {
         count: insp1Geral.length, total: universoFilial.length,
@@ -1635,15 +1648,39 @@
         disponivel: !!(mesDadosGeral && mesDadosGeral.insp2 && mesDadosGeral.insp2.disponivel),
       },
     };
-    pressaoQuadro3Geral.somaCount = rows.length;
-    pressaoQuadro3Geral.somaTotal = universoFilial.length;
+    pressaoQuadro3Geral.somaCount = pressaoQuadro3Geral.insp1.count + pressaoQuadro3Geral.insp2.count;
+    pressaoQuadro3Geral.somaTotal = pressaoQuadro3Geral.insp1.total + pressaoQuadro3Geral.insp2.total;
     const pctInspecionados = round === "geral"
       ? (pressaoQuadro3Geral.somaTotal ? (pressaoQuadro3Geral.somaCount / pressaoQuadro3Geral.somaTotal) * 100 : 0)
       : (universoFilial.length ? (rows.length / universoFilial.length) * 100 : 0);
     // Quadro 4: % pneus com pressão 0 (sem leitura), sobre os pneus considerados na rodada.
     const pctPressaoZero = rows.length ? (semLeitura.length / rows.length) * 100 : 0;
-    // Quadro 1: nível veículo, igual à aba Inspeções Pendentes.
-    const insp = pctVeiculosInspecionados(round);
+    // Quadro 1: nível veículo, igual à aba Inspeções Pendentes. No modo "Geral" (pedido do Joao,
+    // 2026-09-18), mesmo tratamento do quadro 3: mostra 1ª quinzena, 2ª quinzena e "Geral" como
+    // SOMA das duas (não união/crônico) — antes "Geral" aqui era deduplicado (só contava
+    // veículo pendente se estivesse pendente nas DUAS quinzenas), o que dava um número diferente
+    // do padrão de soma já usado no quadro de pneus; agora os dois quadros seguem a mesma regra.
+    const vInsp1 = pctVeiculosInspecionados("insp1");
+    const vInsp2 = pctVeiculosInspecionados("insp2");
+    const veiculosQuadro1Geral = {
+      insp1: {
+        count: Math.max(0, vInsp1.denom - vInsp1.pendentes), total: vInsp1.denom,
+        disponivel: !!(mesDadosGeral && mesDadosGeral.insp1 && mesDadosGeral.insp1.disponivel),
+      },
+      insp2: {
+        count: Math.max(0, vInsp2.denom - vInsp2.pendentes), total: vInsp2.denom,
+        disponivel: !!(mesDadosGeral && mesDadosGeral.insp2 && mesDadosGeral.insp2.disponivel),
+      },
+    };
+    veiculosQuadro1Geral.somaCount = veiculosQuadro1Geral.insp1.count + veiculosQuadro1Geral.insp2.count;
+    veiculosQuadro1Geral.somaTotal = veiculosQuadro1Geral.insp1.total + veiculosQuadro1Geral.insp2.total;
+    const insp = round === "geral"
+      ? {
+          pctAtingido: veiculosQuadro1Geral.somaTotal ? (veiculosQuadro1Geral.somaCount / veiculosQuadro1Geral.somaTotal) * 100 : 0,
+          pendentes: veiculosQuadro1Geral.somaTotal - veiculosQuadro1Geral.somaCount,
+          denom: veiculosQuadro1Geral.somaTotal,
+        }
+      : pctVeiculosInspecionados(round);
 
     // Filtro cruzado dos 4 quadros sobre os 2 gráficos abaixo (união entre os selecionados).
     const pendentesSet = new Set(linhasPendentesNoRound(round).map((r) => r.veiculo));
@@ -1734,7 +1771,7 @@
     return {
       round, disponivel, rows, universoFilial, foraPadrao, semLeitura, semPadrao, cobertura, faixaCounts,
       pctCorreta, totalComPadraoConhecido, pctInspecionados, pctPressaoZero, insp, barData, pieData, pressaoQuadro3Geral,
-      foraPadraoDetalhe, veiculosForaPadrao,
+      veiculosQuadro1Geral, foraPadraoDetalhe, veiculosForaPadrao,
     };
   }
 
@@ -1756,7 +1793,7 @@
     return `
       ${panelHeader("Pressão de Ar", desc, filiais, roundsPressao)}
       <div class="kpi-grid">
-        ${kpiCard("% veículos inspecionados", fmtPct(d.insp.pctAtingido), `${Math.max(0, d.insp.denom - d.insp.pendentes)} de ${d.insp.denom} veículos${scopeLabel} — ${rodadaLabel}`, ICONS.truck, d.insp.pctAtingido >= 85 ? "var(--success)" : d.insp.pctAtingido >= 70 ? "var(--warning)" : "var(--danger)", "veiculos_inspecionados", isSel("veiculos_inspecionados"))}
+        ${kpiCard("% veículos inspecionados", fmtPct(d.insp.pctAtingido), veiculosQuadro1Hint(d, scopeLabel, rodadaLabel), ICONS.truck, d.insp.pctAtingido >= 85 ? "var(--success)" : d.insp.pctAtingido >= 70 ? "var(--warning)" : "var(--danger)", "veiculos_inspecionados", isSel("veiculos_inspecionados"))}
         ${kpiCard("% pressão correta", fmtPct(d.pctCorreta), `${d.faixaCounts.correta} de ${d.totalComPadraoConhecido} pneus com padrão de medida conhecido${scopeLabel} — mesmo total da rosca ao lado (pressão zero conta como "não correta")`, ICONS.ring, d.pctCorreta >= 70 ? "var(--success)" : d.pctCorreta >= 40 ? "var(--warning)" : "var(--danger)", "pressao_correta", isSel("pressao_correta"), pressaoCorretaTrendHtml(), pressaoCorretaValueArrowHtml())}
         ${kpiCard("% pneus inspecionados", fmtPct(d.pctInspecionados), pressaoQuadro3Hint(d, scopeLabel, rodadaLabel), ICONS.clipboard, d.pctInspecionados >= 85 ? "var(--success)" : d.pctInspecionados >= 60 ? "var(--warning)" : "var(--danger)", "pneus_inspecionados", isSel("pneus_inspecionados"))}
         ${kpiCard("% pressão zero", fmtPct(d.pctPressaoZero), `${d.semLeitura.length} de ${d.rows.length} pneus sem leitura${scopeLabel}`, ICONS.alert, d.pctPressaoZero >= 15 ? "var(--danger)" : d.pctPressaoZero >= 5 ? "var(--warning)" : "var(--success)", "pressao_zero", isSel("pressao_zero"))}
