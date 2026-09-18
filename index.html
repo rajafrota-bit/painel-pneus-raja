@@ -1545,22 +1545,37 @@
     // Mesma coisa mas ignorando a seleção de barras (selFiliais) — só pro gráfico de barras.
     const universoFilialTodas = filtraFilialBuscaSemEscopo(DATA.pressaoTires);
 
-    // Conjunto (por id de pneu) dos pneus lidos em pelo menos uma quinzena do mês corrente —
-    // usado só pro quadro 3 (% pneus inspecionados) no modo "Geral". Sem isso, "Geral" comparava
-    // o universo com ele mesmo e sempre dava 100%, o que o Joao pegou (divergência vs. 1ª quinzena).
+    // Conjunto (por id de pneu) dos pneus lidos NESTE MÊS — usado pro modo "Geral" inteiro
+    // (quadro 2/4, donut, colunas por filial, "fora do padrão") e pro quadro 3 (% inspecionados).
+    // Desde 2026-09-18 (pedido do Joao: "quero que estejam os valores corretos dentro do mês"),
+    // vem do campo `geral` calculado no backend (mesma regra do histórico de "% pressão
+    // correta": leitura mais recente conhecida com dataInsp no mês corrente) — ANTES era a
+    // união de insp1+insp2 (pneu lido na 1ª OU 2ª quinzena), que tinha um furo: um pneu com
+    // dataInsp de início do mês mas só DESCOBERTO (entrou no historico_pressao.json) depois do
+    // dia 15 falhava as duas janelas de quinzena e ficava fora do "Geral" mesmo tendo sido lido
+    // de verdade este mês. `dados.js` gerado ANTES desta mudança (sem o campo `geral`) cai de
+    // volta pra união de insp1+insp2, pra não quebrar.
     const mesAtivoGeral = mesPressaoPadrao();
     const mesDadosGeral = mesAtivoGeral && DATA.pressaoHistoricoMensal[mesAtivoGeral];
     const insp1Geral = mesDadosGeral && mesDadosGeral.insp1 && mesDadosGeral.insp1.disponivel
       ? filtraFilialBusca(mesDadosGeral.insp1.pneus) : [];
     const insp2Geral = mesDadosGeral && mesDadosGeral.insp2 && mesDadosGeral.insp2.disponivel
       ? filtraFilialBusca(mesDadosGeral.insp2.pneus) : [];
-    const pneusInspecionadosGeralSet = new Set([...insp1Geral, ...insp2Geral].map((t) => t.pneu));
+    const geralNovo = mesDadosGeral && mesDadosGeral.geral && mesDadosGeral.geral.disponivel
+      ? filtraFilialBusca(mesDadosGeral.geral.pneus) : null;
+    const pneusInspecionadosGeralSet = new Set(
+      (geralNovo || [...insp1Geral, ...insp2Geral]).map((t) => t.pneu)
+    );
     // Versão "todas as filiais" (ignora selFiliais) do mesmo conjunto, só pro gráfico de barras.
     const insp1GeralTodas = mesDadosGeral && mesDadosGeral.insp1 && mesDadosGeral.insp1.disponivel
       ? filtraFilialBuscaSemEscopo(mesDadosGeral.insp1.pneus) : [];
     const insp2GeralTodas = mesDadosGeral && mesDadosGeral.insp2 && mesDadosGeral.insp2.disponivel
       ? filtraFilialBuscaSemEscopo(mesDadosGeral.insp2.pneus) : [];
-    const pneusInspecionadosGeralSetTodas = new Set([...insp1GeralTodas, ...insp2GeralTodas].map((t) => t.pneu));
+    const geralNovoTodas = mesDadosGeral && mesDadosGeral.geral && mesDadosGeral.geral.disponivel
+      ? filtraFilialBuscaSemEscopo(mesDadosGeral.geral.pneus) : null;
+    const pneusInspecionadosGeralSetTodas = new Set(
+      (geralNovoTodas || [...insp1GeralTodas, ...insp2GeralTodas]).map((t) => t.pneu)
+    );
 
     let rows, disponivel = true, rowsTodas;
     if (round === "geral") {
@@ -1600,10 +1615,16 @@
     const totalComPadraoConhecido = rows.length - semPadrao.length;
     const pctCorreta = totalComPadraoConhecido ? (faixaCounts.correta / totalComPadraoConhecido) * 100 : 0;
     // Quadro 3: % pneus inspecionados nesta quinzena/mês, sobre o universo de pneus do escopo.
-    // No modo "Geral" NÃO é rows/universoFilial (seria sempre 100%, rows===universoFilial por
-    // construção) e também NÃO é união (pedido explícito do Joao, 2026-09-14): é a SOMA direta
-    // das 2 quinzenas — conta o universo 2x (uma vez por quinzena) e soma quem foi lido em cada
-    // uma, pra bater "1ª: X de Y" + "2ª: X de Y" = "Geral: soma dos X de soma dos Y".
+    // No modo "Geral", o resumo ("Geral — X de Y pneus") passou a ser `rows.length` sobre
+    // `universoFilial.length` (2026-09-18) — ou seja, o tamanho de `pneusInspecionadosGeralSet`
+    // de verdade, já corrigido (ver comentário acima). ANTES (pedido do Joao, 2026-09-14) esse
+    // resumo era a SOMA das 2 quinzenas em vez de união, pra não dar sempre 100% (bug de uma
+    // versão anterior em que "Geral" comparava o universo com ele mesmo). Isso deixou de ser
+    // necessário desde que "Geral" passou a ser um subconjunto real do universo (não mais
+    // universoFilial inteiro) — usar a soma das quinzenas aqui agora só criaria uma divergência
+    // NOVA e sem necessidade contra o `rows.length` usado por todos os outros quadros/gráficos
+    // desta mesma tela. As linhas "1ª quinzena"/"2ª quinzena" continuam mostrando os números de
+    // cada quinzena isolada, sem mudança — só o resumo "Geral" final foi alinhado.
     const pressaoQuadro3Geral = {
       insp1: {
         count: insp1Geral.length, total: universoFilial.length,
@@ -1614,8 +1635,8 @@
         disponivel: !!(mesDadosGeral && mesDadosGeral.insp2 && mesDadosGeral.insp2.disponivel),
       },
     };
-    pressaoQuadro3Geral.somaCount = pressaoQuadro3Geral.insp1.count + pressaoQuadro3Geral.insp2.count;
-    pressaoQuadro3Geral.somaTotal = pressaoQuadro3Geral.insp1.total + pressaoQuadro3Geral.insp2.total;
+    pressaoQuadro3Geral.somaCount = rows.length;
+    pressaoQuadro3Geral.somaTotal = universoFilial.length;
     const pctInspecionados = round === "geral"
       ? (pressaoQuadro3Geral.somaTotal ? (pressaoQuadro3Geral.somaCount / pressaoQuadro3Geral.somaTotal) * 100 : 0)
       : (universoFilial.length ? (rows.length / universoFilial.length) * 100 : 0);
