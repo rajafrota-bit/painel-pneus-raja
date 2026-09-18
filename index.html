@@ -752,17 +752,18 @@
   // Seta ao lado do valor grande "% pressão correta" (pedido do Joao, 2026-09-17): reaproveita
   // a seta do ponto mais recente do histórico (já filtrado pro escopo ativo) — é literalmente
   // a mesma seta que já aparece na 1ª linha do histórico embaixo, só que também colada no
-  // número grande. IMPORTANTE (mesmo com filial selecionada): o histórico reconstrói a leitura
-  // mais recente de CADA pneu conhecido até aquele dia (todo o parque já lido alguma vez); o
-  // valor grande do card respeita o toggle quinzena/Geral (só pneus lidos NESTE mês). São
-  // populações diferentes por definição — o histórico pode (e vai, às vezes) mostrar um número
-  // diferente do valor grande mesmo no mesmo dia. Não é bug de conta, é escopo diferente por
-  // trás do mesmo rótulo "% pressão correta" — por isso o tooltip abaixo avisa disso.
+  // número grande. Desde 2026-09-18 (pedido do Joao: "não faz sentido eu medir nesse mês o que
+  // foi lido mês passado, quero acompanhar meu mês atual"), o histórico usa a MESMA régua do
+  // valor grande — cada ponto só conta pneu cuja leitura mais recente até aquele dia foi feita
+  // no mesmo mês civil daquele dia (ver build_pressao_correta_historico_detalhado, generate_
+  // data.py). Antes (2026-09-17) o histórico contava todo pneu já lido alguma vez, mesmo com
+  // leitura de mês passado, o que fazia esse número divergir do valor grande mesmo no mesmo
+  // dia — corrigido, não é mais esperado que divirjam por esse motivo.
   function pressaoCorretaValueArrowHtml() {
     const hist = pressaoCorretaSerieParaEscopo().filter((p) => p.pctCorreta != null);
     if (hist.length < 2) return "";
     const { seta, cor } = setaPressaoCorreta(hist, hist.length - 1);
-    return `<span style="color:${cor};font-size:20px;font-weight:700;" title="Tendência (${escapeHtml(pressaoCorretaEscopoLabel())}) vs. a atualização anterior — histórico usa todo pneu já lido alguma vez, pode diferir do valor ao lado (que respeita a quinzena/mês selecionados)">${seta}</span>`;
+    return `<span style="color:${cor};font-size:20px;font-weight:700;" title="Tendência (${escapeHtml(pressaoCorretaEscopoLabel())}) vs. a atualização anterior — só pneu lido no mesmo mês de cada ponto, mesma regra do valor ao lado">${seta}</span>`;
   }
   function pressaoCorretaTrendHtml() {
     const hist = pressaoCorretaSerieParaEscopo().filter((p) => p.pctCorreta != null);
@@ -784,7 +785,7 @@
       </div>`;
     }).join("");
     return `<div style="margin-top:8px;padding-top:8px;border-top:1px dashed var(--border-strong);">
-      <div style="font-size:9px;text-transform:uppercase;letter-spacing:.06em;color:var(--text-faint);margin-bottom:2px;" title="Reconstrói a última leitura conhecida de cada pneu até aquele dia — todo o parque já lido alguma vez, não só o deste mês. Pode diferir do valor grande do card.">Histórico · ${escapeHtml(pressaoCorretaEscopoLabel())}</div>
+      <div style="font-size:9px;text-transform:uppercase;letter-spacing:.06em;color:var(--text-faint);margin-bottom:2px;" title="Cada ponto conta só pneu lido no mês daquele ponto (mesma régua do valor grande) — não mistura leitura de mês passado.">Histórico · ${escapeHtml(pressaoCorretaEscopoLabel())}</div>
       ${linhasHtml}
     </div>`;
   }
