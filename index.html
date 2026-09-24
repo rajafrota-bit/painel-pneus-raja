@@ -1553,10 +1553,13 @@
         <div class="detail-empty">Clique numa linha da tabela pra ver o mapa de pressão de cada pneu do veículo — quais estão OK, muito baixo, baixo, etc.</div>
       </div>`;
     }
-    // `d.rows` já é o universo de pneus lidos no escopo/rodada ativa (o mesmo que monta a
-    // tabela) — filtrar por veículo aqui dá TODOS os pneus dele nesse escopo, não só os fora
-    // do padrão, pra desenhar o esquema completo (inclusive os pneus "correta", em verde).
-    const vehicle = { veiculo: v.veiculo, filial: v.filial, tipoDesc: v.tipoDesc, tires: d.rows.filter((t) => t.veiculo === v.veiculo) };
+    // Usa DATA.pressaoTires (último evento conhecido de cada pneu, independente da rodada
+    // selecionada — ver build_pressao_tires_atual) em vez de `d.rows`: desde a migração pro
+    // R343A, `d.rows` pode ter mais de um evento pra mesma posição (leitura repetida na
+    // quinzena), o que desenharia o mesmo pneu 2x no mapa. O mapa sempre mostra o estado
+    // mais recente conhecido de cada posição, com todos os pneus do veículo (inclusive os
+    // "correta", em verde), não só os fora do padrão.
+    const vehicle = { veiculo: v.veiculo, filial: v.filial, tipoDesc: v.tipoDesc, tires: DATA.pressaoTires.filter((t) => t.veiculo === v.veiculo) };
     return `<div class="card detail-card">
       <div class="detail-plate-label">Veículo selecionado</div>
       <div class="detail-plate">${escapeHtml(v.veiculo)}</div>
@@ -1688,7 +1691,7 @@
   // (pedido do Joao) além do total somado; nas rodadas de quinzena, mantém o formato simples.
   function pressaoQuadro3Hint(d, scopeLabel, rodadaLabel) {
     if (d.round !== "geral") {
-      return `${d.rows.length} de ${d.universoFilial.length} pneus${scopeLabel} — ${rodadaLabel}`;
+      return `${d.posicoesInspecionadas} de ${d.denomQuadro3} pneus${scopeLabel} — ${rodadaLabel}`;
     }
     const g = d.pressaoQuadro3Geral;
     const linha = (label, q) => q.disponivel
@@ -1725,62 +1728,55 @@
     };
     const filtraFilialBusca = (list) => scopeRows(filtraFilialBuscaSemEscopo(list));
 
-    // Universo de pneus na filial/busca/seleção ativos, independente da quinzena — base do
-    // modo "Geral" e denominador do quadro 3 (% pneus inspecionados).
-    const universoFilial = filtraFilialBusca(DATA.pressaoTires);
-    // Mesma coisa mas ignorando a seleção de barras (selFiliais) — só pro gráfico de barras.
-    const universoFilialTodas = filtraFilialBuscaSemEscopo(DATA.pressaoTires);
-
-    // Conjunto (por id de pneu) dos pneus lidos NESTE MÊS — usado pro modo "Geral" inteiro
-    // (quadro 2/4, donut, colunas por filial, "fora do padrão") e pro quadro 3 (% inspecionados).
-    // Desde 2026-09-18 (pedido do Joao: "quero que estejam os valores corretos dentro do mês"),
-    // vem do campo `geral` calculado no backend (mesma regra do histórico de "% pressão
-    // correta": leitura mais recente conhecida com dataInsp no mês corrente) — ANTES era a
-    // união de insp1+insp2 (pneu lido na 1ª OU 2ª quinzena), que tinha um furo: um pneu com
-    // dataInsp de início do mês mas só DESCOBERTO (entrou no historico_pressao.json) depois do
-    // dia 15 falhava as duas janelas de quinzena e ficava fora do "Geral" mesmo tendo sido lido
-    // de verdade este mês. `dados.js` gerado ANTES desta mudança (sem o campo `geral`) cai de
-    // volta pra união de insp1+insp2, pra não quebrar.
+    // Migrado pro relatório R343A (2026-09-25, pedido do Joao): cada "round" agora vem de
+    // DATA.pressaoHistoricoMensal[mês].insp1/insp2/geral.eventos — uma lista de EVENTOS de
+    // leitura (não mais 1 linha por pneu), incluindo repetidos de propósito ("Vamos avaliar
+    // todos os pneus lidos, até os repetidos vão entrar nessa conta"). "Geral" não precisa
+    // mais nenhuma união/reconstrução no front-end: o backend já entrega só os eventos do mês
+    // corrente (pressao_rounds_ate), então é só usar a lista como veio.
     const mesAtivoGeral = mesPressaoPadrao();
     const mesDadosGeral = mesAtivoGeral && DATA.pressaoHistoricoMensal[mesAtivoGeral];
-    const insp1Geral = mesDadosGeral && mesDadosGeral.insp1 && mesDadosGeral.insp1.disponivel
-      ? filtraFilialBusca(mesDadosGeral.insp1.pneus) : [];
-    const insp2Geral = mesDadosGeral && mesDadosGeral.insp2 && mesDadosGeral.insp2.disponivel
-      ? filtraFilialBusca(mesDadosGeral.insp2.pneus) : [];
-    const geralNovo = mesDadosGeral && mesDadosGeral.geral && mesDadosGeral.geral.disponivel
-      ? filtraFilialBusca(mesDadosGeral.geral.pneus) : null;
-    const pneusInspecionadosGeralSet = new Set(
-      (geralNovo || [...insp1Geral, ...insp2Geral]).map((t) => t.pneu)
-    );
-    // Versão "todas as filiais" (ignora selFiliais) do mesmo conjunto, só pro gráfico de barras.
-    const insp1GeralTodas = mesDadosGeral && mesDadosGeral.insp1 && mesDadosGeral.insp1.disponivel
-      ? filtraFilialBuscaSemEscopo(mesDadosGeral.insp1.pneus) : [];
-    const insp2GeralTodas = mesDadosGeral && mesDadosGeral.insp2 && mesDadosGeral.insp2.disponivel
-      ? filtraFilialBuscaSemEscopo(mesDadosGeral.insp2.pneus) : [];
-    const geralNovoTodas = mesDadosGeral && mesDadosGeral.geral && mesDadosGeral.geral.disponivel
-      ? filtraFilialBuscaSemEscopo(mesDadosGeral.geral.pneus) : null;
-    const pneusInspecionadosGeralSetTodas = new Set(
-      (geralNovoTodas || [...insp1GeralTodas, ...insp2GeralTodas]).map((t) => t.pneu)
-    );
-
-    let rows, disponivel = true, rowsTodas;
-    if (round === "geral") {
-      // Antes usava o universo inteiro (todo pneu cadastrado, com a leitura mais recente que
-      // tivesse, nova ou velha) — o que fazia o "fora do padrão"/composição/% pressão correta
-      // misturarem pneu lido este mês com pneu de leitura antiga, sem bater com "519 lidos" do
-      // quadro 3. Corrigido (pedido do Joao, 2026-09-15): "Geral" agora considera só os pneus
-      // confirmados como lidos neste mês (união das 2 quinzenas) — os mesmos usados no quadro 3.
-      // O denominador do quadro 3 continua sendo `universoFilial` (cobertura), não muda aqui.
-      rows = universoFilial.filter((t) => pneusInspecionadosGeralSet.has(t.pneu));
-      rowsTodas = universoFilialTodas.filter((t) => pneusInspecionadosGeralSetTodas.has(t.pneu));
-    } else {
-      const mesAtivo = mesPressaoPadrao();
-      const mesDados = mesAtivo && DATA.pressaoHistoricoMensal[mesAtivo];
-      const quinzena = mesDados ? (round === "insp1" ? mesDados.insp1 : mesDados.insp2) : null;
-      disponivel = quinzena ? quinzena.disponivel : false;
-      rows = quinzena ? filtraFilialBusca(quinzena.pneus) : [];
-      rowsTodas = quinzena ? filtraFilialBuscaSemEscopo(quinzena.pneus) : [];
+    function eventosDoRound(chave) {
+      return (mesDadosGeral && mesDadosGeral[chave] && mesDadosGeral[chave].eventos) || [];
     }
+    function disponivelDoRound(chave) {
+      return !!(mesDadosGeral && mesDadosGeral[chave] && mesDadosGeral[chave].disponivel);
+    }
+
+    let rows, disponivel, rowsTodas;
+    if (round === "geral") {
+      rows = filtraFilialBusca(eventosDoRound("geral"));
+      rowsTodas = filtraFilialBuscaSemEscopo(eventosDoRound("geral"));
+      disponivel = disponivelDoRound("geral");
+    } else {
+      rows = filtraFilialBusca(eventosDoRound(round));
+      rowsTodas = filtraFilialBuscaSemEscopo(eventosDoRound(round));
+      disponivel = disponivelDoRound(round);
+    }
+
+    // Quadro 3 (% pneus inspecionados): por POSIÇÃO do veículo, cada posição conta 1x mesmo
+    // com leitura repetida na mesma janela — dedup separado do resto (que usa `rows` cru,
+    // com repetidos). Denominador vem de DATA.posicoesRegistradas (Pos + Estepes de VEICULOS
+    // REGISTRADOS.xlsx), não mais do universo de pneus lidos: uma posição sem NENHUMA leitura
+    // no mês não aparece nos eventos, então só os eventos não servem de denominador.
+    function posicoesUnicas(lista) {
+      const set = new Set();
+      lista.forEach((t) => set.add(t.veiculo + "|" + t.posicao));
+      return set.size;
+    }
+    function denomPosicoes(filial) {
+      if (filial instanceof Set) {
+        if (filial.size === 0) return DATA.posicoesRegistradas.total;
+        let sum = 0;
+        filial.forEach((f) => { sum += denomPosicoes(f); });
+        return sum;
+      }
+      if (!filial || filial === "all") return DATA.posicoesRegistradas.total;
+      const key = normalizeText(filialFullName(filial));
+      return DATA.posicoesRegistradas.porFilial[key] || 0;
+    }
+    const denomQuadro3 = denomPosicoes(activeScope());
+    const posicoesInspecionadas = posicoesUnicas(rows);
 
     const comPadraoELeitura = rows.filter((t) => !t.semLeitura && !t.semPadrao);
     const foraPadrao = comPadraoELeitura.filter((t) => t.faixa !== "correta");
@@ -1800,31 +1796,23 @@
     // Isso faz esse % bater exatamente com o "Correta" da rosca (mesmo `rows`, mesma exclusão).
     const totalComPadraoConhecido = rows.length - semPadrao.length;
     const pctCorreta = totalComPadraoConhecido ? (faixaCounts.correta / totalComPadraoConhecido) * 100 : 0;
-    // Quadro 3: % pneus inspecionados nesta quinzena/mês, sobre o universo de pneus do escopo.
-    // No modo "Geral" o resumo ("Geral — X de Y pneus") é a SOMA direta das 2 quinzenas — conta
-    // o universo 2x (uma vez por quinzena) e soma quem foi lido em cada uma, pra bater "1ª: X de
-    // Y" + "2ª: X de Y" = "Geral: soma dos X de soma dos Y" (pedido explícito do Joao,
-    // 2026-09-14, reafirmado 2026-09-18 depois de eu ter trocado errado pra uma versão
-    // deduplicada sem ele ter pedido — revertido). Essa soma é DIFERENTE do conjunto
-    // `pneusInspecionadosGeralSet`/`rows` (que usa o campo `geral` do backend, sem duplicar
-    // pneu lido nas duas quinzenas) — `pneusInspecionadosGeralSet` continua sendo o que filtra
-    // os outros quadros (correta/zero/donut/colunas/fora do padrão); só o RESUMO deste quadro 3
-    // é somado, por decisão explícita do Joao, não união.
+    // Quadro 3: % de POSIÇÕES inspecionadas nesta quinzena/mês (dedup, ver posicoesUnicas),
+    // sobre o total de posições registradas do escopo. No modo "Geral" o resumo ("Geral — X de
+    // Y") continua sendo a SOMA direta das 2 quinzenas — mesma convenção de sempre (pedido
+    // explícito do Joao, 2026-09-14, reafirmado 2026-09-18 e de novo em 2026-09-25 na migração
+    // pro R343A: "nas linhas ja existentes vai contar só como um" — ou seja, mantém a mesma
+    // regra, só troca a fonte).
+    const posicoesInsp1 = posicoesUnicas(filtraFilialBusca(eventosDoRound("insp1")));
+    const posicoesInsp2 = posicoesUnicas(filtraFilialBusca(eventosDoRound("insp2")));
     const pressaoQuadro3Geral = {
-      insp1: {
-        count: insp1Geral.length, total: universoFilial.length,
-        disponivel: !!(mesDadosGeral && mesDadosGeral.insp1 && mesDadosGeral.insp1.disponivel),
-      },
-      insp2: {
-        count: insp2Geral.length, total: universoFilial.length,
-        disponivel: !!(mesDadosGeral && mesDadosGeral.insp2 && mesDadosGeral.insp2.disponivel),
-      },
+      insp1: { count: posicoesInsp1, total: denomQuadro3, disponivel: disponivelDoRound("insp1") },
+      insp2: { count: posicoesInsp2, total: denomQuadro3, disponivel: disponivelDoRound("insp2") },
     };
     pressaoQuadro3Geral.somaCount = pressaoQuadro3Geral.insp1.count + pressaoQuadro3Geral.insp2.count;
     pressaoQuadro3Geral.somaTotal = pressaoQuadro3Geral.insp1.total + pressaoQuadro3Geral.insp2.total;
     const pctInspecionados = round === "geral"
       ? (pressaoQuadro3Geral.somaTotal ? (pressaoQuadro3Geral.somaCount / pressaoQuadro3Geral.somaTotal) * 100 : 0)
-      : (universoFilial.length ? (rows.length / universoFilial.length) * 100 : 0);
+      : (denomQuadro3 ? (posicoesInspecionadas / denomQuadro3) * 100 : 0);
     // Quadro 4: % pneus com pressão 0 (sem leitura), sobre os pneus considerados na rodada.
     const pctPressaoZero = rows.length ? (semLeitura.length / rows.length) * 100 : 0;
     // Quadro 1: nível veículo, igual à aba Inspeções Pendentes. No modo "Geral" (pedido do Joao,
@@ -1856,10 +1844,15 @@
 
     // Filtro cruzado dos 4 quadros sobre os 2 gráficos abaixo (união entre os selecionados).
     const pendentesSet = new Set(linhasPendentesNoRound(round).map((r) => r.veiculo));
+    // "pneus_inspecionados" agora é sempre true: `rows` já vem só com os eventos da rodada
+    // ativa (ver eventosDoRound acima), então todo item de `rows` já é, por construção,
+    // "inspecionado nesta rodada" — não tem mais um universo mais amplo pra filtrar dentro
+    // (antes existia porque "Geral" vinha de um universo de pneus com leitura de qualquer
+    // data, filtrado depois; migração pro R343A eliminou essa etapa intermediária).
     const QUADRO_CRIT = {
       veiculos_inspecionados: (t) => !pendentesSet.has(t.veiculo),
       pressao_correta: (t) => !t.semLeitura && !t.semPadrao && t.faixa === "correta",
-      pneus_inspecionados: round === "geral" ? (t) => pneusInspecionadosGeralSet.has(t.pneu) : () => true,
+      pneus_inspecionados: () => true,
       pressao_zero: (t) => t.semLeitura,
     };
     const sel = state.pressaoFiltroSel;
@@ -1883,12 +1876,7 @@
     // uma barra. Aqui SIM aplica `passaFaixa`: clicar numa faixa do donut deve filtrar/destacar
     // este gráfico pra mostrar quais filiais têm mais daquela faixa — Ctrl+clique soma faixas
     // (união), mostrando o total combinado por filial.
-    const QUADRO_CRIT_TODAS = {
-      veiculos_inspecionados: QUADRO_CRIT.veiculos_inspecionados,
-      pressao_correta: QUADRO_CRIT.pressao_correta,
-      pneus_inspecionados: round === "geral" ? (t) => pneusInspecionadosGeralSetTodas.has(t.pneu) : () => true,
-      pressao_zero: QUADRO_CRIT.pressao_zero,
-    };
+    const QUADRO_CRIT_TODAS = QUADRO_CRIT;
     const chartRowsTodas = rowsTodas.filter((t) => (sel.size === 0 || Array.from(sel).some((tipo) => QUADRO_CRIT_TODAS[tipo](t))) && passaFaixa(t));
 
     // Colunas empilhadas por filial: cada barra soma os pneus lidos daquela filial, desmembrada
@@ -1926,7 +1914,20 @@
     // cruzados da aba (quadros e faixa do donut), pra ficar consistente com o resto da página:
     // clicar em "Muito baixa" no donut, por exemplo, estreita esta lista só pros veículos com
     // pneu muito baixo.
-    const foraPadraoDetalhe = rows.filter((t) => !t.semPadrao && (t.semLeitura || t.faixa !== "correta")
+    // `rows` agora pode ter mais de um evento pra mesma posição (leitura repetida na
+    // quinzena) — pra esta tabela (que mostra o ESTADO ATUAL de cada posição, não um
+    // histórico de eventos), dedup pro evento mais recente de cada posição dentro da rodada
+    // antes de aplicar os filtros cruzados, senão a mesma posição apareceria 2x na lista.
+    const ultimoPorPosicaoNaRodada = (() => {
+      const porChave = new Map();
+      rows.forEach((t) => {
+        const chave = t.veiculo + "|" + t.posicao;
+        const atual = porChave.get(chave);
+        if (!atual || (t.dataInsp || "") >= (atual.dataInsp || "")) porChave.set(chave, t);
+      });
+      return Array.from(porChave.values());
+    })();
+    const foraPadraoDetalhe = ultimoPorPosicaoNaRodada.filter((t) => !t.semPadrao && (t.semLeitura || t.faixa !== "correta")
       && (sel.size === 0 || Array.from(sel).some((tipo) => QUADRO_CRIT[tipo](t)))
       && passaFaixa(t));
     const porVeiculoForaPadrao = new Map();
@@ -1941,7 +1942,7 @@
       .sort((a, b) => b.qtd - a.qtd || a.veiculo.localeCompare(b.veiculo));
 
     return {
-      round, disponivel, rows, universoFilial, foraPadrao, semLeitura, semPadrao, cobertura, faixaCounts,
+      round, disponivel, rows, posicoesInspecionadas, denomQuadro3, foraPadrao, semLeitura, semPadrao, cobertura, faixaCounts,
       pctCorreta, totalComPadraoConhecido, pctInspecionados, pctPressaoZero, insp, barData, pieData, pressaoQuadro3Geral,
       veiculosQuadro1Geral, foraPadraoDetalhe, veiculosForaPadrao,
     };
