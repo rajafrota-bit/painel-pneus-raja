@@ -721,10 +721,26 @@
   //   os quadros já fazem quando várias filiais estão marcadas juntas.
   // dados.js gerado ANTES desta mudança não tem `pressaoCorretaHistoricoPorFilial` — nesse
   // caso cai de volta pro histórico geral (sem quebrar o card em painel antigo).
+  //
+  // Quinzena (pedido do Joao, 2026-09-25 — mesmo bug já corrigido no Sulco Baixo): o
+  // histórico ficava sempre preso na série "geral" (mês inteiro) mesmo com "1ª quinzena"
+  // ou "2ª quinzena" selecionadas no toggle de Pressão de Ar, então escolhemos a série
+  // base (geral/Q1/Q2) conforme `state.pressaoRound` ANTES de aplicar o escopo de filial.
+  // dados.js gerado antes desta mudança não tem as chaves Q1/Q2 — cai de volta pra geral.
+  function pressaoCorretaSerieBase() {
+    if (state.pressaoRound === "insp1") return DATA.pressaoCorretaHistoricoQ1 || DATA.pressaoCorretaHistorico || [];
+    if (state.pressaoRound === "insp2") return DATA.pressaoCorretaHistoricoQ2 || DATA.pressaoCorretaHistorico || [];
+    return DATA.pressaoCorretaHistorico || [];
+  }
+  function pressaoCorretaSerieBasePorFilial() {
+    if (state.pressaoRound === "insp1") return DATA.pressaoCorretaHistoricoQ1PorFilial || DATA.pressaoCorretaHistoricoPorFilial;
+    if (state.pressaoRound === "insp2") return DATA.pressaoCorretaHistoricoQ2PorFilial || DATA.pressaoCorretaHistoricoPorFilial;
+    return DATA.pressaoCorretaHistoricoPorFilial;
+  }
   function pressaoCorretaSerieParaEscopo() {
     const escopo = activeScope();
-    const porFilial = DATA.pressaoCorretaHistoricoPorFilial;
-    if (escopo === "all" || !porFilial) return DATA.pressaoCorretaHistorico || [];
+    const porFilial = pressaoCorretaSerieBasePorFilial();
+    if (escopo === "all" || !porFilial) return pressaoCorretaSerieBase();
     const filiais = escopo instanceof Set ? Array.from(escopo) : [escopo];
     const series = filiais.map((f) => porFilial[f]).filter(Boolean);
     if (!series.length) return [];
@@ -748,11 +764,14 @@
   // filiais" por extenso quando nada está filtrado (em vez de string vazia).
   function pressaoCorretaEscopoLabel() {
     const escopo = activeScope();
-    if (escopo === "all") return "Todas as filiais";
-    if (escopo instanceof Set) {
-      return escopo.size === 1 ? filialFullName(Array.from(escopo)[0]) : Array.from(escopo).map(filialSigla).join(" + ");
-    }
-    return filialFullName(escopo);
+    const base = escopo === "all" ? "Todas as filiais"
+      : escopo instanceof Set ? (escopo.size === 1 ? filialFullName(Array.from(escopo)[0]) : Array.from(escopo).map(filialSigla).join(" + "))
+      : filialFullName(escopo);
+    // Deixa explícito de qual quinzena é o histórico (2026-09-25, junto com a correção do
+    // histórico não acompanhar o seletor de quinzena) — sem isso "Todas as filiais" sozinho
+    // não diz se é 1ª, 2ª ou o mês inteiro.
+    const rodada = state.pressaoRound === "insp1" ? " · 1ª quinzena" : state.pressaoRound === "insp2" ? " · 2ª quinzena" : "";
+    return base + rodada;
   }
   // Seta ao lado do valor grande "% pressão correta" (2026-09-17, ajustado 2026-09-18): o
   // valor grande É o ponto mais recente da série (hoje) — o histórico abaixo (ver
