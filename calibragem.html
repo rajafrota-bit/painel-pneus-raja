@@ -49,13 +49,7 @@ button:focus-visible,input:focus-visible,select:focus-visible{outline:2px solid 
 .toolbar .field{min-width:0}
 .fil td:first-child{position:sticky;left:0;background:var(--surface);z-index:1}
 .fil th:first-child{position:sticky;left:0;background:var(--surface2);z-index:1}
-@media (max-width:600px){
-  .sumgrid{grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}
-  .sum{padding:8px 10px} .sum .v{font-size:18px}
-  .fil table th:nth-child(2),.fil table td:nth-child(2){display:none}
-  th,td{padding:7px 6px} th.wk{min-width:74px}
-  .hist th:nth-child(4),.hist td:nth-child(4){display:none}
-}
+
 h2{font-size:15px;margin:0 0 12px}
 label{display:block;font-size:12px;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:.05em;margin-bottom:5px}
 .field{display:flex;flex-direction:column;margin-bottom:14px}
@@ -112,6 +106,13 @@ dialog::backdrop{background:rgba(10,20,25,.45)}
 .confirm{margin-top:12px;padding:10px;border-radius:7px;background:var(--crit-soft);color:var(--crit);font-size:13px}
 .hist td{font-size:13px}
 @media (prefers-reduced-motion:no-preference){.chip,.sum{transition:filter .15s,border-color .15s}}
+@media (max-width:600px){
+  .sumgrid{grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}
+  .sum{padding:8px 10px} .sum .v{font-size:18px}
+  .fil table th:nth-child(2),.fil table td:nth-child(2){display:none}
+  th,td{padding:7px 6px} th.wk{min-width:74px}
+  .hist th:nth-child(4),.hist td:nth-child(4){display:none}
+}
 </style>
 </head>
 <body>
@@ -228,6 +229,7 @@ let byPlaca = new Map(), filiais = [];
 const $ = id => document.getElementById(id);
 const esc = s => String(s).replace(/[&<>"']/g, c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
 let online = false, registros = [], ocupado = false;
+let refMes = "";
 
 /* ---------- datas ---------- */
 const pad = n => String(n).padStart(2,"0");
@@ -269,8 +271,7 @@ function setTab(t){
   if(t==="filiais") renderFiliais();
 }
 document.querySelectorAll("nav.tabs button").forEach(b=>b.addEventListener("click",()=>setTab(b.dataset.tab)));
-{ let t = location.hash.replace("#",""); if(!["registrar","filiais"].includes(t)){ try{t=localStorage.getItem("calib_tab")}catch(e){} }
-  if(t==="filiais") setTab("filiais"); }
+
 
 function conn(state, txt){ $("connDot").className = "dot " + (state||""); $("connTxt").textContent = txt; }
 
@@ -347,7 +348,6 @@ function rotulosSemana(iso){
   return meses.map(ym => ({ym, n: semanasDoMes(ym).indexOf(w)+1}));
 }
 const textoSemana = iso => rotulosSemana(iso).map(r=>`${r.n}ª sem ${MESES_[+r.ym.slice(5,7)-1]}`).join(" / ");
-let refMes = hojeISO().slice(0,7);
 
 function renderFiliais(){
   const hoje = hojeISO(), semHoje = inicioSemana(hoje);
@@ -476,6 +476,9 @@ function renderAll(){ renderHist(); if(!$("view-filiais").hidden) renderFiliais(
 $("btnRefresh").addEventListener("click", carregar);
 setInterval(()=>{ if(!document.hidden && !ocupado && !$("dlg").open) carregar(); }, 60000);
 document.addEventListener("visibilitychange", ()=>{ if(!document.hidden) carregar(); });
+refMes = hojeISO().slice(0,7);
+{ let t = location.hash.replace("#",""); if(!["registrar","filiais"].includes(t)){ try{t=localStorage.getItem("calib_tab")}catch(e){} }
+  if(t==="filiais") setTab("filiais"); }
 renderFiliais(); renderHist(); carregar();
 </script>
 </body>
