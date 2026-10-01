@@ -391,13 +391,24 @@
   // Quadro 1 da aba Pressão de Ar: "% veículos inspecionados", igual à aba Inspeções
   // Pendentes (100 - % pendente), respeitando filial/busca/seleção de filiais ativos.
   function pctVeiculosInspecionados(round, mes) {
+    // Corrigido (2026-10-01, Joao reparou "100%" artificial na 2ª quinzena/Geral de outubro,
+    // mês em que a 2ª quinzena ainda nem começou): antes essa função não sabia distinguir "0
+    // pendentes porque todo mundo foi inspecionado" de "0 pendentes porque não tem dado NENHUM
+    // ainda" — as duas batiam pctAtingido=100%. Agora devolve `disponivel` (igual
+    // insp1Disponivel/insp2Disponivel do resto do app) pra quem renderiza poder mostrar "ainda
+    // sem leitura" em vez de um 100% enganoso.
+    const mesAtivo = mes || mesInspPadrao();
+    const mesDadosDisp = (DATA.historicoMensal && DATA.historicoMensal[mesAtivo]) || {};
+    const disponivel = round === "insp1" ? mesDadosDisp.insp1Disponivel !== false
+      : round === "insp2" ? mesDadosDisp.insp2Disponivel !== false
+      : true;
     let rows = linhasPendentesNoRound(round, mes);
     if (state.filtroFilial !== "all") rows = rows.filter((r) => r.filial === state.filtroFilial);
     if (state.busca) rows = rows.filter((r) => r.veiculo.toLowerCase().includes(state.busca.toLowerCase()));
     rows = scopeRows(rows);
     const denom = registradosTotal(activeScope());
     const pct = denom ? (rows.length / denom) * 100 : 0;
-    return { pctAtingido: 100 - pct, pendentes: rows.length, denom };
+    return { pctAtingido: 100 - pct, pendentes: rows.length, denom, disponivel };
   }
   function registradosTotal(filial) {
     if (filial instanceof Set) {
@@ -1711,6 +1722,10 @@
   // duas (não união) — mesma régua do quadro de pneus, pros dois baterem com a mesma lógica.
   function veiculosQuadro1Hint(d, scopeLabel, rodadaLabel) {
     if (d.round !== "geral") {
+      // Corrigido (2026-10-01): quinzena sem leitura ainda (ex.: 2ª quinzena no dia 1 do mês)
+      // não é "0 pendentes" — é "sem dado". Ver kpiCard do quadro 1 em renderPressaoPanel, que
+      // usa esse mesmo d.insp.disponivel pra trocar o valor grande por "—" em vez de "100%".
+      if (d.insp.disponivel === false) return `${rodadaLabel} ainda não tem leitura de inspeção atualizada.`;
       return `${Math.max(0, d.insp.denom - d.insp.pendentes)} de ${d.insp.denom} veículos${scopeLabel} — ${rodadaLabel}`;
     }
     const g = d.veiculosQuadro1Geral;
@@ -1840,19 +1855,22 @@
     // aba), igual os quadros 2/3/4 já faziam.
     const vInsp1 = pctVeiculosInspecionados("insp1", mesAtivoGeral);
     const vInsp2 = pctVeiculosInspecionados("insp2", mesAtivoGeral);
-    // "disponível" também precisa vir do mês de INSPEÇÕES correspondente (historicoMensal), não
-    // de mesDadosGeral (que é pressaoHistoricoMensal) — eram estruturas diferentes sendo
-    // confundidas pelo mesmo nome de variável. Sem dado pro mês (DATA antigo) é tratado como
-    // disponível, mesma convenção de linhasPendentesNoRound/mesInspPadrao.
-    const mesDadosInspParaQuadro1 = (DATA.historicoMensal && DATA.historicoMensal[mesAtivoGeral]) || {};
+    // Corrigido (2026-10-01, mesmo caso do comentário de pctVeiculosInspecionados acima): uma
+    // quinzena indisponível NÃO entra na soma do "Geral" como se tivesse 100% (count=total) —
+    // isso inflava o "Geral (mês)" de outubro pra 50% logo no dia 1, antes de qualquer
+    // inspeção de verdade. Quinzena indisponível agora soma 0/0 (não participa da conta), igual
+    // a convenção já usada em linhasPendentesNoRound (round "geral") quando só uma quinzena tem
+    // dado — aqui replicada pro quadro 1 da Pressão de Ar.
     const veiculosQuadro1Geral = {
       insp1: {
-        count: Math.max(0, vInsp1.denom - vInsp1.pendentes), total: vInsp1.denom,
-        disponivel: mesDadosInspParaQuadro1.insp1Disponivel !== false,
+        count: vInsp1.disponivel ? Math.max(0, vInsp1.denom - vInsp1.pendentes) : 0,
+        total: vInsp1.disponivel ? vInsp1.denom : 0,
+        disponivel: vInsp1.disponivel,
       },
       insp2: {
-        count: Math.max(0, vInsp2.denom - vInsp2.pendentes), total: vInsp2.denom,
-        disponivel: mesDadosInspParaQuadro1.insp2Disponivel !== false,
+        count: vInsp2.disponivel ? Math.max(0, vInsp2.denom - vInsp2.pendentes) : 0,
+        total: vInsp2.disponivel ? vInsp2.denom : 0,
+        disponivel: vInsp2.disponivel,
       },
     };
     veiculosQuadro1Geral.somaCount = veiculosQuadro1Geral.insp1.count + veiculosQuadro1Geral.insp2.count;
@@ -2003,7 +2021,16 @@
     return `
       ${panelHeader("Pressão de Ar", desc, filiais, roundsPressao + mesSelectPressao)}
       <div class="kpi-grid">
-        ${kpiCard("% veículos inspecionados", fmtPct(d.insp.pctAtingido), veiculosQuadro1Hint(d, scopeLabel, rodadaLabel), ICONS.truck, d.insp.pctAtingido >= 85 ? "var(--success)" : d.insp.pctAtingido >= 70 ? "var(--warning)" : "var(--danger)", "veiculos_inspecionados", isSel("veiculos_inspecionados"))}
+        ${(() => {
+          // Corrigido (2026-10-01): quinzena individual sem leitura ainda mostrava "100%" (0
+          // pendentes interpretado como "tudo inspecionado", quando na real é "sem dado
+          // nenhum"). Só se aplica no modo quinzena única — no modo Geral a soma já exclui a
+          // quinzena indisponível (ver veiculosQuadro1Geral acima), então o % ali já é real.
+          const semLeituraInsp = d.round !== "geral" && d.insp.disponivel === false;
+          const valor = semLeituraInsp ? "—" : fmtPct(d.insp.pctAtingido);
+          const tom = semLeituraInsp ? "var(--text-faint)" : d.insp.pctAtingido >= 85 ? "var(--success)" : d.insp.pctAtingido >= 70 ? "var(--warning)" : "var(--danger)";
+          return kpiCard("% veículos inspecionados", valor, veiculosQuadro1Hint(d, scopeLabel, rodadaLabel), ICONS.truck, tom, "veiculos_inspecionados", isSel("veiculos_inspecionados"));
+        })()}
         ${kpiCard("% pressão correta", fmtPct(d.pctCorreta), `${d.faixaCounts.correta} de ${d.totalComPadraoConhecido} pneus com padrão de medida conhecido${scopeLabel} — mesmo total da rosca ao lado (pressão zero conta como "não correta")`, ICONS.ring, d.pctCorreta >= 70 ? "var(--success)" : d.pctCorreta >= 40 ? "var(--warning)" : "var(--danger)", "pressao_correta", isSel("pressao_correta"), trendHtml, arrowHtml)}
         ${kpiCard("% pneus inspecionados", fmtPct(d.pctInspecionados), pressaoQuadro3Hint(d, scopeLabel, rodadaLabel), ICONS.clipboard, d.pctInspecionados >= 85 ? "var(--success)" : d.pctInspecionados >= 60 ? "var(--warning)" : "var(--danger)", "pneus_inspecionados", isSel("pneus_inspecionados"))}
         ${kpiCard("% pressão zero", fmtPct(d.pctPressaoZero), `${d.semLeitura.length} de ${d.rows.length} pneus sem leitura${scopeLabel}`, ICONS.alert, d.pctPressaoZero >= 15 ? "var(--danger)" : d.pctPressaoZero >= 5 ? "var(--warning)" : "var(--success)", "pressao_zero", isSel("pressao_zero"))}
