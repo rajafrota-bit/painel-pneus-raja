@@ -483,6 +483,7 @@
     sulcoSoTrocar: false,
     selVeiculoVazias: null,
     pressaoRound: "geral",
+    pressaoMes: null,
     pressaoFiltroSel: new Set(),
     pressaoFaixaSel: new Set(),
     selVeiculoPressao: null,
@@ -1735,7 +1736,10 @@
     // todos os pneus lidos, até os repetidos vão entrar nessa conta"). "Geral" não precisa
     // mais nenhuma união/reconstrução no front-end: o backend já entrega só os eventos do mês
     // corrente (pressao_rounds_ate), então é só usar a lista como veio.
-    const mesAtivoGeral = mesPressaoPadrao();
+    // Seletor de mês (pedido do Joao, 2026-10-01): mesmo padrão do seletor de Inspeções
+    // Pendentes (state.inspMes/mesInspPadrao) — state.pressaoMes é null por padrão (cai no
+    // mês mais recente arquivado), e só passa a ter valor quando o usuário troca no dropdown.
+    const mesAtivoGeral = state.pressaoMes || mesPressaoPadrao();
     const mesDadosGeral = mesAtivoGeral && DATA.pressaoHistoricoMensal[mesAtivoGeral];
     function eventosDoRound(chave) {
       return (mesDadosGeral && mesDadosGeral[chave] && mesDadosGeral[chave].eventos) || [];
@@ -1945,7 +1949,7 @@
     return {
       round, disponivel, rows, posicoesInspecionadas, denomQuadro3, foraPadrao, semLeitura, semPadrao, cobertura, faixaCounts,
       pctCorreta, totalComPadraoConhecido, pctInspecionados, pctPressaoZero, insp, barData, pieData, pressaoQuadro3Geral,
-      veiculosQuadro1Geral, foraPadraoDetalhe, veiculosForaPadrao,
+      veiculosQuadro1Geral, foraPadraoDetalhe, veiculosForaPadrao, mesAtivo: mesAtivoGeral,
     };
   }
 
@@ -1958,17 +1962,31 @@
         <button class="seg-btn ${state.pressaoRound === "insp2" ? "active" : ""}" data-pressao-round="insp2">2ª quinzena</button>
         <button class="seg-btn ${state.pressaoRound === "geral" ? "active" : ""}" data-pressao-round="geral">Geral (mês)</button>
       </div>`;
+    // Seletor de mês (pedido do Joao, 2026-10-01: "quero que a parte de pressão também tenha
+    // o filtro de data") — mesmo padrão do seletor de Inspeções Pendentes: só aparece quando
+    // há mais de 1 mês arquivado em DATA.pressaoHistoricoMensal (ver
+    // build_pressao_historico_mensal_arquivo no generate_data.py).
+    const mesesDisponiveisPressao = Object.keys(DATA.pressaoHistoricoMensal || {}).sort();
+    const mesSelectPressao = mesesDisponiveisPressao.length > 1 ? `<select id="ctl-mes-pressao">
+        ${mesesDisponiveisPressao.slice().reverse().map((m) => `<option value="${m}" ${m === d.mesAtivo ? "selected" : ""}>${escapeHtml(fmtMesAno(m))}</option>`).join("")}
+      </select>` : "";
     const rodadaLabel = state.pressaoRound === "insp1" ? "1ª quinzena" : state.pressaoRound === "insp2" ? "2ª quinzena" : "mês";
+    const vendoMesAtual = d.mesAtivo === mesPressaoPadrao();
     const desc = d.round !== "geral" && !d.disponivel
-      ? `A ${rodadaLabel} ainda não tem leitura de pressão atualizada.`
-      : `Percentual da pressão coletada em relação ao padrão da medida do pneu (275→110psi, 295→120psi, 1100→120psi, 215→105psi) — ${rodadaLabel}${scopeLabel}.`;
+      ? `A ${rodadaLabel} ainda não tem leitura de pressão atualizada${vendoMesAtual ? "" : ` (${fmtMesAno(d.mesAtivo)})`}.`
+      : `Percentual da pressão coletada em relação ao padrão da medida do pneu (275→110psi, 295→120psi, 1100→120psi, 215→105psi) — ${rodadaLabel}${scopeLabel}${vendoMesAtual ? "" : ` · ${fmtMesAno(d.mesAtivo)}`}.`;
     const isSel = (k) => state.pressaoFiltroSel.has(k);
+    // Tendência/seta (histórico dia a dia) só faz sentido olhando o mês corrente — é uma série
+    // por data de geração, não existe um equivalente por mês passado (ver pressaoCorretaTrendHtml
+    // e DATA.pressaoCorretaHistorico, que o backend já restringe ao mês atual desde 2026-09-25).
+    const trendHtml = vendoMesAtual ? pressaoCorretaTrendHtml() : "";
+    const arrowHtml = vendoMesAtual ? pressaoCorretaValueArrowHtml() : "";
 
     return `
-      ${panelHeader("Pressão de Ar", desc, filiais, roundsPressao)}
+      ${panelHeader("Pressão de Ar", desc, filiais, roundsPressao + mesSelectPressao)}
       <div class="kpi-grid">
         ${kpiCard("% veículos inspecionados", fmtPct(d.insp.pctAtingido), veiculosQuadro1Hint(d, scopeLabel, rodadaLabel), ICONS.truck, d.insp.pctAtingido >= 85 ? "var(--success)" : d.insp.pctAtingido >= 70 ? "var(--warning)" : "var(--danger)", "veiculos_inspecionados", isSel("veiculos_inspecionados"))}
-        ${kpiCard("% pressão correta", fmtPct(d.pctCorreta), `${d.faixaCounts.correta} de ${d.totalComPadraoConhecido} pneus com padrão de medida conhecido${scopeLabel} — mesmo total da rosca ao lado (pressão zero conta como "não correta")`, ICONS.ring, d.pctCorreta >= 70 ? "var(--success)" : d.pctCorreta >= 40 ? "var(--warning)" : "var(--danger)", "pressao_correta", isSel("pressao_correta"), pressaoCorretaTrendHtml(), pressaoCorretaValueArrowHtml())}
+        ${kpiCard("% pressão correta", fmtPct(d.pctCorreta), `${d.faixaCounts.correta} de ${d.totalComPadraoConhecido} pneus com padrão de medida conhecido${scopeLabel} — mesmo total da rosca ao lado (pressão zero conta como "não correta")`, ICONS.ring, d.pctCorreta >= 70 ? "var(--success)" : d.pctCorreta >= 40 ? "var(--warning)" : "var(--danger)", "pressao_correta", isSel("pressao_correta"), trendHtml, arrowHtml)}
         ${kpiCard("% pneus inspecionados", fmtPct(d.pctInspecionados), pressaoQuadro3Hint(d, scopeLabel, rodadaLabel), ICONS.clipboard, d.pctInspecionados >= 85 ? "var(--success)" : d.pctInspecionados >= 60 ? "var(--warning)" : "var(--danger)", "pneus_inspecionados", isSel("pneus_inspecionados"))}
         ${kpiCard("% pressão zero", fmtPct(d.pctPressaoZero), `${d.semLeitura.length} de ${d.rows.length} pneus sem leitura${scopeLabel}`, ICONS.alert, d.pctPressaoZero >= 15 ? "var(--danger)" : d.pctPressaoZero >= 5 ? "var(--warning)" : "var(--success)", "pressao_zero", isSel("pressao_zero"))}
       </div>
@@ -2155,6 +2173,10 @@
     }));
     const selMes = document.getElementById("ctl-mes-insp");
     if (selMes) selMes.addEventListener("change", () => { state.inspMes = selMes.value; state.selFiliais.clear(); state.inspGeralFaixaSel.clear(); render(); });
+    const selMesPressao = document.getElementById("ctl-mes-pressao");
+    if (selMesPressao) selMesPressao.addEventListener("change", () => {
+      state.pressaoMes = selMesPressao.value; state.selFiliais.clear(); state.pressaoFiltroSel.clear(); state.pressaoFaixaSel.clear(); render();
+    });
     document.querySelectorAll(".seg-btn[data-sulco-filter]").forEach((btn) => btn.addEventListener("click", () => {
       state.sulcoSoTrocar = btn.getAttribute("data-sulco-filter") === "trocar"; render();
     }));
