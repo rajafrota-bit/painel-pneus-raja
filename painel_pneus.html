@@ -361,8 +361,12 @@
   // pendência de computeInspecoes(), mas parametrizada por round explícito (não lê
   // state.inspRound, pra não interferir com o toggle da aba Inspeções Pendentes) e sem
   // aplicar filtro de filial/busca ainda (isso é feito por quem consome).
-  function linhasPendentesNoRound(round) {
-    const mesAtivo = mesInspPadrao();
+  function linhasPendentesNoRound(round, mes) {
+    // `mes` (opcional, pedido do Joao 2026-10-01): quando quem chama já sabe qual mês quer
+    // (ex.: o quadro 1 da aba Pressão de Ar, que agora segue o seletor de mês daquela aba, não
+    // o de Inspeções Pendentes), passa a chave explícita. Sem isso cai no mês mais recente, como
+    // sempre foi.
+    const mesAtivo = mes || mesInspPadrao();
     const mesDados = (DATA.historicoMensal && DATA.historicoMensal[mesAtivo]) || {
       insp1: DATA.insp1, insp2: DATA.insp2, insp1Disponivel: DATA.insp1Disponivel, insp2Disponivel: DATA.insp2Disponivel,
     };
@@ -386,8 +390,8 @@
   }
   // Quadro 1 da aba Pressão de Ar: "% veículos inspecionados", igual à aba Inspeções
   // Pendentes (100 - % pendente), respeitando filial/busca/seleção de filiais ativos.
-  function pctVeiculosInspecionados(round) {
-    let rows = linhasPendentesNoRound(round);
+  function pctVeiculosInspecionados(round, mes) {
+    let rows = linhasPendentesNoRound(round, mes);
     if (state.filtroFilial !== "all") rows = rows.filter((r) => r.filial === state.filtroFilial);
     if (state.busca) rows = rows.filter((r) => r.veiculo.toLowerCase().includes(state.busca.toLowerCase()));
     rows = scopeRows(rows);
@@ -1825,16 +1829,30 @@
     // SOMA das duas (não união/crônico) — antes "Geral" aqui era deduplicado (só contava
     // veículo pendente se estivesse pendente nas DUAS quinzenas), o que dava um número diferente
     // do padrão de soma já usado no quadro de pneus; agora os dois quadros seguem a mesma regra.
-    const vInsp1 = pctVeiculosInspecionados("insp1");
-    const vInsp2 = pctVeiculosInspecionados("insp2");
+    // Corrigido (2026-10-01, Joao reparou "% veículos inspecionados" mostrando 100% errado
+    // depois de trocar de mês na aba Pressão de Ar): esse quadro usa DATA.historicoMensal
+    // (snapshot de Inspeções Pendentes), que é uma estrutura SEPARADA de
+    // DATA.pressaoHistoricoMensal — antes `pctVeiculosInspecionados` sempre lia o mês mais
+    // recente de Inspeções (mesInspPadrao), ignorando qual mês o usuário tinha escolhido no
+    // seletor de Pressão de Ar. Resultado: ao olhar Setembro na Pressão, o quadro 1 continuava
+    // mostrando Outubro (mês corrente de Inspeções, 2ª quinzena ainda sem dado = "100%"
+    // enganoso). Agora passa explicitamente `mesAtivoGeral` (o mesmo mês selecionado no topo da
+    // aba), igual os quadros 2/3/4 já faziam.
+    const vInsp1 = pctVeiculosInspecionados("insp1", mesAtivoGeral);
+    const vInsp2 = pctVeiculosInspecionados("insp2", mesAtivoGeral);
+    // "disponível" também precisa vir do mês de INSPEÇÕES correspondente (historicoMensal), não
+    // de mesDadosGeral (que é pressaoHistoricoMensal) — eram estruturas diferentes sendo
+    // confundidas pelo mesmo nome de variável. Sem dado pro mês (DATA antigo) é tratado como
+    // disponível, mesma convenção de linhasPendentesNoRound/mesInspPadrao.
+    const mesDadosInspParaQuadro1 = (DATA.historicoMensal && DATA.historicoMensal[mesAtivoGeral]) || {};
     const veiculosQuadro1Geral = {
       insp1: {
         count: Math.max(0, vInsp1.denom - vInsp1.pendentes), total: vInsp1.denom,
-        disponivel: !!(mesDadosGeral && mesDadosGeral.insp1 && mesDadosGeral.insp1.disponivel),
+        disponivel: mesDadosInspParaQuadro1.insp1Disponivel !== false,
       },
       insp2: {
         count: Math.max(0, vInsp2.denom - vInsp2.pendentes), total: vInsp2.denom,
-        disponivel: !!(mesDadosGeral && mesDadosGeral.insp2 && mesDadosGeral.insp2.disponivel),
+        disponivel: mesDadosInspParaQuadro1.insp2Disponivel !== false,
       },
     };
     veiculosQuadro1Geral.somaCount = veiculosQuadro1Geral.insp1.count + veiculosQuadro1Geral.insp2.count;
@@ -1845,7 +1863,7 @@
           pendentes: veiculosQuadro1Geral.somaTotal - veiculosQuadro1Geral.somaCount,
           denom: veiculosQuadro1Geral.somaTotal,
         }
-      : pctVeiculosInspecionados(round);
+      : pctVeiculosInspecionados(round, mesAtivoGeral);
 
     // Filtro cruzado dos 4 quadros sobre os 2 gráficos abaixo (união entre os selecionados).
     const pendentesSet = new Set(linhasPendentesNoRound(round).map((r) => r.veiculo));
