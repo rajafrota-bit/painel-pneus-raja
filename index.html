@@ -237,6 +237,97 @@
     .grid-2 { grid-template-columns: 1fr; }
   }
   @media (prefers-reduced-motion: reduce) { * { transition: none !important; } }
+
+  /* ---------- Plano de Ação ---------- */
+  textarea {
+    background: var(--bg-elev); border: 1px solid var(--border-strong); color: var(--text);
+    border-radius: var(--radius-sm); padding: 8px 9px; font-size: 13px; width: 100%;
+    font-family: inherit; resize: vertical; line-height: 1.4;
+  }
+  textarea:focus { outline: 2px solid var(--accent-border); outline-offset: 1px; }
+  .btn {
+    padding: 8px 14px; border-radius: var(--radius-sm); font-size: 12.5px; font-weight: 600;
+    border: 1px solid var(--border-strong); background: var(--surface-2); color: var(--text); white-space: nowrap;
+  }
+  .btn:hover:not(:disabled) { border-color: var(--accent-border); }
+  .btn:disabled { opacity: .45; cursor: not-allowed; }
+  .btn-primary { background: var(--accent); border-color: var(--accent); color: #191c22; }
+  .btn-primary:hover:not(:disabled) { filter: brightness(1.08); }
+  .btn-danger { color: var(--danger); border-color: rgba(226,88,74,.4); }
+  .btn-sm { padding: 5px 10px; font-size: 11.5px; }
+  .btn-plano-card { margin: 8px 0 4px; width: 100%; background: var(--accent-dim); border-color: var(--accent-border); color: var(--accent); }
+  .form-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px; margin-top: 12px; }
+  .form-grid .span2 { grid-column: 1 / -1; }
+  .field label { display: block; font-size: 10.5px; text-transform: uppercase; letter-spacing: .08em; color: var(--text-dim); font-weight: 600; margin-bottom: 5px; }
+  .field-hint { font-size: 11px; color: var(--text-faint); margin-top: 5px; }
+  .form-actions { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 10px; }
+  .modelos { display: flex; gap: 6px; flex-wrap: wrap; align-items: center; margin-top: 8px; }
+  @media (max-width: 700px) { .form-grid { grid-template-columns: 1fr; } }
+  .banner { padding: 10px 14px; border-radius: var(--radius-sm); font-size: 12.5px; background: var(--surface); border: 1px solid var(--border); color: var(--text-dim); }
+  .banner-warn { background: var(--warning-bg); border-color: rgba(217,173,85,.4); color: var(--warning); }
+  .banner-erro { background: var(--danger-bg); border-color: rgba(226,88,74,.4); color: var(--danger); }
+  .rel-bar { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+  .rel-label { font-size: 12px; color: var(--text-dim); margin-right: 4px; }
+  .plano-row { cursor: pointer; }
+  .plano-row.selected td { background: rgba(255,255,255,0.06); }
+  .plano-detail-row td { background: var(--bg-elev); white-space: normal; padding: 16px 18px; }
+  .plano-detail { display: grid; grid-template-columns: 1.3fr 1fr; gap: 24px; }
+  @media (max-width: 900px) { .plano-detail { grid-template-columns: 1fr; } }
+  .timeline { display: flex; flex-direction: column; gap: 10px; border-left: 2px solid var(--border-strong); padding-left: 14px; margin-top: 8px; }
+  .tl-when { font-size: 11px; color: var(--text-faint); }
+  .tl-text { font-size: 12.5px; margin-top: 2px; white-space: pre-wrap; }
+  .chip-pick { cursor: pointer; }
+  .chip-pick:hover { filter: brightness(1.25); }
+  .chip-pick.sel { box-shadow: 0 0 0 2px var(--accent); }
+  .ctx-menu {
+    position: fixed; z-index: 100; min-width: 240px; display: flex; flex-direction: column;
+    background: var(--surface-2); border: 1px solid var(--border-strong); border-radius: var(--radius-sm);
+    padding: 4px; box-shadow: 0 12px 32px rgba(0,0,0,.5);
+  }
+  .ctx-menu button { text-align: left; padding: 9px 12px; font-size: 12.5px; border-radius: 5px; color: var(--text); }
+  .ctx-menu button:hover { background: var(--accent-dim); color: var(--accent); }
+  .toast {
+    position: fixed; bottom: 24px; left: 50%; transform: translateX(-50%); z-index: 120;
+    background: var(--surface-2); border: 1px solid var(--accent-border); color: var(--text);
+    padding: 10px 18px; border-radius: 99px; font-size: 13px; box-shadow: 0 8px 24px rgba(0,0,0,.45);
+  }
+  #print-area { display: none; }
+  @media print {
+    body.printing { background: #fff !important; background-image: none !important; color: #000; }
+    body.printing #app, body.printing #topbar, body.printing #overlay, body.printing .toast, body.printing .ctx-menu { display: none !important; }
+    body.printing #print-area { display: block; font-family: 'Segoe UI', Arial, sans-serif; color: #000; }
+    #print-area h1 { font-size: 18px; margin: 0 0 4px; }
+    #print-area p { font-size: 11px; margin: 0 0 12px; color: #444; }
+    #print-area table { width: 100%; min-width: 0; border-collapse: collapse; font-size: 10.5px; }
+    #print-area th, #print-area td { border: 1px solid #999; padding: 4px 6px; text-align: left; vertical-align: top; white-space: normal; color: #000; background: #fff; position: static; }
+    #print-area th { background: #e8e8e8; font-size: 10px; text-transform: none; letter-spacing: 0; }
+    #print-area tr { page-break-inside: avoid; }
+  }
+
+  /* ---------- Plano de Ação: checklist de ações ---------- */
+  .item-list { display: flex; flex-direction: column; gap: 6px; margin-top: 10px; }
+  .item-row { display: flex; align-items: center; gap: 10px; padding: 8px 10px; background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius-sm); }
+  .item-row.done { opacity: .72; }
+  .item-row.done .item-text { text-decoration: line-through; color: var(--text-dim); }
+  .item-check {
+    width: 22px; height: 22px; border-radius: 50%; flex-shrink: 0; display: flex; align-items: center; justify-content: center;
+    border: 2px solid var(--border-strong); background: transparent; color: #191c22; padding: 0;
+  }
+  .item-check:hover { border-color: var(--success); }
+  .item-check.on { background: var(--success); border-color: var(--success); }
+  .item-bullet { width: 22px; height: 22px; border-radius: 50%; flex-shrink: 0; display: flex; align-items: center; justify-content: center; font-size: 11px; font-weight: 700; background: var(--accent-dim); color: var(--accent); }
+  .item-body { flex: 1; min-width: 0; }
+  .item-text { font-size: 13px; white-space: normal; word-break: break-word; }
+  .item-meta { font-size: 11px; color: var(--text-faint); margin-top: 2px; }
+  .item-del { color: var(--text-faint); font-size: 12px; padding: 4px 6px; border-radius: 5px; flex-shrink: 0; }
+  .item-del:hover { color: var(--danger); background: var(--danger-bg); }
+  .item-add { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 12px; }
+  .item-add input:first-child { flex: 1; min-width: 200px; }
+  .prog-wrap { display: flex; flex-direction: column; gap: 3px; }
+  .prog-top { display: flex; align-items: center; gap: 8px; }
+  .prog-bar { width: 80px; height: 6px; border-radius: 99px; background: var(--surface-2); overflow: hidden; display: inline-block; }
+  .prog-fill { display: block; height: 100%; background: var(--success); border-radius: 99px; }
+  .prog-item { font-size: 12px; color: var(--text-dim); }
 </style>
 </head>
 <body>
@@ -475,6 +566,7 @@
     search: '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>',
     check: '<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg>',
     dash: '<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><line x1="5" y1="12" x2="19" y2="12"/></svg>',
+    plan: '<svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg>',
   };
 
   const PANELS = [
@@ -482,6 +574,7 @@
     { key: "inspecoes", label: "Inspeções Pendentes", icon: "clipboard" },
     { key: "sulco", label: "Sulco Baixo", icon: "gauge" },
     { key: "pressao", label: "Pressão de Ar", icon: "ring" },
+    { key: "plano", label: "Plano de Ação", icon: "plan" },
   ];
 
   const state = {
@@ -507,6 +600,9 @@
     // 2026-09-18 ("quero que o gráfico de rosca seja interativo também, do mesmo jeito que o da
     // pressão").
     inspGeralFaixaSel: new Set(),
+    // Plano de Ação
+    planoView: "lista", planoMapa: "sulco", planoStatus: "abertos", planoSel: null, planoDraft: null, planoFormErro: "",
+    planoAutor: (function () { try { return window.localStorage.getItem("raja_plano_autor") || ""; } catch (e) { return ""; } })(),
   };
 
   // ------------------------------------------------------------------
@@ -1393,7 +1489,7 @@
     const status = tireStatus(t.sulco);
     const rr = reformaReparoInfo(t);
     const tituloChip = `${t.posicao} · Pneu ${t.pneu}${t.produto ? ` · ${t.produto}` : ""}`;
-    return `<div class="tire-chip" style="border-color:${tireColor(status)};background:${tireBg(status)}" title="${escapeHtml(tituloChip)}">
+    return `<div class="tire-chip" style="border-color:${tireColor(status)};background:${tireBg(status)}" title="${escapeHtml(tituloChip)}" data-pneu="${escapeHtml(t.pneu)}" data-posicao="${escapeHtml(t.posicao)}" data-sulco="${t.sulco != null ? t.sulco.toFixed(1) : ""}">
       <div class="tire-chip-val" style="color:${tireColor(status)}">${t.sulco != null ? t.sulco.toFixed(1) : "—"}</div>
       <div class="tire-chip-pos">${escapeHtml(t.posicao)}</div>
       <div class="tire-chip-pneu" style="white-space:nowrap;">Nº ${escapeHtml(t.pneu)}</div>
@@ -1426,7 +1522,7 @@
     const pctTxt = t.pctPadrao != null ? ` · ${t.pctPadrao}% do padrão` : "";
     const detalhePsi = t.semLeitura ? "sem leitura registrada" : (t.padraoPsi != null ? `padrão ${t.padraoPsi} psi${pctTxt}` : "");
     const titulo = `${t.posicao} · Pneu ${t.pneu || "—"}${t.produto ? ` · ${t.produto}` : ""} · ${label}${detalhePsi ? ` · ${detalhePsi}` : ""}`;
-    return `<div class="tire-chip" style="border-color:${color};background:${color}22" title="${escapeHtml(titulo)}">
+    return `<div class="tire-chip" style="border-color:${color};background:${color}22" title="${escapeHtml(titulo)}" data-pneu="${escapeHtml(t.pneu || "")}" data-posicao="${escapeHtml(t.posicao)}" data-psi="${t.pressaoAtual != null ? t.pressaoAtual : ""}">
       <div class="tire-chip-val" style="color:${color};">${valorTxt}</div>
       <div class="tire-chip-pos">${escapeHtml(t.posicao)}</div>
       <div class="tire-chip-pneu" style="white-space:nowrap;">Nº ${escapeHtml(t.pneu || "—")}</div>
@@ -2099,6 +2195,837 @@
   // ------------------------------------------------------------------
   // Layout comum
   // ------------------------------------------------------------------
+  // ==================================================================
+  // PLANO DE AÇÃO DE VEÍCULOS
+  // ==================================================================
+  // Fica DENTRO da IIFE do painel (usa state, render, escapeHtml, renderTireDiagram, tireChip,
+  // pressaoTireChip, filialSigla, etc.). Modelo: um PLANO é do veículo (placa, prioridade, prazo,
+  // responsável, status) e tem várias AÇÕES (checklist: "Trocar pneu nº X", "Inverter pneus de
+  // tração"...), cada uma com a bolinha de concluída. O status do plano acompanha as ações.
+  // Persistência: Apps Script + Google Planilha (igual calibragem.html) quando PLANO_API_URL
+  // estiver preenchida; senão "modo teste local" (localStorage, com faixa de aviso na tela).
+  const PLANO_API_URL = "https://script.google.com/macros/s/AKfycbwO4Zx67t6yxnLwgRRB2dzqNzhDZkCSNm6m0SvvGfxCmMoQNW7pHVxvLp7YrF_NHTKv/exec"; // <- cole aqui a URL /exec do Apps Script (plano_acao/Code.gs)
+  const PLANO_LS_KEY = "raja_plano_acao_teste_v2";
+  const PLANO_STATUS = ["Aberto", "Em andamento", "Concluído", "Cancelado"];
+  const PLANO_PRIORIDADES = ["Alta", "Média", "Baixa"];
+  const PLANO_ORIGENS = ["Inspeção física", "Sulco baixo", "Pressão de ar", "Posição vazia", "Outro"];
+  const PLANO_MODELOS = [
+    "Fazer o rodízio dos pneus de tração",
+    "Inverter pneus do eixo de tração",
+    "Trocar pneu nº {pneus}",
+    "Calibrar todos os pneus",
+    "Reformar/recapar pneu nº {pneus}",
+    "Verificar desgaste irregular / alinhamento",
+    "Montar pneu na posição vazia",
+  ];
+  // Frota registrada (placa, filial, tipo) — mesma base do calibragem.html, pra poder abrir plano
+  // pra veículo que não aparece em nenhum relatório de pneus do dia.
+  const PLANO_VEIC = [["JMX5F79","BEL - RAJA BELÉM","CARL4"],["QEO0E30","BEL - RAJA BELÉM","TOCO"],["RPT8C35","BEL - RAJA BELÉM","CARL4"],["SFG8B53","BEL - RAJA BELÉM","TRUCK"],["SFG8B56","BEL - RAJA BELÉM","TRUCK"],["SFG8B57","BEL - RAJA BELÉM","TRUCK"],["SFG8H02","BEL - RAJA BELÉM","TRUCK"],["SFG8H03","BEL - RAJA BELÉM","BTRCK"],["SFG8H04","BEL - RAJA BELÉM","TRUCK"],["SFG8H05","BEL - RAJA BELÉM","BTRCK"],["SFG8H06","BEL - RAJA BELÉM","TRUCK"],["SFG8H12","BEL - RAJA BELÉM","BTRCK"],["SFG8H13","BEL - RAJA BELÉM","BTRCK"],["SFG8H57","BEL - RAJA BELÉM","TRUCK"],["SFG8H66","BEL - RAJA BELÉM","TRUCK"],["SFH0H85","BEL - RAJA BELÉM","TRUCK"],["SFH1H39","BEL - RAJA BELÉM","TRUCK"],["SFH1H42","BEL - RAJA BELÉM","TRUCK"],["SFH1H46","BEL - RAJA BELÉM","TRUCK"],["SFH1H49","BEL - RAJA BELÉM","BTRCK"],["SFH1H51","BEL - RAJA BELÉM","TRUCK"],["SFH1H52","BEL - RAJA BELÉM","TRUCK"],["SFH1H53","BEL - RAJA BELÉM","BTRCK"],["SYQ3H49","BEL - RAJA BELÉM","CVLS"],["TCJ9E31","BEL - RAJA BELÉM","CVLS"],["RTR7C87","GOI - RAJA GOIAS","BTRCK"],["RVA4C17","GOI - RAJA GOIAS","BTRCK"],["SFG8H07","GOI - RAJA GOIAS","BTRCK"],["SFG8H53","GOI - RAJA GOIAS","BTRCK"],["SFH0H83","GOI - RAJA GOIAS","BTRCK"],["TMY0E24","GOI - RAJA GOIAS","BTRCK"],["GOV5629","GVN - RAJA GOV VALADARES","CARL3"],["JOK7794","GVN - RAJA GOV VALADARES","TOCO"],["OPP7H48","GVN - RAJA GOV VALADARES","CVLS"],["PUZ5900","GVN - RAJA GOV VALADARES","CARL3"],["PVH7202","GVN - RAJA GOV VALADARES","3/4"],["PVS3F51","GVN - RAJA GOV VALADARES","3/4"],["PXL0367","GVN - RAJA GOV VALADARES","CARL3"],["RFE2A84","GVN - RAJA GOV VALADARES","TOCO"],["RFE2A85","GVN - RAJA GOV VALADARES","TOCO"],["RFS8E22","GVN - RAJA GOV VALADARES","CVLS"],["RPL9F43","GVN - RAJA GOV VALADARES","CARL4"],["RUI9F84","GVN - RAJA GOV VALADARES","CVLS"],["SHR9C07","GVN - RAJA GOV VALADARES","CARL4"],["SYQ7A80","GVN - RAJA GOV VALADARES","CVLS"],["UVH0B71","GVN - RAJA GOV VALADARES","CARL4"],["PKB9H42","IHE - RAJA ILHEUS","TOCO"],["PPT4831","IHE - RAJA ILHEUS","TOCO"],["PVH7231","IHE - RAJA ILHEUS","3/4"],["RDM1B93","IHE - RAJA ILHEUS","TRUCK"],["RDM4H71","IHE - RAJA ILHEUS","TRUCK"],["RNM9C85","IHE - RAJA ILHEUS","TOCO"],["GSB1B84","JEQ - RAJA JEQUIÉ","CARL3"],["HFD9565","JEQ - RAJA JEQUIÉ","TRUCK"],["HFD9572","JEQ - RAJA JEQUIÉ","TRUCK"],["OQW8485","JEQ - RAJA JEQUIÉ","TRUCK"],["OQW8487","JEQ - RAJA JEQUIÉ","TRUCK"],["OQW8488","JEQ - RAJA JEQUIÉ","TRUCK"],["ORB8H13","JEQ - RAJA JEQUIÉ","BTRCK"],["OUV2H51","JEQ - RAJA JEQUIÉ","CVLS"],["OWL6397","JEQ - RAJA JEQUIÉ","BTRCK"],["PJG7028","JEQ - RAJA JEQUIÉ","CAVLT"],["PLG1113","JEQ - RAJA JEQUIÉ","CARL3"],["PLZ7C85","JEQ - RAJA JEQUIÉ","CVLS"],["PPB6C32","JEQ - RAJA JEQUIÉ","CVLS"],["PPC1164","JEQ - RAJA JEQUIÉ","BTRCK"],["PUT9604","JEQ - RAJA JEQUIÉ","CARL3"],["PUT9606","JEQ - RAJA JEQUIÉ","CARL3"],["PXL0371","JEQ - RAJA JEQUIÉ","CARL3"],["PYR6812","JEQ - RAJA JEQUIÉ","CAVLT"],["PYX0319","JEQ - RAJA JEQUIÉ","BTRCK"],["QXS9E98","JEQ - RAJA JEQUIÉ","CVLS"],["RBC8H27","JEQ - RAJA JEQUIÉ","TRUCK"],["RDN3E96","JEQ - RAJA JEQUIÉ","CARL3"],["RMX0J38","JEQ - RAJA JEQUIÉ","TRUCK"],["RMX3C87","JEQ - RAJA JEQUIÉ","TRUCK"],["RND0H44","JEQ - RAJA JEQUIÉ","BTRCK"],["RVR3F74","JEQ - RAJA JEQUIÉ","TRUCK"],["SFG8H60","JEQ - RAJA JEQUIÉ","TRUCK"],["SFH1H45","JEQ - RAJA JEQUIÉ","BTRCK"],["SFH1H47","JEQ - RAJA JEQUIÉ","TRUCK"],["SJT6I12","JEQ - RAJA JEQUIÉ","TRUCK"],["TMY0C55","JEQ - RAJA JEQUIÉ","BTRCK"],["TMY8F02","JEQ - RAJA JEQUIÉ","BTRCK"],["TMZ0C74","JEQ - RAJA JEQUIÉ","TRUCK"],["TMZ2F22","JEQ - RAJA JEQUIÉ","TRUCK"],["TMZ6D31","JEQ - RAJA JEQUIÉ","TRUCK"],["RFS1J48","KNQ - KEMIGAS NANUQUE","TOCO"],["SKQ1A43","LIM - RAJA LIMEIRA","CARL4"],["SKQ3B44","LIM - RAJA LIMEIRA","CARL4"],["SKQ5G33","LIM - RAJA LIMEIRA","CARL4"],["SKQ5J59","LIM - RAJA LIMEIRA","CARL4"],["SKQ9A88","LIM - RAJA LIMEIRA","CARL4"],["SKT6B76","LIM - RAJA LIMEIRA","CARL4"],["SYO1H78","LIM - RAJA LIMEIRA","CVLS"],["SYO8H43","LIM - RAJA LIMEIRA","CVLS"],["SYP4F30","LIM - RAJA LIMEIRA","CVLS"],["SYP4F52","LIM - RAJA LIMEIRA","CVLS"],["SYW0D30","LIM - RAJA LIMEIRA","CARL4"],["SYW0D35","LIM - RAJA LIMEIRA","CARL4"],["TCD7J13","LIM - RAJA LIMEIRA","CARL4"],["TCE7B47","LIM - RAJA LIMEIRA","CARL4"],["TCG0B11","LIM - RAJA LIMEIRA","CARL4"],["TCG7D85","LIM - RAJA LIMEIRA","CARL4"],["TCH1E82","LIM - RAJA LIMEIRA","CARL4"],["TCH5I85","LIM - RAJA LIMEIRA","CARL4"],["TDK2E30","LIM - RAJA LIMEIRA","CVLS"],["TDK2F30","LIM - RAJA LIMEIRA","CVLS"],["TDK2F39","LIM - RAJA LIMEIRA","CVLS"],["TDK2G26","LIM - RAJA LIMEIRA","CVLS"],["TDK2G32","LIM - RAJA LIMEIRA","CVLS"],["TDK4F08","LIM - RAJA LIMEIRA","CVLS"],["TDM1H13","LIM - RAJA LIMEIRA","CVLS"],["TDM1H15","LIM - RAJA LIMEIRA","CVLS"],["TDM1H18","LIM - RAJA LIMEIRA","CVLS"],["TDM1H75","LIM - RAJA LIMEIRA","CVLS"],["TEA4J89","LIM - RAJA LIMEIRA","CVLS"],["TEA6H13","LIM - RAJA LIMEIRA","CVLS"],["TEQ4I31","LIM - RAJA LIMEIRA","CVLS"],["TEV1I65","LIM - RAJA LIMEIRA","CARL4"],["TIY5E66","LIM - RAJA LIMEIRA","CARL4"],["TJE3E54","LIM - RAJA LIMEIRA","CARL4"],["TJQ8J37","LIM - RAJA LIMEIRA","CVLS"],["TJU7G06","LIM - RAJA LIMEIRA","CARL4"],["TYX8I61","LIM - RAJA LIMEIRA","CARL4"],["TZD8H79","LIM - RAJA LIMEIRA","CARL4"],["UAF3I08","LIM - RAJA LIMEIRA","CVLS"],["UAF8A39","LIM - RAJA LIMEIRA","CVLS"],["UFQ8C25","LIM - RAJA LIMEIRA","CARL4"],["UFT6E08","LIM - RAJA LIMEIRA","CVLS"],["UGP5I02","LIM - RAJA LIMEIRA","CVLS"],["UPM6A40","LIM - RAJA LIMEIRA","CARL4"],["UQS9C40","LIM - RAJA LIMEIRA","CARL4"],["PPI5339","MAR - RAJA MARANHÃO","BTRCK"],["RMX3J86","MAR - RAJA MARANHÃO","BTRCK"],["RNR8B27","MAR - RAJA MARANHÃO","BTRCK"],["SHD7B63","MAR - RAJA MARANHÃO","BTRCK"],["TMY8F44","MAR - RAJA MARANHÃO","BTRCK"],["JQJ5113","REC - RAJA RECIFE","CARL4"],["JRU4676","REC - RAJA RECIFE","CARL3"],["OPF3G97","REC - RAJA RECIFE","CVLS"],["PWF0733","REC - RAJA RECIFE","CARL3"],["PYX4419","REC - RAJA RECIFE","CVLS"],["PYX4423","REC - RAJA RECIFE","CVLS"],["QTW5A19","REC - RAJA RECIFE","CARL3"],["QTW5I65","REC - RAJA RECIFE","CARL3"],["QTW7B22","REC - RAJA RECIFE","CARL3"],["RCP1F35","REC - RAJA RECIFE","CARL3"],["RCX3H02","REC - RAJA RECIFE","CARL3"],["RDJ5D33","REC - RAJA RECIFE","CARL3"],["RDJ8I24","REC - RAJA RECIFE","CARL3"],["RDN1C58","REC - RAJA RECIFE","CARL3"],["RMI9F38","REC - RAJA RECIFE","CVLS"],["RNG3I55","REC - RAJA RECIFE","TRUCK"],["RNH2G44","REC - RAJA RECIFE","TRUCK"],["RNM7B78","REC - RAJA RECIFE","TRUCK"],["RNY0F67","REC - RAJA RECIFE","CVLS"],["RNY0F69","REC - RAJA RECIFE","CVLS"],["RQR8B37","REC - RAJA RECIFE","TRUCK"],["RQS5J11","REC - RAJA RECIFE","CVLS"],["RQS8H39","REC - RAJA RECIFE","CVLS"],["RQS8H42","REC - RAJA RECIFE","CVLS"],["RTP1H37","REC - RAJA RECIFE","CARL3"],["RTP1H44","REC - RAJA RECIFE","CARL3"],["RUZ9E75","REC - RAJA RECIFE","TRUCK"],["RVU9G20","REC - RAJA RECIFE","TRUCK"],["RVZ1B61","REC - RAJA RECIFE","TRUCK"],["SFG8B54","REC - RAJA RECIFE","TRUCK"],["SYQ3H79","REC - RAJA RECIFE","CVLS"],["TMZ8H55","REC - RAJA RECIFE","TRUCK"],["GWI0H00","SAL - RAJA SALVADOR","CVLT"],["JOK4927","SAL - RAJA SALVADOR","CARL3"],["JOU3749","SAL - RAJA SALVADOR","CVLT"],["JPW9776","SAL - RAJA SALVADOR","CARL3"],["JQJ5B14","SAL - RAJA SALVADOR","CARL4"],["JQQ0C20","SAL - RAJA SALVADOR","CARL3"],["JRU1965","SAL - RAJA SALVADOR","TRUCK"],["NTE8C03","SAL - RAJA SALVADOR","TRUCK"],["NYJ4822","SAL - RAJA SALVADOR","TRUCK"],["PPA1122","SAL - RAJA SALVADOR","CVLS"],["PPB6C33","SAL - RAJA SALVADOR","CVLS"],["PPB6C34","SAL - RAJA SALVADOR","CVLS"],["RBD4F02","SAL - RAJA SALVADOR","TRUCK"],["RBD4F07","SAL - RAJA SALVADOR","TRUCK"],["RBD4F15","SAL - RAJA SALVADOR","TRUCK"],["RCW5F50","SAL - RAJA SALVADOR","CARL3"],["RMX0J39","SAL - RAJA SALVADOR","TRUCK"],["SFG8B55","SAL - RAJA SALVADOR","TRUCK"],["SFG8H52","SAL - RAJA SALVADOR","TRUCK"],["SFH1H38","SAL - RAJA SALVADOR","TRUCK"],["SKA1J55","SAL - RAJA SALVADOR","CARL4"],["SYQ0G61","SAL - RAJA SALVADOR","CVLS"],["OUX8F16","SER - RAJA SERRA","CARL4"],["PLH7960","SER - RAJA SERRA","CARL3"],["PUZ5896","SER - RAJA SERRA","CARL3"],["PUZ5899","SER - RAJA SERRA","CARL3"],["QRM0H05","SER - RAJA SERRA","CVLS"],["QRM0H08","SER - RAJA SERRA","CVLS"],["RCO2B71","SER - RAJA SERRA","CARL3"],["RCX2D38","SER - RAJA SERRA","CARL3"],["RCX5A51","SER - RAJA SERRA","CARL3"],["RDL6I90","SER - RAJA SERRA","CARL3"],["RFD6B54","SER - RAJA SERRA","CVLS"],["TCJ2F69","SER - RAJA SERRA","CVLS"],["JQM2E66","SPT - RAJA SPOT","CARL4"],["OPP5A18","SPT - RAJA SPOT","CVLS"],["SJU9D56","SPT - RAJA SPOT","CARL4"],["SKA5J52","SPT - RAJA SPOT","CARL4"],["SYO2B60","SPT - RAJA SPOT","CVLS"],["SYQ7A81","SPT - RAJA SPOT","CVLS"],["TCH2J26","SPT - RAJA SPOT","CARL4"],["TCH9C85","SPT - RAJA SPOT","CARL4"],["TEQ4J65","SPT - RAJA SPOT","CVLS"],["TET4H86","SPT - RAJA SPOT","CARL4"],["TET4I21","SPT - RAJA SPOT","CARL4"],["TLB2I85","SPT - RAJA SPOT","CVLS"],["TZE8J88","SPT - RAJA SPOT","CARL4"],["UAF3H99","SPT - RAJA SPOT","CVLS"],["UAF3I02","SPT - RAJA SPOT","CVLS"],["UAF6E82","SPT - RAJA SPOT","CVLS"],["UAF8A45","SPT - RAJA SPOT","CVLS"],["UDS5J32","SPT - RAJA SPOT","CVLS"],["UDY0E97","SPT - RAJA SPOT","CVLS"],["UEG6G56","SPT - RAJA SPOT","CVLS"],["UEX2E88","SPT - RAJA SPOT","CVLS"],["UFH8J77","SPT - RAJA SPOT","CARL4"],["UFK6I85","SPT - RAJA SPOT","CVLS"],["UFO5E50","SPT - RAJA SPOT","CARL4"],["UPD8J95","SPT - RAJA SPOT","CARL4"],["UQR6B98","SPT - RAJA SPOT","CARL4"],["UVS5A61","SPT - RAJA SPOT","CARL4"],["HFD9063","SUC - SUCATA","CVLT"],["HIB6D61","SUC - SUCATA","TRUCK"],["HIB6D67","SUC - SUCATA","TRUCK"],["JQF6G83","SUC - SUCATA","TRUCK"],["JQJ5116","SUC - SUCATA","CARL3"],["NTH5656","SUC - SUCATA","TRUCK"],["NZP7H08","SUC - SUCATA","TRUCK"],["JQJ5117","TXE - RAJA TEIXEIRA","CARL4"],["NYR8409","TXE - RAJA TEIXEIRA","TRUCK"],["PKB7570","TXE - RAJA TEIXEIRA","TRUCK"],["PUQ6264","TXE - RAJA TEIXEIRA","CAVLT"],["PXE7808","TXE - RAJA TEIXEIRA","CVLS"],["PYY6543","TXE - RAJA TEIXEIRA","CARL3"],["PYY6550","TXE - RAJA TEIXEIRA","CARL3"],["QOP9457","TXE - RAJA TEIXEIRA","CAVLT"],["QTW6D57","TXE - RAJA TEIXEIRA","CAVLT"],["QXD7A57","TXE - RAJA TEIXEIRA","TOCO"],["RFJ6A72","TXE - RAJA TEIXEIRA","TOCO"],["SJT1J95","TXE - RAJA TEIXEIRA","TRUCK"],["UVS2E97","TXE - RAJA TEIXEIRA","CARL4"],["NTD6H09","VCQ - RAJA CONQUISTA","TRUCK"],["NTE6696","VCQ - RAJA CONQUISTA","TRUCK"],["NZB3510","VCQ - RAJA CONQUISTA","3/4"],["PKG7936","VCQ - RAJA CONQUISTA","3/4"],["PLK2F47","VCQ - RAJA CONQUISTA","TOCO"],["QWY2312","VCQ - RAJA CONQUISTA","TRUCK"]];
+
+  function lsGet(k) { try { return window.localStorage.getItem(k); } catch (e) { return null; } }
+  function lsSet(k, v) { try { window.localStorage.setItem(k, v); } catch (e) { /* sem storage: segue em memória */ } }
+  function novoId() {
+    return (window.crypto && window.crypto.randomUUID) ? window.crypto.randomUUID() : "id" + Date.now().toString(36) + Math.random().toString(36).slice(2, 9);
+  }
+  function limpaPlaca(v) { return String(v || "").toUpperCase().replace(/[^A-Z0-9]/g, ""); }
+  function hojeIso() {
+    const d = new Date();
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+  }
+  function fmtDataHora(iso) {
+    if (!iso) return "—";
+    const d = new Date(iso);
+    if (isNaN(d.getTime())) return fmtDate(iso);
+    return `${String(d.getDate()).padStart(2, "0")}/${String(d.getMonth() + 1).padStart(2, "0")}/${d.getFullYear()} ${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}`;
+  }
+  function fmtDiaMes(iso) {
+    const d = new Date(iso);
+    return isNaN(d.getTime()) ? "" : `${String(d.getDate()).padStart(2, "0")}/${String(d.getMonth() + 1).padStart(2, "0")}`;
+  }
+  function planoPneusSet(txt) {
+    return new Set(String(txt || "").split(/[,;\s]+/).map((x) => x.trim()).filter(Boolean));
+  }
+
+  // ---------- Armazenamento ----------
+  const PlanoStore = {
+    modo: PLANO_API_URL ? "api" : "local",
+    planos: [], itens: [], andamento: [], carregando: false, ocupado: false, erro: "",
+    pin: lsGet("raja_plano_pin") || "",
+    precisaPin: false,
+
+    _receber(o) { this.planos = o.planos || []; this.itens = o.itens || []; this.andamento = o.andamento || []; },
+
+    async carregar() {
+      this.erro = "";
+      if (this.modo === "local") {
+        let o = {};
+        try { o = JSON.parse(lsGet(PLANO_LS_KEY) || "{}"); } catch (e) { o = {}; }
+        this._receber(o);
+        return true;
+      }
+      this.carregando = true;
+      try {
+        const r = await fetch(PLANO_API_URL + "?t=" + Date.now(), { cache: "no-store" });
+        const res = await r.json();
+        if (!res.ok) throw new Error(res.erro || "Falha ao ler a base.");
+        this._receber(res);
+        return true;
+      } catch (e) {
+        this.erro = "Não consegui ler a base compartilhada (" + (e.message || e) + "). Confira a internet e recarregue a página.";
+        return false;
+      } finally { this.carregando = false; }
+    },
+
+    _salvarLocal() { lsSet(PLANO_LS_KEY, JSON.stringify({ planos: this.planos, itens: this.itens, andamento: this.andamento })); },
+
+    // Espelho local do que o Code.gs faz (resumo, pneus e status do plano a partir das ações)
+    _recalc(planoId, agora) {
+      const p = this.planos.find((q) => q.id === planoId);
+      if (!p) return;
+      const it = this.itens.filter((i) => i.planoId === planoId);
+      p.acao = it.map((i) => (i.feito ? "[x] " : "[ ] ") + i.texto).join("\n");
+      p.pneus = Array.from(new Set(it.flatMap((i) => Array.from(planoPneusSet(i.pneus))))).join(", ");
+      if (p.status === "Cancelado" || !it.length) return;
+      const f = it.filter((i) => i.feito).length;
+      let novo = p.status;
+      if (f === it.length) novo = "Concluído"; else if (f > 0) novo = "Em andamento"; else if (p.status === "Concluído") novo = "Em andamento";
+      if (novo !== p.status) { p.status = novo; p.editadoEm = agora; p.concluidoEm = novo === "Concluído" ? (p.concluidoEm || agora) : ""; }
+    },
+
+    _aplicarLocal(acao, d) {
+      const agora = new Date().toISOString();
+      if (acao === "plano_save") {
+        const p = d.plano || {};
+        const placa = limpaPlaca(p.placa);
+        if (!placa) throw new Error("A placa é obrigatória.");
+        const status = PLANO_STATUS.indexOf(p.status) >= 0 ? p.status : "Aberto";
+        if (!p.id) {
+          const itens = (d.itens || []).filter((i) => i && String(i.texto || "").trim());
+          if (!itens.length) throw new Error("Inclua pelo menos uma ação no plano.");
+          const id = novoId();
+          this.planos.push({ id, placa, filial: p.filial || "", tipo: p.tipo || "", acao: "", pneus: "", prioridade: p.prioridade || "Média",
+            responsavel: p.responsavel || "", prazo: p.prazo || "", status: "Aberto", origem: p.origem || "", criadoPor: p.criadoPor || "",
+            criadoEm: agora, editadoEm: "", concluidoEm: "" });
+          itens.forEach((i) => this.itens.push({ id: novoId(), planoId: id, texto: String(i.texto).trim(), pneus: i.pneus || "", feito: false, feitoEm: "", feitoPor: "", criadoEm: agora }));
+          this._recalc(id, agora);
+        } else {
+          const x = this.planos.find((q) => q.id === p.id);
+          if (!x) throw new Error("Plano não encontrado (pode ter sido excluído).");
+          Object.assign(x, { placa, filial: p.filial || "", tipo: p.tipo || "", prioridade: p.prioridade || "Média", responsavel: p.responsavel || "",
+            prazo: p.prazo || "", status, origem: p.origem || x.origem, editadoEm: agora, concluidoEm: status === "Concluído" ? (x.concluidoEm || agora) : "" });
+        }
+      } else if (acao === "plano_del") {
+        const i = this.planos.findIndex((q) => q.id === d.id);
+        if (i < 0) throw new Error("Plano não encontrado (pode já ter sido excluído).");
+        this.planos.splice(i, 1);
+        this.itens = this.itens.filter((a) => a.planoId !== d.id);
+        this.andamento = this.andamento.filter((a) => a.planoId !== d.id);
+      } else if (acao === "item_add") {
+        if (!this.planos.find((q) => q.id === d.planoId)) throw new Error("Plano não encontrado (pode ter sido excluído).");
+        const texto = String(d.texto || "").trim();
+        if (!texto) throw new Error("Escreva a ação.");
+        this.itens.push({ id: novoId(), planoId: d.planoId, texto, pneus: d.pneus || "", feito: false, feitoEm: "", feitoPor: "", criadoEm: agora });
+        this._recalc(d.planoId, agora);
+      } else if (acao === "item_toggle") {
+        const x = this.itens.find((q) => q.id === d.id);
+        if (!x) throw new Error("Ação não encontrada (pode ter sido excluída).");
+        x.feito = d.feito === true; x.feitoEm = x.feito ? agora : ""; x.feitoPor = x.feito ? (d.autor || "") : "";
+        this._recalc(x.planoId, agora);
+      } else if (acao === "item_del") {
+        const i = this.itens.findIndex((q) => q.id === d.id);
+        if (i < 0) throw new Error("Ação não encontrada (pode já ter sido excluída).");
+        const pid = this.itens[i].planoId;
+        this.itens.splice(i, 1);
+        this._recalc(pid, agora);
+      } else if (acao === "andamento_add") {
+        const x = this.planos.find((q) => q.id === d.planoId);
+        if (!x) throw new Error("Plano não encontrado (pode ter sido excluído).");
+        const texto = String(d.texto || "").trim();
+        const novo = PLANO_STATUS.indexOf(d.status) >= 0 ? d.status : "";
+        if (!texto && !novo) throw new Error("Escreva o andamento ou mude o status.");
+        this.andamento.push({ id: novoId(), planoId: d.planoId, em: agora, autor: d.autor || "", texto, status: novo });
+        if (novo) { x.status = novo; x.editadoEm = agora; x.concluidoEm = novo === "Concluído" ? (x.concluidoEm || agora) : ""; }
+      } else throw new Error("Ação desconhecida.");
+      this._salvarLocal();
+    },
+
+    // Executa uma gravação. Devolve true/false; em caso de erro deixa a mensagem em this.erro.
+    async exec(acao, dados) {
+      this.erro = ""; this.precisaPin = false; this.ocupado = true;
+      try {
+        if (this.modo === "local") this._aplicarLocal(acao, dados);
+        else {
+          const r = await fetch(PLANO_API_URL, { method: "POST", body: JSON.stringify({ acao, pin: this.pin, ...dados }) });
+          const res = await r.json();
+          if (!res.ok) {
+            if (/PIN/i.test(res.erro || "")) this.precisaPin = true;
+            throw new Error(res.erro || "Erro ao gravar.");
+          }
+          this._receber(res);
+        }
+        return true;
+      } catch (e) {
+        this.erro = this.precisaPin ? "Senha de lançamento incorreta ou não informada. Preencha o campo Senha e tente de novo." : (e.message || String(e));
+        return false;
+      } finally { this.ocupado = false; }
+    },
+  };
+
+  // ---------- Veículos / mapa ----------
+  let _planoVeics = null;
+  function planoVeiculos() {
+    if (_planoVeics) return _planoVeics;
+    const m = new Map();
+    PLANO_VEIC.forEach((v) => {
+      if (!v || !v[0] || ehFilialSucata(v[1])) return;
+      m.set(limpaPlaca(v[0]), { placa: limpaPlaca(v[0]), filial: String(v[1] || "").trim(), tipo: String(v[2] || "").trim() });
+    });
+    const dados = (placa, filial, tipo) => {
+      const p = limpaPlaca(placa);
+      if (!p || ehFilialSucata(filial)) return;
+      const atual = m.get(p) || { placa: p, filial: "", tipo: "" };
+      m.set(p, { placa: p, filial: String(filial || atual.filial || "").trim(), tipo: String(tipo || atual.tipo || "").trim() });
+    };
+    DATA.sulcoTires.forEach((t) => dados(t.veiculo, t.filial, t.tipoDesc));
+    DATA.pressaoTires.forEach((t) => dados(t.veiculo, t.filial, t.tipoDesc));
+    DATA.vazias.forEach((v) => dados(v.placa, v.filial, v.tipoDesc));
+    _planoVeics = m;
+    return m;
+  }
+  function planoFiliais(veics) {
+    const porSigla = new Map();
+    veics.forEach((v) => { if (v.filial && !porSigla.has(filialSigla(v.filial))) porSigla.set(filialSigla(v.filial), v.filial); });
+    return Array.from(porSigla.values()).sort((a, b) => normalizeText(filialFullName(a)).localeCompare(normalizeText(filialFullName(b))));
+  }
+  // Devolve os mapas disponíveis do veículo (sulco e/ou pressão). O relatório de sulco não cobre
+  // a frota toda (só veículos medidos), então nem todo veículo tem mapa de sulco.
+  function planoVehicleMap(placa) {
+    const s = DATA.sulcoTires.filter((t) => limpaPlaca(t.veiculo) === placa);
+    const p = DATA.pressaoTires.filter((t) => limpaPlaca(t.veiculo) === placa);
+    if (!s.length && !p.length) return null;
+    const preferido = state.planoMapa === "pressao" && p.length ? "pressao" : state.planoMapa === "sulco" && s.length ? "sulco" : (s.length ? "sulco" : "pressao");
+    return {
+      temSulco: s.length > 0, temPressao: p.length > 0, atual: preferido,
+      tires: preferido === "sulco" ? s : p, chip: preferido === "sulco" ? tireChip : pressaoTireChip,
+      fonte: preferido === "sulco" ? "sulco (mm)" : "pressão de ar (psi)",
+    };
+  }
+
+  // ---------- Regras ----------
+  const PLANO_ABERTOS = ["Aberto", "Em andamento"];
+  function planoAtrasado(p) { return !!p.prazo && p.prazo < hojeIso() && PLANO_ABERTOS.indexOf(p.status) >= 0; }
+  function planoAbertosCount() { return PlanoStore.planos.filter((p) => PLANO_ABERTOS.indexOf(p.status) >= 0).length; }
+  function planoItens(id) {
+    return PlanoStore.itens.filter((i) => i.planoId === id).sort((a, b) => String(a.criadoEm).localeCompare(String(b.criadoEm)));
+  }
+  function planoUltimoAndamento(id) {
+    const l = PlanoStore.andamento.filter((a) => a.planoId === id && a.texto).sort((a, b) => String(a.em).localeCompare(String(b.em)));
+    return l.length ? l[l.length - 1] : null;
+  }
+  function planoStatusPill(s) {
+    if (s === "Concluído") return `<span class="pill pill-success"><span class="pill-dot"></span>${s}</span>`;
+    if (s === "Em andamento") return `<span class="pill" style="background:rgba(107,143,214,.16);color:var(--chart2);"><span class="pill-dot"></span>${s}</span>`;
+    if (s === "Cancelado") return `<span class="pill pill-neutral"><span class="pill-dot"></span>${s}</span>`;
+    return `<span class="pill pill-warning"><span class="pill-dot"></span>${s}</span>`;
+  }
+  function planoPrioPill(p) {
+    return `<span class="pill ${p === "Alta" ? "pill-danger" : p === "Baixa" ? "pill-neutral" : "pill-warning"}">${escapeHtml(p || "Média")}</span>`;
+  }
+  const PLANO_ORD_STATUS = { "Aberto": 0, "Em andamento": 1, "Concluído": 2, "Cancelado": 3 };
+  const PLANO_ORD_PRIO = { "Alta": 0, "Média": 1, "Baixa": 2 };
+
+  function planosVisiveis() {
+    let l = PlanoStore.planos.slice();
+    if (state.filtroFilial !== "all") l = l.filter((p) => filialSigla(p.filial) === filialSigla(state.filtroFilial));
+    // O plano aberto no checklist continua na tela mesmo se o filtro de status o esconderia
+    // (ex.: marcou a última bolinha e ele virou "Concluído" — não pode sumir na sua cara).
+    const mantem = (p) => p.id === state.planoSel;
+    if (state.planoStatus === "abertos") l = l.filter((p) => PLANO_ABERTOS.indexOf(p.status) >= 0 || mantem(p));
+    else if (state.planoStatus === "atrasados") l = l.filter((p) => planoAtrasado(p) || mantem(p));
+    else if (state.planoStatus !== "todos") l = l.filter((p) => p.status === state.planoStatus || mantem(p));
+    const q = normalizeText(state.busca);
+    if (q) l = l.filter((p) => normalizeText([p.placa, p.acao, p.pneus, p.responsavel, p.origem].concat(planoItens(p.id).map((i) => i.texto)).join(" ")).indexOf(q) >= 0);
+    l.sort((a, b) =>
+      (PLANO_ORD_STATUS[a.status] - PLANO_ORD_STATUS[b.status]) ||
+      (PLANO_ORD_PRIO[a.prioridade] - PLANO_ORD_PRIO[b.prioridade]) ||
+      ((a.prazo || "9999").localeCompare(b.prazo || "9999")) ||
+      String(b.criadoEm).localeCompare(String(a.criadoEm)));
+    return applySort(l, {
+      status: (p) => PLANO_ORD_STATUS[p.status], prio: (p) => PLANO_ORD_PRIO[p.prioridade],
+      placa: (p) => p.placa, filial: (p) => normalizeText(filialFullName(p.filial)),
+      prazo: (p) => p.prazo || "9999", resp: (p) => p.responsavel || "",
+    });
+  }
+
+  // ---------- Painel ----------
+  // Lê o formulário do DOM pro rascunho. O render() chama isso ANTES de trocar o HTML; quem altera
+  // o rascunho por código (atalho, clique no pneu, abrir/editar) liga planoSkipSync pra o render
+  // não sobrescrever a alteração com o valor antigo que ainda está no DOM.
+  function planoSyncDraft() {
+    if (state.planoSkipSync) { state.planoSkipSync = false; return; }
+    if (state.panel !== "plano" || state.planoView !== "form" || !state.planoDraft) return;
+    const g = (id) => { const el = document.getElementById(id); return el ? el.value : null; };
+    if (g("pl-placa") === null) return; // DOM antigo não é do formulário
+    const d = state.planoDraft;
+    d.placa = limpaPlaca(g("pl-placa"));
+    d.prioridade = g("pl-prio"); d.responsavel = g("pl-resp"); d.prazo = g("pl-prazo"); d.origem = g("pl-origem");
+    const st = g("pl-status"); if (st) d.status = st;
+    const tx = g("pl-acao"); if (tx !== null) d.texto = tx;
+    const pn = g("pl-pneus"); if (pn !== null) d.pneus = pn;
+  }
+
+  function planoBanner() {
+    const partes = [];
+    if (PlanoStore.modo === "local") {
+      partes.push(`<div class="banner banner-warn"><strong>MODO TESTE LOCAL</strong> — os planos ficam salvos só neste navegador (ninguém mais vê). Para a equipe toda ver os mesmos planos, falta ligar a base compartilhada (Google Planilha).</div>`);
+    }
+    if (PlanoStore.carregando) partes.push(`<div class="banner">Carregando planos da base compartilhada…</div>`);
+    if (PlanoStore.erro) {
+      partes.push(`<div class="banner banner-erro">${escapeHtml(PlanoStore.erro)}${PlanoStore.precisaPin ? ` <input id="pl-pin" type="password" placeholder="Senha" value="${escapeHtml(PlanoStore.pin)}" style="width:140px;margin-left:8px;">` : ""}</div>`);
+    }
+    return partes.join("");
+  }
+
+  function renderPlanoPanel() {
+    planoSyncDraft();
+    const veics = planoVeiculos();
+    const filiais = planoFiliais(veics);
+    const extra = `
+      <input id="ctl-autor" placeholder="Seu nome" value="${escapeHtml(state.planoAutor)}" style="min-width:130px;max-width:150px;" title="Aparece como autor dos planos, ações concluídas e andamentos">
+      ${state.planoView === "lista" ? `<select id="pl-status-filtro" title="Filtrar por status">
+        <option value="abertos" ${state.planoStatus === "abertos" ? "selected" : ""}>Em aberto (aberto + andamento)</option>
+        <option value="atrasados" ${state.planoStatus === "atrasados" ? "selected" : ""}>Atrasados</option>
+        <option value="todos" ${state.planoStatus === "todos" ? "selected" : ""}>Todos os status</option>
+        ${PLANO_STATUS.map((s) => `<option value="${s}" ${state.planoStatus === s ? "selected" : ""}>${s}</option>`).join("")}
+      </select>` : ""}
+      ${state.planoView === "lista" ? `<button class="btn btn-primary" data-plano-novo>＋ Novo plano</button>` : ""}`;
+    const desc = "Um plano por veículo, com várias ações em checklist. Marque cada ação como concluída conforme a operação executa e gere o relatório de cobrança.";
+    const cab = panelHeader("Plano de Ação", desc, filiais, extra);
+    if (state.planoView === "form") return cab + planoBanner() + renderPlanoForm(veics);
+    return cab + planoBanner() + renderPlanoLista();
+  }
+
+  function planoProgressoHtml(p) {
+    const it = planoItens(p.id);
+    if (!it.length) return `<span style="color:var(--text-faint)">sem ações</span>`;
+    const f = it.filter((i) => i.feito).length;
+    const pend = it.filter((i) => !i.feito);
+    const pct = Math.round((f / it.length) * 100);
+    return `<div class="prog-wrap"><div class="prog-top"><span class="mono" style="font-weight:700;">${f}/${it.length}</span>
+        <span class="prog-bar"><span class="prog-fill" style="width:${pct}%"></span></span></div>
+      ${pend.slice(0, 2).map((i) => `<div class="prog-item">☐ ${escapeHtml(i.texto)}</div>`).join("")}
+      ${pend.length > 2 ? `<div class="prog-item" style="color:var(--text-faint)">+${pend.length - 2} pendente(s)</div>` : ""}
+      ${pend.length === 0 ? `<div class="prog-item" style="color:var(--success)">todas concluídas</div>` : ""}</div>`;
+  }
+
+  function renderPlanoLista() {
+    const todosFilial = PlanoStore.planos.filter((p) => state.filtroFilial === "all" || filialSigla(p.filial) === filialSigla(state.filtroFilial));
+    const nAb = todosFilial.filter((p) => p.status === "Aberto").length;
+    const nAnd = todosFilial.filter((p) => p.status === "Em andamento").length;
+    const nAtr = todosFilial.filter(planoAtrasado).length;
+    const nCon = todosFilial.filter((p) => p.status === "Concluído").length;
+    const lista = planosVisiveis();
+    const kpis = `<div class="kpi-grid">
+      ${kpiCard("Abertos", nAb, "nenhuma ação concluída ainda", ICONS.clipboard, "var(--warning)")}
+      ${kpiCard("Em andamento", nAnd, "operação já está atuando", ICONS.truck, "var(--chart2)")}
+      ${kpiCard("Atrasados", nAtr, "prazo vencido e não concluído", ICONS.alert, "var(--danger)")}
+      ${kpiCard("Concluídos", nCon, "todas as ações feitas", ICONS.check, "var(--success)")}
+    </div>`;
+    const relBar = `<div class="rel-bar">
+      <span class="rel-label">Relatório da lista abaixo (${lista.length} plano${lista.length === 1 ? "" : "s"}):</span>
+      <button class="btn btn-sm" id="pl-rel-print" ${lista.length ? "" : "disabled"}>🖨 Imprimir / salvar PDF</button>
+      <button class="btn btn-sm" id="pl-rel-csv" ${lista.length ? "" : "disabled"}>⬇ Baixar Excel (CSV)</button>
+      <button class="btn btn-sm" id="pl-rel-wpp" ${lista.length ? "" : "disabled"}>📋 Copiar p/ WhatsApp</button>
+    </div>`;
+    const linhas = lista.length === 0
+      ? emptyRow(9, PlanoStore.planos.length === 0 ? "Nenhum plano criado ainda. Clique em “＋ Novo plano” ou use o botão direito no mapa do veículo (Sulco Baixo / Pressão de Ar)." : "Nenhum plano com esses filtros.")
+      : lista.map((p) => planoLinhaHtml(p)).join("");
+    return `${kpis}${relBar}
+      <div class="table-wrap">
+        <table>
+          <thead><tr>${sortTh("status", "Status")}${sortTh("prio", "Prioridade")}${sortTh("placa", "Placa")}${sortTh("filial", "Filial")}<th>Ações do plano</th><th>Pneus</th>${sortTh("resp", "Responsável")}${sortTh("prazo", "Prazo")}<th>Último andamento</th></tr></thead>
+          <tbody>${linhas}</tbody>
+        </table>
+        <div class="table-note">Clique numa linha para abrir o checklist: marque as ações concluídas, adicione novas, registre andamento, edite ou exclua o plano.</div>
+      </div>`;
+  }
+
+  function planoItemHtml(i) {
+    const meta = [];
+    if (i.pneus) meta.push(`pneus: ${escapeHtml(i.pneus)}`);
+    if (i.feito) meta.push(`concluída ${escapeHtml(fmtDataHora(i.feitoEm))}${i.feitoPor ? ` por ${escapeHtml(i.feitoPor)}` : ""}`);
+    return `<div class="item-row ${i.feito ? "done" : ""}">
+      <button class="item-check ${i.feito ? "on" : ""}" data-item-toggle="${escapeHtml(i.id)}" data-feito="${i.feito ? "0" : "1"}" title="${i.feito ? "Desmarcar" : "Marcar como concluída"}" aria-label="${i.feito ? "Desmarcar ação" : "Marcar ação como concluída"}">${i.feito ? ICONS.check : ""}</button>
+      <div class="item-body"><div class="item-text">${escapeHtml(i.texto)}</div>${meta.length ? `<div class="item-meta">${meta.join(" · ")}</div>` : ""}</div>
+      <button class="item-del" data-item-del="${escapeHtml(i.id)}" title="Excluir esta ação" aria-label="Excluir ação">✕</button>
+    </div>`;
+  }
+
+  function planoLinhaHtml(p) {
+    const aberta = state.planoSel === p.id;
+    const ult = planoUltimoAndamento(p.id);
+    const atras = planoAtrasado(p);
+    const linha = `<tr class="plano-row ${aberta ? "selected" : ""}" data-plano-id="${escapeHtml(p.id)}">
+      <td>${planoStatusPill(p.status)}</td>
+      <td>${planoPrioPill(p.prioridade)}</td>
+      <td class="mono" style="font-weight:600;">${escapeHtml(p.placa)}</td>
+      <td>${escapeHtml(filialSigla(p.filial))} <span style="color:var(--text-faint)">— ${escapeHtml(filialFullName(p.filial))}</span></td>
+      <td style="white-space:normal;min-width:240px;max-width:380px;">${planoProgressoHtml(p)}</td>
+      <td class="mono" style="white-space:normal;max-width:140px;">${escapeHtml(p.pneus || "—")}</td>
+      <td>${escapeHtml(p.responsavel || "—")}</td>
+      <td>${p.prazo ? escapeHtml(fmtDate(p.prazo)) : "—"}${atras ? ` <span class="pill pill-danger">atrasado</span>` : ""}</td>
+      <td style="white-space:normal;max-width:220px;color:var(--text-dim);">${ult ? `${escapeHtml(ult.texto)} <span style="color:var(--text-faint)">(${escapeHtml(fmtDataHora(ult.em))})</span>` : "—"}</td>
+    </tr>`;
+    if (!aberta) return linha;
+    const itens = planoItens(p.id);
+    const checklist = itens.length === 0 ? `<div class="detail-empty" style="padding:14px;">Este plano ainda não tem ações. Adicione abaixo.</div>` : `<div class="item-list">${itens.map(planoItemHtml).join("")}</div>`;
+    const hist = PlanoStore.andamento.filter((a) => a.planoId === p.id).sort((a, b) => String(b.em).localeCompare(String(a.em)));
+    const timeline = hist.length === 0 ? `<div class="chart-hint">Sem observações registradas.</div>` :
+      `<div class="timeline">${hist.map((a) => `<div class="tl-item">
+        <div class="tl-when">${escapeHtml(fmtDataHora(a.em))}${a.autor ? ` · ${escapeHtml(a.autor)}` : ""}${a.status ? ` · → ${planoStatusPill(a.status)}` : ""}</div>
+        ${a.texto ? `<div class="tl-text">${escapeHtml(a.texto)}</div>` : ""}
+      </div>`).join("")}</div>`;
+    const det = `<tr class="plano-detail-row"><td colspan="9">
+      <div class="plano-detail">
+        <div>
+          <div class="card-title">Ações do plano</div>
+          <div class="chart-hint">Criado por ${escapeHtml(p.criadoPor || "—")} em ${escapeHtml(fmtDataHora(p.criadoEm))}${p.origem ? ` · origem: ${escapeHtml(p.origem)}` : ""}${p.concluidoEm ? ` · concluído em ${escapeHtml(fmtDataHora(p.concluidoEm))}` : ""}</div>
+          ${checklist}
+          <div class="item-add">
+            <input id="pl-item-texto" placeholder="Nova ação (ex.: Inverter pneus do eixo de tração)" autocomplete="off">
+            <input id="pl-item-pneus" placeholder="Pneus nº (opcional)" style="max-width:150px;" autocomplete="off">
+            <button class="btn btn-primary btn-sm" data-item-add="${escapeHtml(p.id)}">＋ Adicionar ação</button>
+          </div>
+        </div>
+        <div>
+          <div class="card-title">Observações / andamento</div>
+          <div class="field"><textarea id="pl-and-texto" rows="3" placeholder="Ex.: Pneu já pedido ao fornecedor, previsão de chegada dia 10."></textarea></div>
+          <div class="field" style="margin-top:8px;"><label>Status do plano</label>
+            <select id="pl-and-status">${PLANO_STATUS.map((s) => `<option value="${s}" ${p.status === s ? "selected" : ""}>${s}</option>`).join("")}</select>
+            <div class="field-hint">O status acompanha as ações sozinho (todas feitas = Concluído). Use aqui só para Cancelar ou forçar.</div></div>
+          <div class="form-actions">
+            <button class="btn btn-primary btn-sm" data-plano-and="${escapeHtml(p.id)}" ${PlanoStore.ocupado ? "disabled" : ""}>Registrar observação</button>
+            <button class="btn btn-sm" data-plano-edit="${escapeHtml(p.id)}">Editar dados do plano</button>
+            <button class="btn btn-sm btn-danger" data-plano-del="${escapeHtml(p.id)}">Excluir plano</button>
+          </div>
+          ${timeline}
+        </div>
+      </div>
+    </td></tr>`;
+    return linha + det;
+  }
+
+  function renderPlanoForm(veics) {
+    const d = state.planoDraft;
+    const editando = !!d.id;
+    const info = d.placa ? veics.get(d.placa) : null;
+    const mapa = info ? planoVehicleMap(d.placa) : null;
+    const sel = planoPneusSet(d.pneus);
+    const opts = Array.from(veics.values()).sort((a, b) => a.placa.localeCompare(b.placa))
+      .map((v) => `<option value="${escapeHtml(v.placa)}">${escapeHtml(filialSigla(v.filial))} · ${escapeHtml(v.tipo)}</option>`).join("");
+    const modelos = PLANO_MODELOS.map((m, i) => `<button type="button" class="btn btn-sm btn-modelo" data-modelo="${i}">${escapeHtml(m.replace("{pneus}", "…"))}</button>`).join("");
+    // Responsável = filial da operação (lista suspensa). Valor antigo fora da lista (plano criado
+    // quando era texto livre) continua aparecendo pra não se perder ao editar.
+    const nomesFilial = planoFiliais(veics).map(filialFullName);
+    const respOpts = `<option value="">— selecione a filial —</option>` +
+      (d.responsavel && nomesFilial.indexOf(d.responsavel) < 0 ? `<option value="${escapeHtml(d.responsavel)}" selected>${escapeHtml(d.responsavel)}</option>` : "") +
+      nomesFilial.map((n) => `<option value="${escapeHtml(n)}" ${d.responsavel === n ? "selected" : ""}>${escapeHtml(n)}</option>`).join("");
+    const dica = !d.placa ? "" : info
+      ? `<div class="field-hint">${escapeHtml(filialSigla(info.filial))} — ${escapeHtml(filialFullName(info.filial))} · ${escapeHtml(info.tipo || "tipo não informado")}</div>`
+      : `<div class="field-hint" style="color:var(--warning);">Placa fora da base de veículos registrados — o plano será salvo mesmo assim.</div>`;
+    const pick = (fn) => (t) => {
+      const h = fn(t);
+      if (!t.pneu || t.vazio || t.semDado) return h;
+      return h.replace('class="tire-chip"', `class="tire-chip chip-pick${sel.has(String(t.pneu)) ? " sel" : ""}"`);
+    };
+    let lado;
+    if (!info) lado = `<div class="card detail-card"><div class="card-title">Esquema do veículo</div><div class="detail-empty">Escolha uma placa conhecida para ver o mapa dos pneus. Clique num pneu do mapa para incluir o nº de fogo na ação.</div></div>`;
+    else lado = `<div class="card detail-card">
+        <div class="detail-plate-label">Veículo do plano</div>
+        <div class="detail-plate">${escapeHtml(info.placa)}</div>
+        <div class="detail-sub">${escapeHtml(filialSigla(info.filial))} — ${escapeHtml(filialFullName(info.filial))} · ${escapeHtml(info.tipo || "—")}</div>
+        ${mapa ? `<div class="card-title" style="margin-top:18px;">Esquema do veículo <span style="color:var(--text-faint)">· ${mapa.fonte}</span></div>
+          ${mapa.temSulco && mapa.temPressao ? `<div class="seg-group" style="margin-top:8px;align-self:flex-start;width:fit-content;">
+            <button class="seg-btn ${mapa.atual === "sulco" ? "active" : ""}" data-mapa="sulco">Sulco</button>
+            <button class="seg-btn ${mapa.atual === "pressao" ? "active" : ""}" data-mapa="pressao">Pressão</button></div>` : ""}
+          ${!mapa.temSulco ? `<div class="field-hint" style="color:var(--warning);">Este veículo não tem leitura de sulco no relatório de Sulco Baixo — mostrando a pressão (psi). O nº de fogo vale igual.</div>` : !mapa.temPressao ? `<div class="field-hint">Este veículo não tem leitura de pressão no relatório atual — mostrando o sulco (mm).</div>` : ""}
+          ${renderTireDiagram({ tires: mapa.tires }, pick(mapa.chip))}
+          ${editando ? "" : `<div class="table-note" style="padding-left:0;">Clique num pneu para incluir/retirar o nº de fogo em “Pneus desta ação”. Pneus selecionados ficam com contorno laranja.</div>`}`
+          : `<div class="detail-empty">Sem dados de pneus deste veículo nos relatórios atuais. Digite os nº de fogo manualmente.</div>`}
+      </div>`;
+    const lista = (d.itens || []).map((i, n) => `<div class="item-row"><span class="item-bullet">${n + 1}</span>
+        <div class="item-body"><div class="item-text">${escapeHtml(i.texto)}</div>${i.pneus ? `<div class="item-meta">pneus: ${escapeHtml(i.pneus)}</div>` : ""}</div>
+        <button class="item-del" data-draft-del="${n}" title="Tirar da lista" aria-label="Tirar da lista">✕</button></div>`).join("");
+    const construtor = editando ? `<div class="field span2"><div class="field-hint">As ações deste plano (marcar concluída, adicionar, excluir) são feitas no checklist, ao clicar na linha do plano na lista.</div></div>` : `
+          <div class="field span2"><div class="card-title" style="margin-bottom:6px;">Ações do plano <span style="color:var(--text-faint);text-transform:none;letter-spacing:0;">(${(d.itens || []).length} na lista)</span></div>
+            ${lista ? `<div class="item-list">${lista}</div>` : `<div class="field-hint">Nenhuma ação na lista ainda. Escreva abaixo e clique em “Adicionar à lista” — repita para cada ação do veículo.</div>`}</div>
+          <div class="field span2"><label for="pl-acao">Nova ação — o que precisa ser feito</label>
+            <textarea id="pl-acao" rows="2" placeholder="Ex.: Trocar pneu nº 3429">${escapeHtml(d.texto || "")}</textarea>
+            <div class="modelos"><span class="field-hint" style="margin:0;">Atalhos:</span>${modelos}</div></div>
+          <div class="field span2"><label for="pl-pneus">Pneus desta ação (nº de fogo)</label>
+            <div style="display:flex;gap:8px;"><input id="pl-pneus" value="${escapeHtml(d.pneus || "")}" placeholder="Ex.: 1146, 0004 (ou clique no mapa)"><button class="btn btn-primary" id="pl-add-item" style="flex-shrink:0;">＋ Adicionar à lista</button></div></div>`;
+    return `<div class="sulco-layout">
+      <div class="card">
+        <div class="card-title">${editando ? "Editar dados do plano" : "Novo plano de ação"}</div>
+        <div class="form-grid">
+          <div class="field span2"><label for="pl-placa">Veículo (placa)</label>
+            <input id="pl-placa" list="pl-placas" value="${escapeHtml(d.placa)}" placeholder="Digite ou escolha a placa" autocomplete="off" style="text-transform:uppercase;">
+            <datalist id="pl-placas">${opts}</datalist>${dica}</div>
+          <div class="field"><label for="pl-origem">Origem</label><select id="pl-origem">${PLANO_ORIGENS.map((o) => `<option ${d.origem === o ? "selected" : ""}>${o}</option>`).join("")}</select></div>
+          <div class="field"><label for="pl-prio">Prioridade</label><select id="pl-prio">${PLANO_PRIORIDADES.map((o) => `<option ${d.prioridade === o ? "selected" : ""}>${o}</option>`).join("")}</select></div>
+          <div class="field"><label for="pl-resp">Responsável (operação)</label><select id="pl-resp">${respOpts}</select></div>
+          <div class="field"><label for="pl-prazo">Prazo</label><input id="pl-prazo" type="date" value="${escapeHtml(d.prazo)}"></div>
+          ${editando ? `<div class="field"><label for="pl-status">Status</label><select id="pl-status">${PLANO_STATUS.map((s) => `<option ${d.status === s ? "selected" : ""}>${s}</option>`).join("")}</select></div>` : ""}
+          ${construtor}
+        </div>
+        ${state.planoFormErro ? `<div class="banner banner-erro" style="margin-top:12px;">${escapeHtml(state.planoFormErro)}</div>` : ""}
+        <div class="form-actions" style="margin-top:16px;">
+          <button class="btn btn-primary" id="pl-salvar" ${PlanoStore.ocupado ? "disabled" : ""}>${PlanoStore.ocupado ? "Salvando…" : editando ? "Salvar alterações" : "Salvar plano"}</button>
+          <button class="btn" id="pl-cancelar">Cancelar</button>
+        </div>
+      </div>
+      ${lado}
+    </div>`;
+  }
+
+  // ---------- Ações ----------
+  function abrirNovoPlano(o) {
+    o = o || {};
+    state.panel = "plano"; state.planoView = "form"; state.planoSel = null; state.planoFormErro = "";
+    state.filtroFilial = "all"; state.busca = ""; state.selFiliais.clear(); state.sortKey = null; state.sortDir = 1;
+    state.planoDraft = { id: "", placa: limpaPlaca(o.placa), texto: o.acao || "", pneus: o.pneus || "", itens: [], prioridade: o.prioridade || "Média",
+      responsavel: "", prazo: "", origem: o.origem || "Inspeção física", status: "Aberto" };
+    state.sidebarOpen = false; state.planoSkipSync = true;
+    document.getElementById("sidebar").classList.remove("open");
+    document.getElementById("overlay").classList.remove("open");
+    render();
+    window.scrollTo(0, 0);
+  }
+
+  function planoEditar(id) {
+    const p = PlanoStore.planos.find((x) => x.id === id);
+    if (!p) return;
+    state.planoView = "form"; state.planoFormErro = "";
+    state.planoDraft = { id: p.id, placa: p.placa, texto: "", pneus: "", itens: [], prioridade: p.prioridade, responsavel: p.responsavel,
+      prazo: p.prazo, origem: p.origem || "Outro", status: p.status };
+    state.planoSkipSync = true;
+    render();
+    window.scrollTo(0, 0);
+  }
+
+  // Move o texto/pneus digitados pra lista de ações do rascunho (devolve true se adicionou algo)
+  function planoDraftAdicionarItem() {
+    const d = state.planoDraft;
+    const texto = String(d.texto || "").trim();
+    if (!texto) return false;
+    d.itens.push({ texto, pneus: String(d.pneus || "").trim() });
+    d.texto = ""; d.pneus = "";
+    return true;
+  }
+
+  async function planoSalvar() {
+    planoSyncDraft();
+    const d = state.planoDraft;
+    const placa = limpaPlaca(d.placa);
+    if (!placa) { state.planoFormErro = "Informe a placa do veículo."; render(); return; }
+    if (!d.id) {
+      planoDraftAdicionarItem(); // o que ficou digitado e não foi adicionado entra junto
+      if (!d.itens.length) { state.planoFormErro = "Descreva pelo menos uma ação (escreva e clique em “Adicionar à lista”, ou só em “Salvar plano”)."; render(); return; }
+    }
+    state.planoFormErro = "";
+    const info = planoVeiculos().get(placa);
+    const plano = { id: d.id, placa, filial: info ? info.filial : "", tipo: info ? info.tipo : "",
+      prioridade: d.prioridade, responsavel: String(d.responsavel || "").trim(), prazo: d.prazo || "", status: d.status || "Aberto",
+      origem: d.origem, criadoPor: state.planoAutor };
+    state.planoSkipSync = true; render(); // mostra "Salvando…"
+    const ok = await PlanoStore.exec("plano_save", { plano, itens: d.id ? undefined : d.itens });
+    if (ok) {
+      state.planoView = "lista"; state.planoDraft = null;
+      const novo = PlanoStore.planos.find((p) => p.placa === placa && (d.id ? p.id === d.id : true) && p.criadoPor === (d.id ? p.criadoPor : state.planoAutor));
+      if (state.planoStatus === "abertos" && novo && PLANO_ABERTOS.indexOf(novo.status) < 0) state.planoStatus = "todos";
+      toast("Plano salvo.");
+    } else state.planoFormErro = PlanoStore.erro;
+    render();
+  }
+
+  async function planoAndamento(id) {
+    const texto = (document.getElementById("pl-and-texto") || {}).value || "";
+    const status = (document.getElementById("pl-and-status") || {}).value || "";
+    const p = PlanoStore.planos.find((x) => x.id === id);
+    const statusMudou = p && p.status !== status;
+    const ok = await PlanoStore.exec("andamento_add", { planoId: id, texto, status: statusMudou ? status : "", autor: state.planoAutor });
+    if (ok) toast("Observação registrada.");
+    render();
+  }
+
+  async function planoItemAdd(planoId) {
+    const texto = (document.getElementById("pl-item-texto") || {}).value || "";
+    const pneus = (document.getElementById("pl-item-pneus") || {}).value || "";
+    const ok = await PlanoStore.exec("item_add", { planoId, texto, pneus: pneus.trim() });
+    if (ok) toast("Ação adicionada.");
+    render();
+    if (ok) { const el = document.getElementById("pl-item-texto"); if (el) el.focus(); }
+  }
+
+  // Marca/desmarca já na tela (otimista) e confirma na base; se falhar, volta o que era.
+  async function planoItemToggle(itemId, feito) {
+    const it = PlanoStore.itens.find((i) => i.id === itemId);
+    if (!it) return;
+    const antes = { feito: it.feito, feitoEm: it.feitoEm, feitoPor: it.feitoPor };
+    it.feito = feito; it.feitoEm = feito ? new Date().toISOString() : ""; it.feitoPor = feito ? state.planoAutor : "";
+    render();
+    const ok = await PlanoStore.exec("item_toggle", { id: itemId, feito, autor: state.planoAutor });
+    if (!ok) { const again = PlanoStore.itens.find((i) => i.id === itemId); if (again) Object.assign(again, antes); }
+    render();
+  }
+
+  async function planoItemDel(itemId) {
+    const it = PlanoStore.itens.find((i) => i.id === itemId);
+    if (!it) return;
+    if (!window.confirm(`Excluir a ação "${it.texto}"?`)) return;
+    await PlanoStore.exec("item_del", { id: itemId });
+    render();
+  }
+
+  async function planoExcluir(id) {
+    const p = PlanoStore.planos.find((x) => x.id === id);
+    if (!p) return;
+    if (!window.confirm(`Excluir o plano inteiro de ${p.placa} (com todas as ações e observações)?\n\nNão dá para desfazer.`)) return;
+    const ok = await PlanoStore.exec("plano_del", { id });
+    if (ok) { state.planoSel = null; toast("Plano excluído."); }
+    render();
+  }
+
+  // ---------- Relatórios ----------
+  function toast(msg) {
+    const el = document.createElement("div");
+    el.className = "toast"; el.textContent = msg;
+    document.body.appendChild(el);
+    setTimeout(() => { if (el.parentNode) el.parentNode.removeChild(el); }, 2800);
+  }
+  function planoFiltrosTxt() {
+    const partes = [];
+    partes.push({ abertos: "Em aberto", atrasados: "Atrasados", todos: "Todos os status" }[state.planoStatus] || state.planoStatus);
+    if (state.filtroFilial !== "all") partes.push(filialFullName(state.filtroFilial));
+    if (state.busca) partes.push(`busca “${state.busca}”`);
+    return partes.join(" · ");
+  }
+  // Uma linha por AÇÃO (é o que a operação filtra/cobra no Excel); plano sem ações vira 1 linha.
+  function planoCsv(lista) {
+    const cab = ["Placa", "Filial", "Tipo", "Ação", "Pneus", "Concluída", "Concluída em", "Concluída por", "Prioridade", "Responsável", "Prazo", "Status do plano", "Origem", "Criado por", "Criado em", "Último andamento"];
+    const cel = (v) => `"${String(v == null ? "" : v).replace(/"/g, '""')}"`;
+    const linhas = [];
+    lista.forEach((p) => {
+      const u = planoUltimoAndamento(p.id);
+      const comum = [p.prioridade, p.responsavel, p.prazo ? fmtDate(p.prazo) : "", p.status, p.origem, p.criadoPor, fmtDataHora(p.criadoEm), u ? `${u.texto} (${fmtDataHora(u.em)})` : ""];
+      const itens = planoItens(p.id);
+      const base = [p.placa, filialFullName(p.filial), p.tipo];
+      if (!itens.length) linhas.push(base.concat([p.acao, p.pneus, "", "", ""], comum).map(cel).join(";"));
+      itens.forEach((i) => linhas.push(base.concat([i.texto, i.pneus, i.feito ? "Sim" : "Não", i.feito ? fmtDataHora(i.feitoEm) : "", i.feitoPor], comum).map(cel).join(";")));
+    });
+    return "﻿" + [cab.map(cel).join(";")].concat(linhas).join("\r\n");
+  }
+  function planoWhatsapp(lista) {
+    const hoje = fmtDate(hojeIso());
+    const blocos = lista.map((p) => {
+      const u = planoUltimoAndamento(p.id);
+      const itens = planoItens(p.id);
+      const f = itens.filter((i) => i.feito).length;
+      const linhasItens = itens.length ? itens.map((i) => `${i.feito ? "✅" : "⬜"} ${i.texto}${i.pneus ? ` (pneus: ${i.pneus})` : ""}`).join("\n") : `• ${p.acao || "—"}`;
+      return `*${p.placa}* · ${filialSigla(p.filial)} · ${p.prioridade}${p.prazo ? ` · prazo ${fmtDate(p.prazo)}${planoAtrasado(p) ? " (ATRASADO)" : ""}` : ""}\n${linhasItens}\nStatus: ${p.status}${itens.length ? ` (${f}/${itens.length})` : ""}${p.responsavel ? ` · Resp.: ${p.responsavel}` : ""}${u ? `\nObs.: ${u.texto}` : ""}`;
+    });
+    return `*Plano de Ação – Pneus RAJA* (${hoje})\n${planoFiltrosTxt()}\n\n` + blocos.join("\n\n");
+  }
+  function baixarArquivo(nome, texto, tipo) {
+    const blob = new Blob([texto], { type: tipo });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url; a.download = nome;
+    document.body.appendChild(a); a.click();
+    setTimeout(() => { document.body.removeChild(a); URL.revokeObjectURL(url); }, 500);
+  }
+  async function copiarTexto(texto) {
+    try { if (navigator.clipboard && navigator.clipboard.writeText) { await navigator.clipboard.writeText(texto); return true; } } catch (e) { /* tenta o plano B */ }
+    try {
+      const ta = document.createElement("textarea");
+      ta.value = texto; ta.style.position = "fixed"; ta.style.opacity = "0";
+      document.body.appendChild(ta); ta.select();
+      const ok = document.execCommand("copy");
+      document.body.removeChild(ta);
+      return ok;
+    } catch (e) { return false; }
+  }
+  function planoImprimir(lista) {
+    let area = document.getElementById("print-area");
+    if (!area) { area = document.createElement("div"); area.id = "print-area"; document.body.appendChild(area); }
+    area.innerHTML = `
+      <h1>Plano de Ação — Frota de Pneus RAJA</h1>
+      <p>Emitido em ${escapeHtml(fmtDate(hojeIso()))}${state.planoAutor ? ` por ${escapeHtml(state.planoAutor)}` : ""} · ${escapeHtml(planoFiltrosTxt())} · ${lista.length} plano(s)</p>
+      <table><thead><tr><th>Placa</th><th>Filial</th><th>Ações (☑ feita / ☐ pendente)</th><th>Prior.</th><th>Responsável</th><th>Prazo</th><th>Status</th><th>Observação</th></tr></thead><tbody>
+      ${lista.map((p) => {
+        const u = planoUltimoAndamento(p.id);
+        const itens = planoItens(p.id);
+        const acoes = itens.length ? itens.map((i) => `${i.feito ? "☑" : "☐"} ${escapeHtml(i.texto)}${i.pneus ? ` <i>(pneus ${escapeHtml(i.pneus)})</i>` : ""}`).join("<br>") : escapeHtml(p.acao || "—");
+        return `<tr>
+        <td><b>${escapeHtml(p.placa)}</b></td><td>${escapeHtml(filialSigla(p.filial))}</td><td>${acoes}</td>
+        <td>${escapeHtml(p.prioridade)}</td><td>${escapeHtml(p.responsavel || "—")}</td><td>${p.prazo ? escapeHtml(fmtDate(p.prazo)) : "—"}${planoAtrasado(p) ? " (atrasado)" : ""}</td>
+        <td>${escapeHtml(p.status)}${itens.length ? ` (${itens.filter((i) => i.feito).length}/${itens.length})` : ""}</td><td>${u ? escapeHtml(u.texto) + " (" + escapeHtml(fmtDataHora(u.em)) + ")" : "—"}</td></tr>`; }).join("")}
+      </tbody></table>`;
+    document.body.classList.add("printing");
+    const fim = () => { document.body.classList.remove("printing"); window.removeEventListener("afterprint", fim); };
+    window.addEventListener("afterprint", fim);
+    window.print();
+  }
+
+  // ---------- Ligações (eventos) ----------
+  function bindPlano() {
+    // Em qualquer painel: o botão "Plano de ação" dos cards de veículo + marcação das linhas
+    decorarPlanoHooks();
+    if (state.panel !== "plano") return;
+    const $ = (id) => document.getElementById(id);
+    const on = (sel, ev, fn) => document.querySelectorAll(sel).forEach((el) => el.addEventListener(ev, fn));
+
+    on("[data-plano-novo]", "click", () => abrirNovoPlano({}));
+    const autor = $("ctl-autor");
+    if (autor) autor.addEventListener("input", () => { state.planoAutor = autor.value; lsSet("raja_plano_autor", autor.value); });
+    const stF = $("pl-status-filtro");
+    if (stF) stF.addEventListener("change", () => { state.planoStatus = stF.value; state.planoSel = null; render(); });
+    const pin = $("pl-pin");
+    if (pin) pin.addEventListener("change", () => { PlanoStore.pin = pin.value; lsSet("raja_plano_pin", pin.value); });
+
+    on(".plano-row", "click", (ev) => {
+      const id = ev.currentTarget.getAttribute("data-plano-id");
+      state.planoSel = state.planoSel === id ? null : id;
+      render();
+    });
+    on("[data-plano-and]", "click", (ev) => planoAndamento(ev.currentTarget.getAttribute("data-plano-and")));
+    on("[data-plano-edit]", "click", (ev) => planoEditar(ev.currentTarget.getAttribute("data-plano-edit")));
+    on("[data-plano-del]", "click", (ev) => planoExcluir(ev.currentTarget.getAttribute("data-plano-del")));
+    on("[data-item-toggle]", "click", (ev) => planoItemToggle(ev.currentTarget.getAttribute("data-item-toggle"), ev.currentTarget.getAttribute("data-feito") === "1"));
+    on("[data-item-del]", "click", (ev) => planoItemDel(ev.currentTarget.getAttribute("data-item-del")));
+    on("[data-item-add]", "click", (ev) => planoItemAdd(ev.currentTarget.getAttribute("data-item-add")));
+    const novoTxt = $("pl-item-texto");
+    if (novoTxt) novoTxt.addEventListener("keydown", (ev) => {
+      if (ev.key === "Enter") { ev.preventDefault(); const b = document.querySelector("[data-item-add]"); if (b) planoItemAdd(b.getAttribute("data-item-add")); }
+    });
+
+    const lista = () => planosVisiveis();
+    const bp = $("pl-rel-print"); if (bp) bp.addEventListener("click", () => planoImprimir(lista()));
+    const bc = $("pl-rel-csv"); if (bc) bc.addEventListener("click", () => { baixarArquivo(`plano_de_acao_${hojeIso()}.csv`, planoCsv(lista()), "text/csv;charset=utf-8"); toast("CSV gerado — abra no Excel."); });
+    const bw = $("pl-rel-wpp"); if (bw) bw.addEventListener("click", async () => { toast((await copiarTexto(planoWhatsapp(lista()))) ? "Texto copiado — cole no WhatsApp." : "Não consegui copiar. Use o CSV ou imprimir."); });
+
+    // Formulário
+    const pl = $("pl-placa");
+    if (pl) pl.addEventListener("change", () => { planoSyncDraft(); render(); });
+    on(".btn-modelo", "click", (ev) => {
+      planoSyncDraft();
+      const d = state.planoDraft;
+      d.texto = PLANO_MODELOS[Number(ev.currentTarget.getAttribute("data-modelo"))].replace("{pneus}", String(d.pneus || "").trim() || "___");
+      state.planoSkipSync = true;
+      render();
+      const el = $("pl-acao"); if (el) el.focus();
+    });
+    on(".chip-pick", "click", (ev) => {
+      planoSyncDraft();
+      const n = ev.currentTarget.getAttribute("data-pneu");
+      const s = planoPneusSet(state.planoDraft.pneus);
+      if (s.has(n)) s.delete(n); else s.add(n);
+      state.planoDraft.pneus = Array.from(s).join(", ");
+      state.planoSkipSync = true;
+      render();
+    });
+    on("[data-mapa]", "click", (ev) => { planoSyncDraft(); state.planoMapa = ev.currentTarget.getAttribute("data-mapa"); state.planoSkipSync = true; render(); });
+    const add = $("pl-add-item");
+    if (add) add.addEventListener("click", () => {
+      planoSyncDraft();
+      if (!planoDraftAdicionarItem()) { state.planoFormErro = "Escreva a ação antes de adicionar à lista."; }
+      else state.planoFormErro = "";
+      state.planoSkipSync = true;
+      render();
+      const el = $("pl-acao"); if (el) el.focus();
+    });
+    on("[data-draft-del]", "click", (ev) => {
+      planoSyncDraft();
+      state.planoDraft.itens.splice(Number(ev.currentTarget.getAttribute("data-draft-del")), 1);
+      state.planoSkipSync = true;
+      render();
+    });
+    const sv = $("pl-salvar"); if (sv) sv.addEventListener("click", planoSalvar);
+    const cn = $("pl-cancelar"); if (cn) cn.addEventListener("click", () => { state.planoView = "lista"; state.planoDraft = null; state.planoFormErro = ""; render(); });
+  }
+
+  // Nos painéis de veículo (Sulco / Pressão / Vazias): marca cards e linhas com a placa e a
+  // origem (pro menu do botão direito) e põe um botão visível "Criar plano de ação" no card —
+  // o botão direito é o atalho, mas o botão evita depender de descobrir o gesto.
+  const PLANO_ORIGEM_PAINEL = { sulco: "Sulco baixo", pressao: "Pressão de ar", vazias: "Posição vazia" };
+  function decorarPlanoHooks() {
+    const origem = PLANO_ORIGEM_PAINEL[state.panel];
+    if (!origem) return;
+    document.querySelectorAll(".sulco-row[data-veiculo], .pressao-fora-row[data-veiculo]").forEach((tr) => {
+      tr.setAttribute("data-plano-placa", tr.getAttribute("data-veiculo")); tr.setAttribute("data-plano-origem", origem);
+    });
+    document.querySelectorAll(".vazias-row[data-placa]").forEach((tr) => {
+      tr.setAttribute("data-plano-placa", tr.getAttribute("data-placa")); tr.setAttribute("data-plano-origem", origem);
+    });
+    document.querySelectorAll(".detail-card .detail-plate").forEach((el) => {
+      const card = el.closest(".detail-card");
+      const placa = limpaPlaca(el.textContent);
+      card.setAttribute("data-plano-placa", placa); card.setAttribute("data-plano-origem", origem);
+      if (card.querySelector(".btn-plano-card")) return;
+      const b = document.createElement("button");
+      b.className = "btn btn-sm btn-plano-card"; b.textContent = "＋ Criar plano de ação para este veículo";
+      b.addEventListener("click", () => abrirNovoPlano({ placa, origem }));
+      const sub = card.querySelector(".detail-sub") || el;
+      sub.parentNode.insertBefore(b, sub.nextSibling);
+    });
+  }
+
+  // Menu do botão direito (fora do #main pra render() não apagar)
+  function fecharMenuPlano() { const m = document.getElementById("ctx-menu"); if (m) m.remove(); }
+  function setupPlanoContextMenu() {
+    document.addEventListener("contextmenu", (ev) => {
+      const host = ev.target.closest ? ev.target.closest("[data-plano-placa]") : null;
+      if (!host) { fecharMenuPlano(); return; }
+      ev.preventDefault();
+      fecharMenuPlano();
+      const placa = host.getAttribute("data-plano-placa");
+      const origem = host.getAttribute("data-plano-origem") || "Outro";
+      const chip = ev.target.closest(".tire-chip[data-pneu]");
+      const itens = [];
+      if (chip) {
+        const pneu = chip.getAttribute("data-pneu"), pos = chip.getAttribute("data-posicao") || "";
+        const sulco = chip.getAttribute("data-sulco"), psi = chip.getAttribute("data-psi");
+        let acao = `Pneu nº ${pneu} (posição ${pos}): `;
+        if (sulco) acao = `Trocar pneu nº ${pneu} (posição ${pos}) — sulco ${sulco} mm`;
+        else if (psi) acao = `Calibrar pneu nº ${pneu} (posição ${pos}) — pressão atual ${psi} psi`;
+        itens.push({ txt: `Criar plano para o pneu nº ${pneu} (${pos})`, fn: () => abrirNovoPlano({ placa, origem, pneus: pneu, acao, prioridade: sulco && Number(sulco) <= 3 ? "Alta" : "Média" }) });
+      }
+      itens.push({ txt: `Criar plano de ação para o veículo ${placa}`, fn: () => abrirNovoPlano({ placa, origem }) });
+      const menu = document.createElement("div");
+      menu.id = "ctx-menu"; menu.className = "ctx-menu";
+      itens.forEach((it) => {
+        const b = document.createElement("button");
+        b.textContent = it.txt;
+        b.addEventListener("click", () => { fecharMenuPlano(); it.fn(); });
+        menu.appendChild(b);
+      });
+      document.body.appendChild(menu);
+      const w = menu.offsetWidth || 260, h = menu.offsetHeight || 80;
+      menu.style.left = Math.max(4, Math.min(ev.clientX, window.innerWidth - w - 8)) + "px";
+      menu.style.top = Math.max(4, Math.min(ev.clientY, window.innerHeight - h - 8)) + "px";
+    });
+    document.addEventListener("click", (ev) => { if (!ev.target.closest || !ev.target.closest("#ctx-menu")) fecharMenuPlano(); });
+    document.addEventListener("keydown", (ev) => { if (ev.key === "Escape") fecharMenuPlano(); });
+    window.addEventListener("scroll", fecharMenuPlano, { passive: true });
+  }
+
+  async function planoInit() {
+    setupPlanoContextMenu();
+    if (PlanoStore.modo === "api") { PlanoStore.carregando = true; render(); }
+    await PlanoStore.carregar();
+    render();
+  }
+
   function emptyRow(colspan, msg) { return `<tr class="empty-row"><td colspan="${colspan}">${escapeHtml(msg)}</td></tr>`; }
 
   function panelHeader(title, desc, filiais, extraControl) {
@@ -2127,6 +3054,7 @@
       inspecoes: new Set([...DATA.insp1.map((r) => r.veiculo), ...DATA.insp2.map((r) => r.veiculo)]).size,
       sulco: new Set(DATA.sulcoTires.filter((t) => t.sulco != null && t.sulco <= 5).map((t) => t.veiculo)).size,
       pressao: new Set(DATA.pressaoTires.filter((t) => t.faixa && t.faixa !== "correta").map((t) => t.veiculo)).size,
+      plano: planoAbertosCount(),
     };
     return `
       <div class="brand">
@@ -2165,6 +3093,7 @@
     if (state.panel === "vazias") main.innerHTML = renderVaziasPanel();
     else if (state.panel === "inspecoes") main.innerHTML = renderInspecoesPanel();
     else if (state.panel === "sulco") main.innerHTML = renderSulcoPanel();
+    else if (state.panel === "plano") main.innerHTML = renderPlanoPanel();
     else main.innerHTML = renderPressaoPanel();
 
     bindNav();
@@ -2173,6 +3102,7 @@
     bindSulcoRows();
     bindVaziasRows();
     bindPressaoForaRows();
+    bindPlano();
     drawCharts();
 
     window.scrollTo(0, scrollY);
@@ -2209,6 +3139,7 @@
       state.filtroFilial = "all"; state.busca = ""; state.selFiliais.clear(); state.inspMes = null;
       state.sortKey = null; state.sortDir = 1; state.selVeiculoSulco = null; state.selVeiculoVazias = null;
       state.selVeiculoPressao = null;
+      state.planoView = "lista"; state.planoSel = null; state.planoDraft = null; state.planoFormErro = "";
       state.pressaoFiltroSel.clear(); state.pressaoFaixaSel.clear(); state.inspGeralFaixaSel.clear();
       state.sidebarOpen = false;
       document.getElementById("sidebar").classList.remove("open");
@@ -2302,6 +3233,7 @@
   window.addEventListener("resize", drawCharts);
 
   render();
+  planoInit();
 })();
 </script>
 </body>
