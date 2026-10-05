@@ -1144,7 +1144,11 @@
       return { filial, veiculos, pct: reg ? (veiculos / reg) * 100 : 0 };
     }).sort((a, b) => b.veiculos - a.veiculos);
     const top = barData[0] || { filial: "—", veiculos: 0, pct: 0 };
-    return { filtered, barData, top, source, pct, pctAtingido, denom, scopeFilial, geral: false, mesAtivo };
+    // Quinzena ainda sem leitura (ex.: 2ª quinzena antes do dia 16): "0 pendentes" aqui NÃO
+    // significa "100% inspecionado", significa "não sei ainda". Mesmo critério do Geral acima
+    // e do quadro "% veículos inspecionados" da aba Pressão de Ar (xDisponivel !== false).
+    const disponivel = state.inspRound === "insp1" ? mesDados.insp1Disponivel !== false : mesDados.insp2Disponivel !== false;
+    return { filtered, barData, top, source, pct, pctAtingido, denom, scopeFilial, geral: false, mesAtivo, disponivel };
   }
 
   function renderInspecoesPanel() {
@@ -1219,6 +1223,20 @@
             </tbody>
           </table>
           <div class="table-note">${d.filteredTabela.length} de ${d.source.length} veículos únicos no mês${scopeLabel} · aparecer em só uma quinzena não confirma regularização, apenas que não constou pendente na outra checagem.</div>
+        </div>`;
+    }
+
+    if (d.disponivel === false) {
+      const qLabel = state.inspRound === "insp1" ? "1ª" : "2ª";
+      return `
+        ${panelHeader("Inspeções Pendentes", "Veículos não inspecionados no período, por quinzena de auditoria.", filiais, rounds + mesSelect)}
+        <div class="kpi-grid">
+          ${kpiCard("Total da frota", d.denom, `veículos registrados${scopeLabel}`, ICONS.truck, "var(--text-faint)")}
+          ${kpiCard("% da frota parada", "—", `${qLabel} quinzena ainda sem leitura`, ICONS.alert, "var(--text-faint)")}
+        </div>
+        <div class="card">
+          <div class="card-title">${qLabel} quinzena ainda sem dado</div>
+          <div class="chart-hint">A ${qLabel} quinzena de ${escapeHtml(fmtMesAno(d.mesAtivo))} ainda não tem leitura de inspeção atualizada${state.inspRound === "insp2" ? " (ela só começa no dia 16)" : ""}. Isso não quer dizer que todos os veículos foram inspecionados — quando a primeira leitura entrar, os números aparecem aqui.</div>
         </div>`;
     }
 
@@ -2261,7 +2279,7 @@
       renderDonut("chart-vazias-pie", d.pieData);
     } else if (state.panel === "inspecoes") {
       const d = computeInspecoes();
-      renderBarChart("chart-insp-bar", d.barData, "veiculos", state.selFiliais, toggleFilialSelection, "var(--chart2)", { percent: false });
+      if (d.geral || d.disponivel !== false) renderBarChart("chart-insp-bar", d.barData, "veiculos", state.selFiliais, toggleFilialSelection, "var(--chart2)", { percent: false });
       if (d.geral) renderDonut("chart-insp-pie", d.pieData, state.inspGeralFaixaSel, toggleInspGeralFaixa);
     } else if (state.panel === "sulco") {
       const d = computeSulco();
