@@ -2392,6 +2392,12 @@
     _planoVeics = m;
     return m;
   }
+  // "Operação" do formulário = filial do veículo (chave = sigla). Filtra a lista de placas e é
+  // preenchida sozinha quando se escolhe uma placa.
+  function planoOpDaPlaca(placa) {
+    const v = planoVeiculos().get(limpaPlaca(placa));
+    return v && v.filial ? filialSigla(v.filial) : "";
+  }
   function planoFiliais(veics) {
     const porSigla = new Map();
     veics.forEach((v) => { if (v.filial && !porSigla.has(filialSigla(v.filial))) porSigla.set(filialSigla(v.filial), v.filial); });
@@ -2468,6 +2474,7 @@
     if (g("pl-placa") === null) return; // DOM antigo não é do formulário
     const d = state.planoDraft;
     d.placa = limpaPlaca(g("pl-placa"));
+    const op = g("pl-op"); if (op !== null) d.op = op;
     d.prioridade = g("pl-prio"); d.responsavel = g("pl-resp"); d.prazo = g("pl-prazo"); d.origem = g("pl-origem");
     const st = g("pl-status"); if (st) d.status = st;
     const tx = g("pl-acao"); if (tx !== null) d.texto = tx;
@@ -2621,7 +2628,11 @@
     const info = d.placa ? veics.get(d.placa) : null;
     const mapa = info ? planoVehicleMap(d.placa) : null;
     const sel = planoPneusSet(d.pneus);
-    const opts = Array.from(veics.values()).sort((a, b) => a.placa.localeCompare(b.placa))
+    const opsLista = planoFiliais(veics);
+    const opSel = d.op || "";
+    const opOpts = `<option value="">— todas as operações —</option>` +
+      opsLista.map((f) => `<option value="${escapeHtml(filialSigla(f))}" ${opSel === filialSigla(f) ? "selected" : ""}>${escapeHtml(filialSigla(f))} — ${escapeHtml(filialFullName(f))}</option>`).join("");
+    const opts = Array.from(veics.values()).filter((v) => !opSel || filialSigla(v.filial) === opSel).sort((a, b) => a.placa.localeCompare(b.placa))
       .map((v) => `<option value="${escapeHtml(v.placa)}">${escapeHtml(filialSigla(v.filial))} · ${escapeHtml(v.tipo)}</option>`).join("");
     const modelos = PLANO_MODELOS.map((m, i) => `<button type="button" class="btn btn-sm btn-modelo" data-modelo="${i}">${escapeHtml(m.replace("{pneus}", "…"))}</button>`).join("");
     // Responsável = filial da operação (lista suspensa). Valor antigo fora da lista (plano criado
@@ -2668,6 +2679,9 @@
       <div class="card">
         <div class="card-title">${editando ? "Editar dados do plano" : "Novo plano de ação"}</div>
         <div class="form-grid">
+          <div class="field span2"><label for="pl-op">Operação (filial)</label>
+            <select id="pl-op">${opOpts}</select>
+            <div class="field-hint">${opSel ? "Mostrando só as placas desta operação." : "Opcional: escolha a operação para listar só as placas dela — ou escolha a placa e a operação é preenchida sozinha."}</div></div>
           <div class="field span2"><label for="pl-placa">Veículo (placa)</label>
             <input id="pl-placa" list="pl-placas" value="${escapeHtml(d.placa)}" placeholder="Digite ou escolha a placa" autocomplete="off" style="text-transform:uppercase;">
             <datalist id="pl-placas">${opts}</datalist>${dica}</div>
@@ -2693,7 +2707,7 @@
     o = o || {};
     state.panel = "plano"; state.planoView = "form"; state.planoSel = null; state.planoFormErro = "";
     state.filtroFilial = "all"; state.busca = ""; state.selFiliais.clear(); state.sortKey = null; state.sortDir = 1;
-    state.planoDraft = { id: "", placa: limpaPlaca(o.placa), texto: o.acao || "", pneus: o.pneus || "", itens: [], prioridade: o.prioridade || "Média",
+    state.planoDraft = { id: "", placa: limpaPlaca(o.placa), op: planoOpDaPlaca(o.placa), texto: o.acao || "", pneus: o.pneus || "", itens: [], prioridade: o.prioridade || "Média",
       responsavel: "", prazo: "", origem: o.origem || "Inspeção física", status: "Aberto" };
     state.sidebarOpen = false; state.planoSkipSync = true;
     document.getElementById("sidebar").classList.remove("open");
@@ -2706,7 +2720,7 @@
     const p = PlanoStore.planos.find((x) => x.id === id);
     if (!p) return;
     state.planoView = "form"; state.planoFormErro = "";
-    state.planoDraft = { id: p.id, placa: p.placa, texto: "", pneus: "", itens: [], prioridade: p.prioridade, responsavel: p.responsavel,
+    state.planoDraft = { id: p.id, placa: p.placa, op: planoOpDaPlaca(p.placa) || filialSigla(p.filial), texto: "", pneus: "", itens: [], prioridade: p.prioridade, responsavel: p.responsavel,
       prazo: p.prazo, origem: p.origem || "Outro", status: p.status };
     state.planoSkipSync = true;
     render();
@@ -2916,7 +2930,22 @@
 
     // Formulário
     const pl = $("pl-placa");
-    if (pl) pl.addEventListener("change", () => { planoSyncDraft(); render(); });
+    if (pl) pl.addEventListener("change", () => {
+      planoSyncDraft();
+      const d = state.planoDraft;
+      const o = planoOpDaPlaca(d.placa);
+      if (o) d.op = o; // placa conhecida: a operação vem sozinha
+      state.planoSkipSync = true;
+      render();
+    });
+    const opEl = $("pl-op");
+    if (opEl) opEl.addEventListener("change", () => {
+      planoSyncDraft();
+      const d = state.planoDraft;
+      if (d.placa && d.op && planoOpDaPlaca(d.placa) !== d.op) d.placa = ""; // placa de outra operação sai
+      state.planoSkipSync = true;
+      render();
+    });
     on(".btn-modelo", "click", (ev) => {
       planoSyncDraft();
       const d = state.planoDraft;
