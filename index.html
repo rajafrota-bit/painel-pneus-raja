@@ -335,6 +335,15 @@
   .prog-bar { width: 80px; height: 6px; border-radius: 99px; background: var(--surface-2); overflow: hidden; display: inline-block; }
   .prog-fill { display: block; height: 100%; background: var(--success); border-radius: 99px; }
   .prog-item { font-size: 12px; color: var(--text-dim); }
+
+/* Prazo por ação + seleção de planos */
+.item-prazo { display:flex; flex-direction:column; gap:2px; font-size:11px; color:var(--text-faint); flex-shrink:0; }
+.item-prazo label { display:flex; align-items:center; gap:6px; }
+.item-prazo input[type="date"] { font-size:12px; padding:3px 6px; }
+.item-row.done .item-prazo { opacity:.6; }
+.sel-col { width:34px; text-align:center; }
+.sel-col input[type="checkbox"] { width:16px; height:16px; cursor:pointer; }
+.banner-warn { border-left:4px solid var(--warning); }
 </style>
 </head>
 <body>
@@ -2384,7 +2393,12 @@
     pin: lsGet("raja_plano_pin") || "",
     precisaPin: false,
 
-    _receber(o) { this.planos = o.planos || []; this.itens = o.itens || []; this.andamento = o.andamento || []; },
+    // baseSemPrazoItem: a base do Google ainda é a versão antiga do Code.gs (não devolve "prazo" nas
+    // ações) — nesse caso o prazo por ação NÃO é gravado, e o painel avisa em vez de perder em silêncio.
+    _receber(o) {
+      this.planos = o.planos || []; this.itens = o.itens || []; this.andamento = o.andamento || [];
+      this.baseSemPrazoItem = this.modo === "api" && this.itens.length > 0 && !this.itens.some((i) => Object.prototype.hasOwnProperty.call(i, "prazo"));
+    },
 
     async carregar() {
       this.erro = "";
@@ -2437,7 +2451,7 @@
           this.planos.push({ id, placa, filial: p.filial || "", tipo: p.tipo || "", acao: "", pneus: "", prioridade: p.prioridade || "Média",
             responsavel: p.responsavel || "", prazo: p.prazo || "", status: "Aberto", origem: p.origem || "", criadoPor: p.criadoPor || "",
             criadoEm: agora, editadoEm: "", concluidoEm: "" });
-          itens.forEach((i) => this.itens.push({ id: novoId(), planoId: id, texto: String(i.texto).trim(), pneus: i.pneus || "", feito: false, feitoEm: "", feitoPor: "", criadoEm: agora }));
+          itens.forEach((i) => this.itens.push({ id: novoId(), planoId: id, texto: String(i.texto).trim(), pneus: i.pneus || "", feito: false, feitoEm: "", feitoPor: "", criadoEm: agora, prazo: i.prazo || "" }));
           this._recalc(id, agora);
         } else {
           const x = this.planos.find((q) => q.id === p.id);
@@ -2455,8 +2469,12 @@
         if (!this.planos.find((q) => q.id === d.planoId)) throw new Error("Plano não encontrado (pode ter sido excluído).");
         const texto = String(d.texto || "").trim();
         if (!texto) throw new Error("Escreva a ação.");
-        this.itens.push({ id: novoId(), planoId: d.planoId, texto, pneus: d.pneus || "", feito: false, feitoEm: "", feitoPor: "", criadoEm: agora });
+        this.itens.push({ id: novoId(), planoId: d.planoId, texto, pneus: d.pneus || "", feito: false, feitoEm: "", feitoPor: "", criadoEm: agora, prazo: d.prazo || "" });
         this._recalc(d.planoId, agora);
+      } else if (acao === "item_prazo") {
+        const x = this.itens.find((q) => q.id === d.id);
+        if (!x) throw new Error("Ação não encontrada (pode ter sido excluída).");
+        x.prazo = d.prazo || "";
       } else if (acao === "item_toggle") {
         const x = this.itens.find((q) => q.id === d.id);
         if (!x) throw new Error("Ação não encontrada (pode ter sido excluída).");
@@ -2551,7 +2569,18 @@
 
   // ---------- Regras ----------
   const PLANO_ABERTOS = ["Aberto", "Em andamento"];
-  function planoAtrasado(p) { return !!p.prazo && p.prazo < hojeIso() && PLANO_ABERTOS.indexOf(p.status) >= 0; }
+  // Uma ação está atrasada quando tem prazo vencido e não foi concluída; o plano está atrasado se o
+  // próprio prazo venceu OU se alguma ação em aberto venceu (e o plano ainda está aberto).
+  function planoItemAtrasado(i) { return !i.feito && !!i.prazo && i.prazo < hojeIso(); }
+  function planoAtrasado(p) {
+    if (PLANO_ABERTOS.indexOf(p.status) < 0) return false;
+    return (!!p.prazo && p.prazo < hojeIso()) || PlanoStore.itens.some((i) => i.planoId === p.id && planoItemAtrasado(i));
+  }
+  // Prazo mais próximo entre as ações ainda em aberto (mostrado na lista quando o plano não tem prazo próprio)
+  function planoProximoPrazoItem(p) {
+    const ds = PlanoStore.itens.filter((i) => i.planoId === p.id && !i.feito && i.prazo).map((i) => i.prazo).sort();
+    return ds[0] || "";
+  }
   function planoAbertosCount() { return PlanoStore.planos.filter((p) => PLANO_ABERTOS.indexOf(p.status) >= 0).length; }
   function planoItens(id) {
     return PlanoStore.itens.filter((i) => i.planoId === id).sort((a, b) => String(a.criadoEm).localeCompare(String(b.criadoEm)));
@@ -2611,12 +2640,16 @@
     const st = g("pl-status"); if (st) d.status = st;
     const tx = g("pl-acao"); if (tx !== null) d.texto = tx;
     const pn = g("pl-pneus"); if (pn !== null) d.pneus = pn;
+    const ip = g("pl-item-prazo-novo"); if (ip !== null) d.itemPrazo = ip;
   }
 
   function planoBanner() {
     const partes = [];
     if (PlanoStore.modo === "local") {
       partes.push(`<div class="banner banner-warn"><strong>MODO TESTE LOCAL</strong> — os planos ficam salvos só neste navegador (ninguém mais vê). Para a equipe toda ver os mesmos planos, falta ligar a base compartilhada (Google Planilha).</div>`);
+    }
+    if (PlanoStore.baseSemPrazoItem) {
+      partes.push(`<div class="banner banner-warn"><strong>Prazo por ação ainda não está ativo na base compartilhada.</strong> A planilha do Google está com a versão antiga do Code.gs, então as datas das ações não seriam salvas. Cole o Code.gs novo (pasta plano_acao) no Apps Script e publique uma nova versão — passo a passo no PASSO_A_PASSO.txt.</div>`);
     }
     if (PlanoStore.carregando) partes.push(`<div class="banner">Carregando planos da base compartilhada…</div>`);
     if (PlanoStore.erro) {
@@ -2657,6 +2690,12 @@
       ${pend.length === 0 ? `<div class="prog-item" style="color:var(--success)">todas concluídas</div>` : ""}</div>`;
   }
 
+  // Planos marcados nas caixinhas (só vale para os que estão visíveis com os filtros atuais).
+  // Nenhum marcado = relatório da lista inteira, como antes.
+  function planoMarc() { return state.planoMarcados || (state.planoMarcados = {}); }
+  function planoMarcadosVisiveis() { return planosVisiveis().filter((p) => planoMarc()[p.id]); }
+  function planoListaRelatorio() { const m = planoMarcadosVisiveis(); return m.length ? m : planosVisiveis(); }
+
   function renderPlanoLista() {
     const todosFilial = PlanoStore.planos.filter((p) => state.filtroFilial === "all" || filialSigla(p.filial) === filialSigla(state.filtroFilial));
     const nAb = todosFilial.filter((p) => p.status === "Aberto").length;
@@ -2670,32 +2709,38 @@
       ${kpiCard("Atrasados", nAtr, "prazo vencido e não concluído", ICONS.alert, "var(--danger)")}
       ${kpiCard("Concluídos", nCon, "todas as ações feitas", ICONS.check, "var(--success)")}
     </div>`;
+    const nMarc = planoMarcadosVisiveis().length;
+    const todosMarc = lista.length > 0 && nMarc === lista.length;
     const relBar = `<div class="rel-bar">
-      <span class="rel-label">Relatório da lista abaixo (${lista.length} plano${lista.length === 1 ? "" : "s"}):</span>
+      <span class="rel-label">${nMarc ? `<strong>${nMarc} plano${nMarc === 1 ? "" : "s"} selecionado${nMarc === 1 ? "" : "s"}</strong>` : `Nenhum marcado → vale a lista inteira (${lista.length})`}:</span>
       <button class="btn btn-sm" id="pl-rel-print" ${lista.length ? "" : "disabled"}>🖨 Imprimir / salvar PDF</button>
       <button class="btn btn-sm" id="pl-rel-csv" ${lista.length ? "" : "disabled"}>⬇ Baixar Excel (CSV)</button>
       <button class="btn btn-sm" id="pl-rel-wpp" ${lista.length ? "" : "disabled"}>📋 Copiar p/ WhatsApp</button>
+      ${nMarc ? `<button class="btn btn-sm" id="pl-sel-limpar">Limpar seleção</button>` : ""}
     </div>`;
     const linhas = lista.length === 0
-      ? emptyRow(9, PlanoStore.planos.length === 0 ? "Nenhum plano criado ainda. Clique em “＋ Novo plano” ou use o botão direito no mapa do veículo (Sulco Baixo / Pressão de Ar)." : "Nenhum plano com esses filtros.")
+      ? emptyRow(10, PlanoStore.planos.length === 0 ? "Nenhum plano criado ainda. Clique em “＋ Novo plano” ou use o botão direito no mapa do veículo (Sulco Baixo / Pressão de Ar)." : "Nenhum plano com esses filtros.")
       : lista.map((p) => planoLinhaHtml(p)).join("");
     return `${kpis}${relBar}
       <div class="table-wrap">
         <table>
-          <thead><tr>${sortTh("status", "Status")}${sortTh("prio", "Prioridade")}${sortTh("placa", "Placa")}${sortTh("filial", "Filial")}<th>Ações do plano</th><th>Pneus</th>${sortTh("resp", "Responsável")}${sortTh("prazo", "Prazo")}<th>Último andamento</th></tr></thead>
+          <thead><tr><th class="sel-col"><input type="checkbox" id="pl-sel-todos" title="Marcar / desmarcar todos os planos da lista" aria-label="Selecionar todos os planos da lista" ${todosMarc ? "checked" : ""} ${lista.length ? "" : "disabled"}></th>${sortTh("status", "Status")}${sortTh("prio", "Prioridade")}${sortTh("placa", "Placa")}${sortTh("filial", "Filial")}<th>Ações do plano</th><th>Pneus</th>${sortTh("resp", "Responsável")}${sortTh("prazo", "Prazo")}<th>Último andamento</th></tr></thead>
           <tbody>${linhas}</tbody>
         </table>
-        <div class="table-note">Clique numa linha para abrir o checklist: marque as ações concluídas, adicione novas, registre andamento, edite ou exclua o plano.</div>
+        <div class="table-note">Use as caixinhas da primeira coluna para escolher quais planos entram em Imprimir, Excel e WhatsApp. Clique numa linha para abrir o checklist: marque as ações concluídas, adicione novas, registre andamento, edite ou exclua o plano.</div>
       </div>`;
   }
 
   function planoItemHtml(i) {
     const meta = [];
     if (i.pneus) meta.push(`pneus: ${escapeHtml(i.pneus)}`);
-    if (i.feito) meta.push(`concluída ${escapeHtml(fmtDataHora(i.feitoEm))}${i.feitoPor ? ` por ${escapeHtml(i.feitoPor)}` : ""}`);
+    if (i.feito) meta.push(`concluída ${escapeHtml(fmtDataHora(i.feitoEm))}${i.feitoPor ? ` por ${escapeHtml(i.feitoPor)}` : ""}${i.prazo && String(i.feitoEm).slice(0, 10) > i.prazo ? " (com atraso)" : ""}`);
+    const atrasada = planoItemAtrasado(i);
     return `<div class="item-row ${i.feito ? "done" : ""}">
       <button class="item-check ${i.feito ? "on" : ""}" data-item-toggle="${escapeHtml(i.id)}" data-feito="${i.feito ? "0" : "1"}" title="${i.feito ? "Desmarcar" : "Marcar como concluída"}" aria-label="${i.feito ? "Desmarcar ação" : "Marcar ação como concluída"}">${i.feito ? ICONS.check : ""}</button>
       <div class="item-body"><div class="item-text">${escapeHtml(i.texto)}</div>${meta.length ? `<div class="item-meta">${meta.join(" · ")}</div>` : ""}</div>
+      <div class="item-prazo"><label for="ip-${escapeHtml(i.id)}">Concluir até${atrasada ? ` <span class="pill pill-danger">atrasada</span>` : ""}</label>
+        <input id="ip-${escapeHtml(i.id)}" type="date" data-item-prazo="${escapeHtml(i.id)}" value="${escapeHtml(i.prazo || "")}"></div>
       <button class="item-del" data-item-del="${escapeHtml(i.id)}" title="Excluir esta ação" aria-label="Excluir ação">✕</button>
     </div>`;
   }
@@ -2705,6 +2750,7 @@
     const ult = planoUltimoAndamento(p.id);
     const atras = planoAtrasado(p);
     const linha = `<tr class="plano-row ${aberta ? "selected" : ""}" data-plano-id="${escapeHtml(p.id)}">
+      <td class="sel-col"><input type="checkbox" data-plano-marca="${escapeHtml(p.id)}" aria-label="Selecionar plano ${escapeHtml(p.placa)}" ${planoMarc()[p.id] ? "checked" : ""}></td>
       <td>${planoStatusPill(p.status)}</td>
       <td>${planoPrioPill(p.prioridade)}</td>
       <td class="mono" style="font-weight:600;">${escapeHtml(p.placa)}</td>
@@ -2712,7 +2758,7 @@
       <td style="white-space:normal;min-width:240px;max-width:380px;">${planoProgressoHtml(p)}</td>
       <td class="mono" style="white-space:normal;max-width:140px;">${escapeHtml(p.pneus || "—")}</td>
       <td>${escapeHtml(p.responsavel || "—")}</td>
-      <td>${p.prazo ? escapeHtml(fmtDate(p.prazo)) : "—"}${atras ? ` <span class="pill pill-danger">atrasado</span>` : ""}</td>
+      <td>${p.prazo ? escapeHtml(fmtDate(p.prazo)) : (planoProximoPrazoItem(p) ? `${escapeHtml(fmtDate(planoProximoPrazoItem(p)))} <span style="color:var(--text-faint);font-size:11px;">(ação)</span>` : "—")}${atras ? ` <span class="pill pill-danger">atrasado</span>` : ""}</td>
       <td style="white-space:normal;max-width:220px;color:var(--text-dim);">${ult ? `${escapeHtml(ult.texto)} <span style="color:var(--text-faint)">(${escapeHtml(fmtDataHora(ult.em))})</span>` : "—"}</td>
     </tr>`;
     if (!aberta) return linha;
@@ -2724,7 +2770,7 @@
         <div class="tl-when">${escapeHtml(fmtDataHora(a.em))}${a.autor ? ` · ${escapeHtml(a.autor)}` : ""}${a.status ? ` · → ${planoStatusPill(a.status)}` : ""}</div>
         ${a.texto ? `<div class="tl-text">${escapeHtml(a.texto)}</div>` : ""}
       </div>`).join("")}</div>`;
-    const det = `<tr class="plano-detail-row"><td colspan="9">
+    const det = `<tr class="plano-detail-row"><td colspan="10">
       <div class="plano-detail">
         <div>
           <div class="card-title">Ações do plano</div>
@@ -2733,6 +2779,7 @@
           <div class="item-add">
             <input id="pl-item-texto" placeholder="Nova ação (ex.: Inverter pneus do eixo de tração)" autocomplete="off">
             <input id="pl-item-pneus" placeholder="Pneus nº (opcional)" style="max-width:150px;" autocomplete="off">
+            <input id="pl-item-prazo" type="date" title="Concluir até (opcional)" aria-label="Concluir até (opcional)" style="max-width:150px;">
             <button class="btn btn-primary btn-sm" data-item-add="${escapeHtml(p.id)}">＋ Adicionar ação</button>
           </div>
         </div>
@@ -2798,6 +2845,7 @@
       </div>`;
     const lista = (d.itens || []).map((i, n) => `<div class="item-row"><span class="item-bullet">${n + 1}</span>
         <div class="item-body"><div class="item-text">${escapeHtml(i.texto)}</div>${i.pneus ? `<div class="item-meta">pneus: ${escapeHtml(i.pneus)}</div>` : ""}</div>
+        <div class="item-prazo"><label for="dp-${n}">Concluir até</label><input id="dp-${n}" type="date" data-draft-prazo="${n}" value="${escapeHtml(i.prazo || "")}"></div>
         <button class="item-del" data-draft-del="${n}" title="Tirar da lista" aria-label="Tirar da lista">✕</button></div>`).join("");
     const construtor = editando ? `<div class="field span2"><div class="field-hint">As ações deste plano (marcar concluída, adicionar, excluir) são feitas no checklist, ao clicar na linha do plano na lista.</div></div>` : `
           <div class="field span2"><div class="card-title" style="margin-bottom:6px;">Ações do plano <span style="color:var(--text-faint);text-transform:none;letter-spacing:0;">(${(d.itens || []).length} na lista)</span></div>
@@ -2805,6 +2853,9 @@
           <div class="field span2"><label for="pl-acao">Nova ação — o que precisa ser feito</label>
             <textarea id="pl-acao" rows="2" placeholder="Ex.: Trocar pneu nº 3429">${escapeHtml(d.texto || "")}</textarea>
             <div class="modelos"><span class="field-hint" style="margin:0;">Atalhos:</span>${modelos}</div></div>
+          <div class="field span2"><label for="pl-item-prazo-novo">Concluir esta ação até (opcional)</label>
+            <input id="pl-item-prazo-novo" type="date" value="${escapeHtml(d.itemPrazo || "")}" style="max-width:200px;">
+            <div class="field-hint">Cada ação tem a sua própria data — escolha a data, clique em “Adicionar à lista” e repita para a próxima ação.</div></div>
           <div class="field span2"><label for="pl-pneus">Pneus desta ação (nº de fogo)</label>
             <div style="display:flex;gap:8px;"><input id="pl-pneus" value="${escapeHtml(d.pneus || "")}" placeholder="Ex.: 1146, 0004 (ou clique no mapa)"><button class="btn btn-primary" id="pl-add-item" style="flex-shrink:0;">＋ Adicionar à lista</button></div></div>`;
     return `<div class="sulco-layout">
@@ -2820,7 +2871,7 @@
           <div class="field"><label for="pl-origem">Origem</label><select id="pl-origem">${PLANO_ORIGENS.map((o) => `<option ${d.origem === o ? "selected" : ""}>${o}</option>`).join("")}</select></div>
           <div class="field"><label for="pl-prio">Prioridade</label><select id="pl-prio">${PLANO_PRIORIDADES.map((o) => `<option ${d.prioridade === o ? "selected" : ""}>${o}</option>`).join("")}</select></div>
           <div class="field"><label for="pl-resp">Responsável (operação)</label><select id="pl-resp">${respOpts}</select></div>
-          <div class="field"><label for="pl-prazo">Prazo</label><input id="pl-prazo" type="date" value="${escapeHtml(d.prazo)}"></div>
+          <div class="field"><label for="pl-prazo">Prazo do plano (opcional)</label><input id="pl-prazo" type="date" value="${escapeHtml(d.prazo)}"></div>
           ${editando ? `<div class="field"><label for="pl-status">Status</label><select id="pl-status">${PLANO_STATUS.map((s) => `<option ${d.status === s ? "selected" : ""}>${s}</option>`).join("")}</select></div>` : ""}
           ${construtor}
         </div>
@@ -2839,7 +2890,7 @@
     o = o || {};
     state.panel = "plano"; state.planoView = "form"; state.planoSel = null; state.planoFormErro = "";
     state.filtroFilial = "all"; state.busca = ""; state.selFiliais.clear(); state.sortKey = null; state.sortDir = 1;
-    state.planoDraft = { id: "", placa: limpaPlaca(o.placa), op: planoOpDaPlaca(o.placa), texto: o.acao || "", pneus: o.pneus || "", itens: [], prioridade: o.prioridade || "Média",
+    state.planoDraft = { id: "", placa: limpaPlaca(o.placa), op: planoOpDaPlaca(o.placa), texto: o.acao || "", pneus: o.pneus || "", itemPrazo: "", itens: [], prioridade: o.prioridade || "Média",
       responsavel: "", prazo: "", origem: o.origem || "Inspeção física", status: "Aberto" };
     state.sidebarOpen = false; state.planoSkipSync = true;
     document.getElementById("sidebar").classList.remove("open");
@@ -2864,8 +2915,8 @@
     const d = state.planoDraft;
     const texto = String(d.texto || "").trim();
     if (!texto) return false;
-    d.itens.push({ texto, pneus: String(d.pneus || "").trim() });
-    d.texto = ""; d.pneus = "";
+    d.itens.push({ texto, pneus: String(d.pneus || "").trim(), prazo: d.itemPrazo || "" });
+    d.texto = ""; d.pneus = ""; d.itemPrazo = "";
     return true;
   }
 
@@ -2907,7 +2958,8 @@
   async function planoItemAdd(planoId) {
     const texto = (document.getElementById("pl-item-texto") || {}).value || "";
     const pneus = (document.getElementById("pl-item-pneus") || {}).value || "";
-    const ok = await PlanoStore.exec("item_add", { planoId, texto, pneus: pneus.trim() });
+    const prazo = (document.getElementById("pl-item-prazo") || {}).value || "";
+    const ok = await PlanoStore.exec("item_add", { planoId, texto, pneus: pneus.trim(), prazo });
     if (ok) toast("Ação adicionada.");
     render();
     if (ok) { const el = document.getElementById("pl-item-texto"); if (el) el.focus(); }
@@ -2922,6 +2974,19 @@
     render();
     const ok = await PlanoStore.exec("item_toggle", { id: itemId, feito, autor: state.planoAutor });
     if (!ok) { const again = PlanoStore.itens.find((i) => i.id === itemId); if (again) Object.assign(again, antes); }
+    render();
+  }
+
+  // Troca a data de conclusão de uma ação já criada: aparece na hora (otimista) e confirma na base.
+  async function planoItemPrazo(itemId, prazo) {
+    const it = PlanoStore.itens.find((i) => i.id === itemId);
+    if (!it) return;
+    const antes = it.prazo || "";
+    it.prazo = prazo || "";
+    render();
+    const ok = await PlanoStore.exec("item_prazo", { id: itemId, prazo: prazo || "" });
+    if (!ok) { const again = PlanoStore.itens.find((i) => i.id === itemId); if (again) again.prazo = antes; }
+    else toast(prazo ? "Data da ação salva." : "Data da ação removida.");
     render();
   }
 
@@ -2958,7 +3023,7 @@
   }
   // Uma linha por AÇÃO (é o que a operação filtra/cobra no Excel); plano sem ações vira 1 linha.
   function planoCsv(lista) {
-    const cab = ["Placa", "Filial", "Tipo", "Ação", "Pneus", "Concluída", "Concluída em", "Concluída por", "Prioridade", "Responsável", "Prazo", "Status do plano", "Origem", "Criado por", "Criado em", "Último andamento"];
+    const cab = ["Placa", "Filial", "Tipo", "Ação", "Pneus", "Concluir até", "Concluída", "Concluída em", "Concluída por", "Prioridade", "Responsável", "Prazo", "Status do plano", "Origem", "Criado por", "Criado em", "Último andamento"];
     const cel = (v) => `"${String(v == null ? "" : v).replace(/"/g, '""')}"`;
     const linhas = [];
     lista.forEach((p) => {
@@ -2966,8 +3031,8 @@
       const comum = [p.prioridade, p.responsavel, p.prazo ? fmtDate(p.prazo) : "", p.status, p.origem, p.criadoPor, fmtDataHora(p.criadoEm), u ? `${u.texto} (${fmtDataHora(u.em)})` : ""];
       const itens = planoItens(p.id);
       const base = [p.placa, filialFullName(p.filial), p.tipo];
-      if (!itens.length) linhas.push(base.concat([p.acao, p.pneus, "", "", ""], comum).map(cel).join(";"));
-      itens.forEach((i) => linhas.push(base.concat([i.texto, i.pneus, i.feito ? "Sim" : "Não", i.feito ? fmtDataHora(i.feitoEm) : "", i.feitoPor], comum).map(cel).join(";")));
+      if (!itens.length) linhas.push(base.concat([p.acao, p.pneus, "", "", "", ""], comum).map(cel).join(";"));
+      itens.forEach((i) => linhas.push(base.concat([i.texto, i.pneus, i.prazo ? fmtDate(i.prazo) : "", i.feito ? "Sim" : "Não", i.feito ? fmtDataHora(i.feitoEm) : "", i.feitoPor], comum).map(cel).join(";")));
     });
     return "﻿" + [cab.map(cel).join(";")].concat(linhas).join("\r\n");
   }
@@ -2977,7 +3042,7 @@
       const u = planoUltimoAndamento(p.id);
       const itens = planoItens(p.id);
       const f = itens.filter((i) => i.feito).length;
-      const linhasItens = itens.length ? itens.map((i) => `${i.feito ? "✅" : "⬜"} ${i.texto}${i.pneus ? ` (pneus: ${i.pneus})` : ""}`).join("\n") : `• ${p.acao || "—"}`;
+      const linhasItens = itens.length ? itens.map((i) => `${i.feito ? "✅" : "⬜"} ${i.texto}${i.pneus ? ` (pneus: ${i.pneus})` : ""}${i.prazo ? ` – até ${fmtDate(i.prazo)}${planoItemAtrasado(i) ? " (ATRASADA)" : ""}` : ""}`).join("\n") : `• ${p.acao || "—"}`;
       return `*${p.placa}* · ${filialSigla(p.filial)} · ${p.prioridade}${p.prazo ? ` · prazo ${fmtDate(p.prazo)}${planoAtrasado(p) ? " (ATRASADO)" : ""}` : ""}\n${linhasItens}\nStatus: ${p.status}${itens.length ? ` (${f}/${itens.length})` : ""}${p.responsavel ? ` · Resp.: ${p.responsavel}` : ""}${u ? `\nObs.: ${u.texto}` : ""}`;
     });
     return `*Plano de Ação – Pneus RAJA* (${hoje})\n${planoFiltrosTxt()}\n\n` + blocos.join("\n\n");
@@ -3006,12 +3071,12 @@
     if (!area) { area = document.createElement("div"); area.id = "print-area"; document.body.appendChild(area); }
     area.innerHTML = `
       <h1>Plano de Ação — Frota de Pneus RAJA</h1>
-      <p>Emitido em ${escapeHtml(fmtDate(hojeIso()))}${state.planoAutor ? ` por ${escapeHtml(state.planoAutor)}` : ""} · ${escapeHtml(planoFiltrosTxt())} · ${lista.length} plano(s)</p>
+      <p>Emitido em ${escapeHtml(fmtDate(hojeIso()))}${state.planoAutor ? ` por ${escapeHtml(state.planoAutor)}` : ""} · ${escapeHtml(planoFiltrosTxt())} · ${lista.length} plano(s)${planoMarcadosVisiveis().length ? " selecionado(s)" : ""}</p>
       <table><thead><tr><th>Placa</th><th>Filial</th><th>Ações (☑ feita / ☐ pendente)</th><th>Prior.</th><th>Responsável</th><th>Prazo</th><th>Status</th><th>Observação</th></tr></thead><tbody>
       ${lista.map((p) => {
         const u = planoUltimoAndamento(p.id);
         const itens = planoItens(p.id);
-        const acoes = itens.length ? itens.map((i) => `${i.feito ? "☑" : "☐"} ${escapeHtml(i.texto)}${i.pneus ? ` <i>(pneus ${escapeHtml(i.pneus)})</i>` : ""}`).join("<br>") : escapeHtml(p.acao || "—");
+        const acoes = itens.length ? itens.map((i) => `${i.feito ? "☑" : "☐"} ${escapeHtml(i.texto)}${i.pneus ? ` <i>(pneus ${escapeHtml(i.pneus)})</i>` : ""}${i.prazo ? ` <i>— até ${escapeHtml(fmtDate(i.prazo))}${planoItemAtrasado(i) ? " (atrasada)" : ""}</i>` : ""}`).join("<br>") : escapeHtml(p.acao || "—");
         return `<tr>
         <td><b>${escapeHtml(p.placa)}</b></td><td>${escapeHtml(filialSigla(p.filial))}</td><td>${acoes}</td>
         <td>${escapeHtml(p.prioridade)}</td><td>${escapeHtml(p.responsavel || "—")}</td><td>${p.prazo ? escapeHtml(fmtDate(p.prazo)) : "—"}${planoAtrasado(p) ? " (atrasado)" : ""}</td>
@@ -3049,13 +3114,29 @@
     on("[data-plano-del]", "click", (ev) => planoExcluir(ev.currentTarget.getAttribute("data-plano-del")));
     on("[data-item-toggle]", "click", (ev) => planoItemToggle(ev.currentTarget.getAttribute("data-item-toggle"), ev.currentTarget.getAttribute("data-feito") === "1"));
     on("[data-item-del]", "click", (ev) => planoItemDel(ev.currentTarget.getAttribute("data-item-del")));
+    on("[data-item-prazo]", "change", (ev) => planoItemPrazo(ev.currentTarget.getAttribute("data-item-prazo"), ev.currentTarget.value));
+    on("[data-item-prazo]", "click", (ev) => ev.stopPropagation());
     on("[data-item-add]", "click", (ev) => planoItemAdd(ev.currentTarget.getAttribute("data-item-add")));
     const novoTxt = $("pl-item-texto");
     if (novoTxt) novoTxt.addEventListener("keydown", (ev) => {
       if (ev.key === "Enter") { ev.preventDefault(); const b = document.querySelector("[data-item-add]"); if (b) planoItemAdd(b.getAttribute("data-item-add")); }
     });
 
-    const lista = () => planosVisiveis();
+    on("[data-plano-marca]", "click", (ev) => ev.stopPropagation());
+    on("[data-plano-marca]", "change", (ev) => {
+      const id = ev.currentTarget.getAttribute("data-plano-marca");
+      if (ev.currentTarget.checked) planoMarc()[id] = true; else delete planoMarc()[id];
+      render();
+    });
+    const selTodos = $("pl-sel-todos");
+    if (selTodos) selTodos.addEventListener("change", () => {
+      state.planoMarcados = {};
+      if (selTodos.checked) planosVisiveis().forEach((p) => { state.planoMarcados[p.id] = true; });
+      render();
+    });
+    const selLimpa = $("pl-sel-limpar"); if (selLimpa) selLimpa.addEventListener("click", () => { state.planoMarcados = {}; render(); });
+
+    const lista = () => planoListaRelatorio();
     const bp = $("pl-rel-print"); if (bp) bp.addEventListener("click", () => planoImprimir(lista()));
     const bc = $("pl-rel-csv"); if (bc) bc.addEventListener("click", () => { baixarArquivo(`plano_de_acao_${hojeIso()}.csv`, planoCsv(lista()), "text/csv;charset=utf-8"); toast("CSV gerado — abra no Excel."); });
     const bw = $("pl-rel-wpp"); if (bw) bw.addEventListener("click", async () => { toast((await copiarTexto(planoWhatsapp(lista()))) ? "Texto copiado — cole no WhatsApp." : "Não consegui copiar. Use o CSV ou imprimir."); });
@@ -3104,6 +3185,10 @@
       state.planoSkipSync = true;
       render();
       const el = $("pl-acao"); if (el) el.focus();
+    });
+    on("[data-draft-prazo]", "change", (ev) => {
+      const n = Number(ev.currentTarget.getAttribute("data-draft-prazo"));
+      if (state.planoDraft && state.planoDraft.itens[n]) state.planoDraft.itens[n].prazo = ev.currentTarget.value;
     });
     on("[data-draft-del]", "click", (ev) => {
       planoSyncDraft();
