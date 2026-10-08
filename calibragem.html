@@ -73,10 +73,13 @@ input#placa{font-family:ui-monospace,"Roboto Mono","SFMono-Regular",Menlo,Consol
 table{border-collapse:collapse;width:100%;font-variant-numeric:tabular-nums}
 th,td{padding:8px 10px;text-align:left;border-bottom:1px solid var(--line);vertical-align:middle}
 th{font-size:11.5px;text-transform:uppercase;letter-spacing:.05em;color:var(--muted);font-weight:600;background:var(--surface2)}
-th.wk{text-align:center;min-width:92px} th.wk small{display:block;white-space:nowrap;text-transform:none;letter-spacing:0;font-weight:400}
+th.wk{text-align:center;min-width:92px;vertical-align:top}
+.colf{margin-top:5px;width:100%;font:inherit;font-size:11.5px;font-weight:500;text-transform:none;letter-spacing:0;padding:3px 4px;border-radius:5px;border:1px solid var(--line);background:var(--surface);color:var(--ink);cursor:pointer}
+.colf.on{border-color:var(--accent);background:var(--accent-soft);color:var(--accent);font-weight:700}
+.filtinfo{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin:-4px 0 12px;font-size:12.5px} th.wk small{display:block;white-space:nowrap;text-transform:none;letter-spacing:0;font-weight:400}
 th.wk.now{color:var(--accent);box-shadow:inset 0 -2px 0 var(--accent)}
 td.cell{text-align:center}
-.chip{display:inline-flex;align-items:center;gap:4px;border:0;font:inherit;font-size:12.5px;font-weight:600;padding:3px 8px;border-radius:999px;background:var(--ok-soft);color:var(--ok);cursor:pointer;margin:1px}
+.chip{white-space:nowrap;display:inline-flex;align-items:center;gap:4px;border:0;font:inherit;font-size:12.5px;font-weight:600;padding:3px 8px;border-radius:999px;background:var(--ok-soft);color:var(--ok);cursor:pointer;margin:1px}
 .chip:hover{filter:brightness(.95)}
 .pend{font-size:12px;color:var(--muted)}
 .pend.late{color:var(--crit);font-weight:600}
@@ -179,10 +182,11 @@ dialog::backdrop{background:rgba(10,20,25,.45)}
       <div class="field"><label>Mês</label><div class="row" style="flex-wrap:nowrap"><button type="button" class="btn ghost sm" id="btnAnt" aria-label="Mês anterior">◀</button><strong id="semRef" style="min-width:110px;text-align:center"></strong><button type="button" class="btn ghost sm" id="btnProx" aria-label="Próximo mês">▶</button><button type="button" class="btn ghost sm" id="btnAtual">Mês atual</button></div></div>
       <div class="field"><label for="filtroFilial">Filial</label><select id="filtroFilial"><option value="">Todas</option></select></div>
       <div class="field"><label for="filtroStatus">Mostrar</label>
-        <select id="filtroStatus"><option value="">Todos os veículos</option><option value="pend">Só com semana pendente</option></select>
+        <select id="filtroStatus"><option value="">Todos os veículos</option><option value="semAtual">Sem calibragem na semana atual</option><option value="pend">Com alguma semana pendente</option></select>
       </div>
     </div>
     <p class="muted" style="margin:-6px 0 14px;font-size:12.5px" id="legenda"></p>
+    <div class="filtinfo" id="filtinfo" hidden></div>
     <div class="sumgrid" id="sumgrid"></div>
     <div id="filiais"></div>
   </section>
@@ -228,6 +232,7 @@ const $ = id => document.getElementById(id);
 const esc = s => String(s).replace(/[&<>"']/g, c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
 let online = false, registros = [], ocupado = false;
 let refMes = "";
+const filtrosCol = {}; // semana (domingo ISO) -> "ok" | "sem"
 
 /* ---------- datas ---------- */
 const pad = n => String(n).padStart(2,"0");
@@ -367,18 +372,19 @@ function renderFiliais(){
     let feitos=0, devidos=0, semFeitos=0;
     const linhas = vs.map(p=>{
       const s = mapa.get(p) || janela.map(()=>[]);
-      let pend=false, nFeitas=0;
+      let pend=false, nFeitas=0; const sts=[];
       const cells = s.map((lst,i)=>{
         const st = estado(janela[i]);
         if(st==="passada"||st==="atual"){ devidos++; if(lst.length) feitos++; }
         if(i===iAtual && lst.length) semFeitos++;
+        sts[i] = lst.length ? "ok" : (st==="passada"||st==="atual") ? "sem" : "na";
         if(lst.length){ nFeitas++; return `<td class="cell">${lst.sort((a,b)=>a.data.localeCompare(b.data)).map(r=>`<button class="chip" data-edit="${esc(r.id)}" title="Clique para corrigir ou excluir">✓ ${fmtCurto(r.data)}</button>`).join("")}</td>`; }
         if(st==="antes") return `<td class="cell"><span class="pend fut" title="Antes do início do controle">—</span></td>`;
         if(st==="passada"){ pend=true; return `<td class="cell"><span class="pend late">atrasada</span></td>`; }
         if(st==="atual"){ pend=true; return `<td class="cell"><span class="pend">pendente</span></td>`; }
         return `<td class="cell"><span class="pend fut">—</span></td>`;
       }).join("");
-      return {p, pend, html:`<tr><td><span class="plate"><span>${p}</span></span></td><td class="muted">${esc(byPlaca.get(p).tipo||"")}</td>${cells}<td class="cell"><b>${nFeitas}</b>/${N}</td></tr>`};
+      return {p, pend, sts, html:`<tr><td><span class="plate"><span>${p}</span></span></td><td class="muted">${esc(byPlaca.get(p).tipo||"")}</td>${cells}<td class="cell"><b>${nFeitas}</b>/${N}</td></tr>`};
     });
     const pctSem = iAtual>=0 && vs.length ? Math.round(semFeitos/vs.length*100) : null;
     const pctMes = devidos ? Math.round(feitos/devidos*100) : null;
@@ -386,27 +392,42 @@ function renderFiliais(){
     const cls = base===null ? "ok" : base>=90 ? "ok" : base>=60 ? "warn" : "crit";
     resumo.push({f,pctSem,pctMes,cls,semFeitos,n:vs.length});
     if(fSel && fSel!==f) continue;
-    const vis = soPend ? linhas.filter(l=>l.pend) : linhas;
+    const modo = $("filtroStatus").value;
+    const vis = linhas.filter(l=>{
+      if(modo==="pend" && !l.pend) return false;
+      if(modo==="semAtual" && (iAtual<0 || l.sts[iAtual]!=="sem")) return false;
+      return janela.every((w,i)=> !filtrosCol[w] || l.sts[i]===filtrosCol[w]);
+    });
+    const filtrado = vis.length !== linhas.length;
     html += `<article class="panel fil"><header><h3>${esc(f)}</h3>
-      <div class="row"><span class="muted" style="font-size:12.5px">${vs.length} veículos${pctSem!==null?` · ${semFeitos}/${vs.length} na semana atual`:""}${pctMes!==null?` · ${pctMes}% no mês`:""}</span>
+      <div class="row"><span class="muted" style="font-size:12.5px">${filtrado?`<b style="color:var(--accent)">${vis.length} de ${vs.length} no filtro</b> · `:""}${vs.length} veículos${pctSem!==null?` · ${semFeitos}/${vs.length} na semana atual`:""}${pctMes!==null?` · ${pctMes}% no mês`:""}</span>
       <span class="tag ${cls}">${base===null?"sem semanas cobradas":(pctSem!==null? base+"% na semana" : base+"% no mês")}</span></div></header>
       <div class="table-wrap"><table><thead><tr><th>Placa</th><th>Tipo</th>
       ${janela.map((w,i)=>{ const outro = rotulosSemana(w).find(r=>r.ym!==refMes);
-        return `<th class="wk${w===semHoje?" now":""}">${i+1}ª semana<small>${faixaSemana(w)}</small>${outro?`<small title="Esta semana também conta em ${nomeMes(outro.ym)}">↔ ${outro.n}ª ${MESES_[+outro.ym.slice(5,7)-1]}</small>`:""}</th>`; }).join("")}
+        const st = estado(w), fv = filtrosCol[w]||"";
+        const sel = (st==="passada"||st==="atual") ? `<select class="colf${fv?" on":""}" data-w="${w}" aria-label="Filtrar ${i+1}ª semana">
+            <option value=""${fv===""?" selected":""}>Todos</option><option value="sem"${fv==="sem"?" selected":""}>Sem calibragem</option><option value="ok"${fv==="ok"?" selected":""}>Calibrados</option></select>` : "";
+        return `<th class="wk${w===semHoje?" now":""}">${i+1}ª semana<small>${faixaSemana(w)}</small>${outro?`<small title="Esta semana também conta em ${nomeMes(outro.ym)}">↔ ${outro.n}ª ${MESES_[+outro.ym.slice(5,7)-1]}</small>`:""}${sel}</th>`; }).join("")}
       <th class="wk">Total</th></tr></thead><tbody>
-      ${vis.length? vis.map(l=>l.html).join("") : `<tr><td colspan="${N+3}" class="empty">Todos os veículos em dia.</td></tr>`}
+      ${vis.length? vis.map(l=>l.html).join("") : `<tr><td colspan="${N+3}" class="empty">${filtrado||modo?"Nenhum veículo desta filial neste filtro.":"Nenhum veículo."}</td></tr>`}
       </tbody></table></div></article>`;
   }
   $("filiais").innerHTML = html;
+  const ativos = janela.map((w,i)=>filtrosCol[w]?`${i+1}ª semana: ${filtrosCol[w]==="sem"?"sem calibragem":"calibrados"}`:"").filter(Boolean);
+  $("filtinfo").hidden = !ativos.length;
+  $("filtinfo").innerHTML = ativos.length ? `<span class="muted">Filtro ativo:</span> <b>${ativos.join(" · ")}</b> <button type="button" class="btn ghost sm" id="btnLimparCol">Limpar filtros</button>` : "";
   $("sumgrid").innerHTML = resumo.map(r=>{ const v = r.pctSem!==null ? r.pctSem : r.pctMes;
     return `<button class="sum ${r.cls}" data-fil="${esc(r.f)}"><div class="n">${esc(r.f)}</div>
     <div class="v">${v===null?"—":v+"%"}</div><div class="muted" style="font-size:12px">${r.pctSem!==null?`${r.semFeitos}/${r.n} na semana`:"no mês"}${r.pctSem!==null&&r.pctMes!==null?` · mês ${r.pctMes}%`:""}</div>
     <div class="bar"><i style="width:${v||0}%"></i></div></button>`; }).join("");
 }
 ["filtroFilial","filtroStatus"].forEach(id=>$(id).addEventListener("input",renderFiliais));
-$("btnAnt").addEventListener("click",()=>{ refMes = ymAdd(refMes,-1); renderFiliais(); });
-$("btnProx").addEventListener("click",()=>{ refMes = ymAdd(refMes,1); renderFiliais(); });
-$("btnAtual").addEventListener("click",()=>{ refMes = hojeISO().slice(0,7); renderFiliais(); });
+$("filiais").addEventListener("change", e=>{ const s=e.target.closest(".colf"); if(!s) return;
+  if(s.value) filtrosCol[s.dataset.w]=s.value; else delete filtrosCol[s.dataset.w]; renderFiliais(); });
+$("filtinfo").addEventListener("click", e=>{ if(e.target.id!=="btnLimparCol") return; for(const k in filtrosCol) delete filtrosCol[k]; renderFiliais(); });
+$("btnAnt").addEventListener("click",()=>{ for(const k in filtrosCol) delete filtrosCol[k]; refMes = ymAdd(refMes,-1); renderFiliais(); });
+$("btnProx").addEventListener("click",()=>{ for(const k in filtrosCol) delete filtrosCol[k]; refMes = ymAdd(refMes,1); renderFiliais(); });
+$("btnAtual").addEventListener("click",()=>{ for(const k in filtrosCol) delete filtrosCol[k]; refMes = hojeISO().slice(0,7); renderFiliais(); });
 $("sumgrid").addEventListener("click",e=>{ const b=e.target.closest("[data-fil]"); if(!b) return; $("filtroFilial").value=b.dataset.fil; renderFiliais(); });
 
 /* ---------- editar / excluir ---------- */
