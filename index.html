@@ -238,6 +238,13 @@
   }
   @media (prefers-reduced-motion: reduce) { * { transition: none !important; } }
 
+  /* ---------- Modo "Todos os veículos": aviso de mapa desatualizado ---------- */
+  .stale-banner { display: flex; gap: 10px; align-items: flex-start; margin: 14px 0 4px; padding: 11px 13px; border-radius: var(--radius-sm);
+    background: var(--warning-bg); border: 1px solid rgba(217,173,85,.55); border-left: 4px solid var(--warning); color: var(--warning); font-size: 12.5px; line-height: 1.45; }
+  .stale-banner .stale-ico { font-size: 17px; line-height: 1.1; }
+  .stale-banner b { color: var(--text); }
+  .stale-pill { display: inline-block; margin-left: 6px; padding: 1px 7px; border-radius: 99px; font-size: 10.5px; font-weight: 700; background: var(--warning-bg); color: var(--warning); }
+
   /* ---------- Plano de Ação ---------- */
   textarea {
     background: var(--bg-elev); border: 1px solid var(--border-strong); color: var(--text);
@@ -408,6 +415,8 @@
     DATA.insp2 = semSucata(DATA.insp2);
     DATA.sulcoTires = semSucata(DATA.sulcoTires);
     DATA.pressaoTires = semSucata(DATA.pressaoTires);
+    DATA.sulcoOutros = semSucata(DATA.sulcoOutros || []);
+    DATA.pressaoOutros = semSucata(DATA.pressaoOutros || []);
     Object.values(DATA.historicoMensal || {}).forEach((mes) => {
       mes.insp1 = semSucata(mes.insp1);
       mes.insp2 = semSucata(mes.insp2);
@@ -589,6 +598,8 @@
     sortDir: 1,
     selVeiculoSulco: null,
     sulcoSoTrocar: false,
+    sulcoTodos: false,
+    pressaoTodos: false,
     selVeiculoVazias: null,
     pressaoRound: "geral",
     pressaoMes: null,
@@ -1410,6 +1421,19 @@
     if (!g.letter) return null;
     return g.num ? `${g.num}º Eixo ${names[g.letter]}` : `Eixo ${names[g.letter]}`;
   }
+  // ---- Modo "Todos os veículos" (2026-10-08) ----
+  // Referência de "hoje" = data de geração dos dados (DATA.generatedAt), não o relógio do
+  // navegador, pra o aviso de mapa desatualizado bater com o que foi publicado.
+  function quinzenaAtualJanela() {
+    const h = String(DATA.generatedAt || new Date().toISOString()).slice(0, 10);
+    const [y, m, d] = h.split("-").map(Number);
+    const mm = String(m).padStart(2, "0");
+    return d <= 15 ? { ini: `${y}-${mm}-01`, rotulo: "1ª quinzena" } : { ini: `${y}-${mm}-16`, rotulo: "2ª quinzena" };
+  }
+  function bannerMapaDesatualizado(ultima, rotulo) {
+    const quando = ultima ? `Última inspeção feita nele: <b>${escapeHtml(fmtDate(ultima))}</b>.` : "<b>Nenhuma inspeção registrada</b> para este veículo.";
+    return `<div class="stale-banner"><span class="stale-ico">⚠</span><div><b>Mapa desatualizado</b> — este veículo não teve inspeção ${/^mês/.test(rotulo) ? "no" : "na"} ${escapeHtml(rotulo)}. ${quando}</div></div>`;
+  }
   function computeSulco() {
     let rows = DATA.sulcoTires;
     if (state.filtroFilial !== "all") rows = rows.filter((t) => t.filial === state.filtroFilial);
@@ -1454,7 +1478,45 @@
     const barData = Array.from(tireCountMap, ([filial, pneus]) => ({ filial, pneus }))
       .sort((a, b) => b.pneus - a.pneus);
 
-    return { filtered, trocarCount, atencaoCount, barData, top, denom, pctFrota };
+    // Lista do modo "Todos os veículos": todos os pneus (sulcoTires + sulcoOutros), agrupados por
+    // veículo, com a data da última inspeção. Só alimenta a tabela/mapa — KPIs e gráfico acima
+    // continuam calculados do jeito de sempre (só veículos afetados).
+    let todos = null;
+    if (state.sulcoTodos) {
+      const janela = quinzenaAtualJanela();
+      const info = DATA.veiculosInfo || {};
+      let all = (DATA.sulcoTires || []).concat(DATA.sulcoOutros || []);
+      if (state.filtroFilial !== "all") all = all.filter((t) => t.filial === state.filtroFilial);
+      if (state.busca) all = all.filter((t) => t.veiculo.toLowerCase().includes(state.busca.toLowerCase()));
+      all = scopeRows(all);
+      const por = new Map();
+      all.forEach((t) => { if (!por.has(t.veiculo)) por.set(t.veiculo, []); por.get(t.veiculo).push(t); });
+      const monta = (placa, vt, meta) => {
+        const flagged = vt.filter((t) => t.sulco != null && t.sulco <= 5).sort((a, b) => a.sulco - b.sulco);
+        const comSulco = vt.filter((t) => t.sulco != null).map((t) => t.sulco);
+        const ultima = (info[placa] && info[placa].ultimaInsp) || null;
+        return {
+          veiculo: placa, filial: meta.filial, tipoDesc: meta.tipoDesc, odometro: meta.odometro,
+          tires: vt, flagged,
+          worst: vt.length === 0 ? "sem_dado" : flagged.some((t) => t.sulco <= 3) ? "trocar" : flagged.length ? "atencao" : "ok",
+          minSulco: comSulco.length ? Math.min(...comSulco) : Infinity,
+          ultimaInsp: ultima, desatualizado: !ultima || ultima < janela.ini,
+        };
+      };
+      todos = Array.from(por, ([placa, vt]) => monta(placa, vt, vt[0]));
+      // veículos registrados que nem aparecem no relatório de sulco (sem pneu cadastrado)
+      Object.entries(info).forEach(([placa, i]) => {
+        if (por.has(placa)) return;
+        if (state.filtroFilial !== "all" && i.filial !== state.filtroFilial) return;
+        if (state.busca && !placa.toLowerCase().includes(state.busca.toLowerCase())) return;
+        if (state.selFiliais.size && !state.selFiliais.has(i.filial)) return;
+        todos.push(monta(placa, [], i));
+      });
+      todos.sort((a, b) => a.minSulco - b.minSulco);
+      todos.janela = janela;
+    }
+
+    return { filtered, trocarCount, atencaoCount, barData, top, denom, pctFrota, todos };
   }
 
   function reformaReparoInfo(t) {
@@ -1574,21 +1636,28 @@
   }
 
   function renderSulcoDetail(d) {
-    const v = state.selVeiculoSulco ? d.filtered.find((x) => x.veiculo === state.selVeiculoSulco) : null;
+    const listaDetalhe = state.sulcoTodos && d.todos ? d.todos : d.filtered;
+    const v = state.selVeiculoSulco ? listaDetalhe.find((x) => x.veiculo === state.selVeiculoSulco) : null;
     if (!v) {
       return `<div class="card detail-card">
         <div class="card-title">Esquema do veículo</div>
-        <div class="detail-empty">Clique numa linha da tabela para ver em qual posição está o pneu com sulco baixo.</div>
+        <div class="detail-empty">${state.sulcoTodos ? "Clique numa linha da tabela para ver o sulco de todos os pneus do veículo." : "Clique numa linha da tabela para ver em qual posição está o pneu com sulco baixo."}</div>
       </div>`;
     }
-    const worstColor = v.worst === "trocar" ? "var(--danger)" : "var(--warning)";
+    const worstColor = v.worst === "trocar" ? "var(--danger)" : v.worst === "atencao" ? "var(--warning)" : "var(--text-dim)";
+    const pillSulco = v.worst === "trocar" ? severityPill("danger", `${v.flagged.filter((t) => t.sulco <= 3).length} pneu(s) para trocar`)
+      : v.worst === "atencao" ? severityPill("warning", "pneu(s) em atenção")
+      : v.worst === "ok" ? severityPill("success", "Nenhum pneu abaixo de 5mm")
+      : severityPill("neutral", "Sem pneus no relatório de sulco");
+    const bannerSulco = state.sulcoTodos && v.desatualizado && d.todos ? bannerMapaDesatualizado(v.ultimaInsp, d.todos.janela.rotulo) : "";
     return `<div class="card detail-card">
       <div class="detail-plate-label">Veículo selecionado</div>
       <div class="detail-plate">${escapeHtml(v.veiculo)}</div>
       <div class="detail-sub">${escapeHtml(filialSigla(v.filial))} — ${escapeHtml(filialFullName(v.filial))} · ${escapeHtml(v.tipoDesc)}${v.odometro ? ` · ${fmtInt(v.odometro)} km` : ""}</div>
-      ${severityPill(v.worst === "trocar" ? "danger" : "warning", v.worst === "trocar" ? `${v.flagged.filter((t) => t.sulco <= 3).length} pneu(s) para trocar` : "pneu(s) em atenção")}
+      ${pillSulco}
+      ${bannerSulco}
       <div class="card-title" style="margin-top:18px;">Esquema do veículo <span style="color:${worstColor}">· ${escapeHtml(v.tipoDesc)}</span></div>
-      ${renderTireDiagram(v)}
+      ${v.tires.length ? renderTireDiagram(v) : `<div class="detail-empty">Este veículo não aparece no relatório de sulco.</div>`}
       <div class="table-note" style="padding-left:0;">Números em cada pneu = sulco atual (mm). <span style="color:var(--danger)">Vermelho</span> ≤ 3mm (trocar) · <span style="color:var(--warning)">amarelo</span> 3,1–5mm (atenção). Sobrescrito ao lado do nº do pneu: <sup style="font-weight:700;">R</sup>=reformas, <sup style="font-weight:700;">C</sup>=reparos.</div>
     </div>`;
   }
@@ -1677,7 +1746,8 @@
   // Esquema do veículo pro quadro "Veículos com pneus fora do padrão" (Pressão de Ar)
   // ------------------------------------------------------------------
   function renderPressaoDetail(d) {
-    const v = state.selVeiculoPressao ? d.veiculosForaPadrao.find((x) => x.veiculo === state.selVeiculoPressao) : null;
+    const listaDetalhe = state.pressaoTodos && d.veiculosTodos ? d.veiculosTodos : d.veiculosForaPadrao;
+    const v = state.selVeiculoPressao ? listaDetalhe.find((x) => x.veiculo === state.selVeiculoPressao) : null;
     if (!v) {
       return `<div class="card detail-card">
         <div class="card-title">Esquema do veículo</div>
@@ -1690,14 +1760,21 @@
     // quinzena), o que desenharia o mesmo pneu 2x no mapa. O mapa sempre mostra o estado
     // mais recente conhecido de cada posição, com todos os pneus do veículo (inclusive os
     // "correta", em verde), não só os fora do padrão.
-    const vehicle = { veiculo: v.veiculo, filial: v.filial, tipoDesc: v.tipoDesc, tires: DATA.pressaoTires.filter((t) => t.veiculo === v.veiculo) };
+    const todosMode = state.pressaoTodos && !!d.veiculosTodos;
+    const vehicle = { veiculo: v.veiculo, filial: v.filial, tipoDesc: v.tipoDesc, tires: todosMode ? v.tires : DATA.pressaoTires.filter((t) => t.veiculo === v.veiculo) };
+    const pillPressao = !todosMode ? severityPill("danger", `${v.qtd} pneu(s) fora do padrão`)
+      : v.tires.length === 0 ? severityPill("neutral", "Sem leitura de pressão registrada")
+      : v.qtd > 0 ? severityPill(v.grave ? "danger" : "warning", `${v.qtd} pneu(s) fora do padrão`)
+      : severityPill("success", "Todos os pneus dentro do padrão");
+    const bannerPressao = todosMode && v.desatualizado ? bannerMapaDesatualizado(v.ultimaLeitura, d.veiculosTodos.rotulo) : "";
     return `<div class="card detail-card">
       <div class="detail-plate-label">Veículo selecionado</div>
       <div class="detail-plate">${escapeHtml(v.veiculo)}</div>
       <div class="detail-sub">${escapeHtml(filialSigla(v.filial))} — ${escapeHtml(filialFullName(v.filial))} · ${escapeHtml(v.tipoDesc || "—")}</div>
-      ${severityPill("danger", `${v.qtd} pneu(s) fora do padrão`)}
+      ${pillPressao}
+      ${bannerPressao}
       <div class="card-title" style="margin-top:18px;">Esquema do veículo <span style="color:var(--danger)">· ${escapeHtml(v.tipoDesc || "")}</span></div>
-      ${renderTireDiagram(vehicle, pressaoTireChip)}
+      ${vehicle.tires.length ? renderTireDiagram(vehicle, pressaoTireChip) : `<div class="detail-empty">Nenhuma leitura de pressão registrada para este veículo.</div>`}
       <div class="table-note" style="padding-left:0;">
         Cor de cada pneu = faixa de pressão: <span style="color:${FAIXA_PRESSAO_TONE.muito_baixa}">muito baixa</span> ·
         <span style="color:${FAIXA_PRESSAO_TONE.baixa}">baixa</span> ·
@@ -1712,12 +1789,16 @@
 
   function renderSulcoPanel() {
     const d = computeSulco();
-    const filiais = Array.from(new Set(DATA.sulcoTires.map((r) => r.filial))).sort();
+    const listaSulco = state.sulcoTodos && d.todos ? d.todos : d.filtered;
+    const filiais = Array.from(new Set(DATA.sulcoTires.concat(DATA.sulcoOutros || []).map((r) => r.filial))).sort();
     const sulcoFilterToggle = `<div class="seg-group">
-        <button class="seg-btn ${!state.sulcoSoTrocar ? "active" : ""}" data-sulco-filter="todos">Até 5mm (atenção + trocar)</button>
-        <button class="seg-btn ${state.sulcoSoTrocar ? "active" : ""}" data-sulco-filter="trocar">Somente ≤ 3mm (trocar)</button>
+        <button class="seg-btn ${!state.sulcoSoTrocar && !state.sulcoTodos ? "active" : ""}" data-sulco-filter="todos">Até 5mm (atenção + trocar)</button>
+        <button class="seg-btn ${state.sulcoSoTrocar && !state.sulcoTodos ? "active" : ""}" data-sulco-filter="trocar">Somente ≤ 3mm (trocar)</button>
+        <button class="seg-btn ${state.sulcoTodos ? "active" : ""}" data-sulco-filter="veiculos">Todos os veículos</button>
       </div>`;
-    const desc = state.sulcoSoTrocar
+    const desc = state.sulcoTodos
+      ? "Mostrando todos os veículos da frota, com o sulco de todos os pneus de cada um. Os indicadores acima seguem considerando só os veículos com pneu abaixo de 5mm."
+      : state.sulcoSoTrocar
       ? "Mostrando somente pneus com sulco de 3mm ou menos, que precisam ser trocados agora."
       : "Pneus com sulco abaixo de 5mm: de 3,1 a 5mm requerem atenção (troca em breve), 3mm ou menos precisam ser trocados agora.";
     return `
@@ -1737,23 +1818,25 @@
       <div class="sulco-layout">
         <div class="table-wrap" style="margin:0;">
           <table>
-            <thead><tr>${sortTh("filial", "Filial")}${sortTh("placa", "Placa")}${sortTh("tipo", "Tipo")}${sortTh("odometro", "Odômetro")}${sortTh("qtd", "Qtd")}<th>Posições</th></tr></thead>
+            <thead><tr>${sortTh("filial", "Filial")}${sortTh("placa", "Placa")}${sortTh("tipo", "Tipo")}${sortTh("odometro", "Odômetro")}${sortTh("qtd", "Qtd")}<th>Posições</th>${state.sulcoTodos ? sortTh("ult", "Última inspeção") : ""}</tr></thead>
             <tbody>
-              ${d.filtered.length === 0 ? emptyRow(6, state.sulcoSoTrocar ? "Nenhum pneu com sulco ≤ 3mm encontrado." : "Nenhum pneu abaixo de 5mm encontrado.") :
-                applySort(d.filtered, {
+              ${listaSulco.length === 0 ? emptyRow(state.sulcoTodos ? 7 : 6, state.sulcoTodos ? "Nenhum veículo encontrado." : state.sulcoSoTrocar ? "Nenhum pneu com sulco ≤ 3mm encontrado." : "Nenhum pneu abaixo de 5mm encontrado.") :
+                applySort(listaSulco, {
                   filial: (r) => normalizeText(filialFullName(r.filial)), placa: (r) => r.veiculo,
                   tipo: (r) => r.tipoDesc, odometro: (r) => r.odometro || 0, qtd: (r) => r.flagged.length,
+                  ult: (r) => r.ultimaInsp || "",
                 }).map((v) => `<tr class="sulco-row ${state.selVeiculoSulco === v.veiculo ? "selected" : ""}" data-veiculo="${escapeHtml(v.veiculo)}">
                   <td>${escapeHtml(filialSigla(v.filial))} <span style="color:var(--text-faint)">— ${escapeHtml(filialFullName(v.filial))}</span></td>
                   <td class="mono" style="font-weight:600;">${escapeHtml(v.veiculo)}</td>
                   <td style="color:var(--text-dim);">${escapeHtml(v.tipoDesc)}</td>
                   <td class="mono">${v.odometro ? fmtInt(v.odometro) + " km" : "—"}</td>
-                  <td><span class="qtd-badge" style="background:${v.worst === "trocar" ? "var(--danger-bg)" : "var(--warning-bg)"};color:${v.worst === "trocar" ? "var(--danger)" : "var(--warning)"}">${v.flagged.length}</span></td>
-                  <td>${v.flagged.map((t) => `<span class="mono" style="color:${tireColor(tireStatus(t.sulco))};font-weight:600;">${escapeHtml(t.posicao)}${tireExtrasBadge(t)}</span>`).join(" · ")}</td>
+                  <td>${v.flagged.length ? `<span class="qtd-badge" style="background:${v.worst === "trocar" ? "var(--danger-bg)" : "var(--warning-bg)"};color:${v.worst === "trocar" ? "var(--danger)" : "var(--warning)"}">${v.flagged.length}</span>` : `<span style="color:var(--text-faint)">—</span>`}</td>
+                  <td>${v.flagged.length ? v.flagged.map((t) => `<span class="mono" style="color:${tireColor(tireStatus(t.sulco))};font-weight:600;">${escapeHtml(t.posicao)}${tireExtrasBadge(t)}</span>`).join(" · ") : `<span style="color:var(--text-faint)">${v.worst === "sem_dado" ? "sem dados de sulco" : "todos acima de 5mm"}</span>`}</td>
+                  ${state.sulcoTodos ? `<td class="mono">${v.ultimaInsp ? escapeHtml(fmtDate(v.ultimaInsp)) : "—"}${v.desatualizado ? `<span class="stale-pill">desatualizado</span>` : ""}</td>` : ""}
                 </tr>`).join("")}
             </tbody>
           </table>
-          <div class="table-note">${d.filtered.length} veículo(s) com ao menos 1 pneu ${state.sulcoSoTrocar ? "com sulco ≤ 3mm (trocar)" : "abaixo de 5mm"}${scopeLabelText()}. Sobrescrito ao lado da posição: <sup style="font-weight:700;">R</sup>=reformas, <sup style="font-weight:700;">C</sup>=reparos do pneu (quando houver).</div>
+          <div class="table-note">${state.sulcoTodos ? `${listaSulco.length} veículo(s) no total${scopeLabelText()}, ${listaSulco.filter((v) => v.desatualizado).length} sem inspeção na ${d.todos.janela.rotulo} (mapa marcado como desatualizado). ` : `${d.filtered.length} veículo(s) com ao menos 1 pneu ${state.sulcoSoTrocar ? "com sulco ≤ 3mm (trocar)" : "abaixo de 5mm"}${scopeLabelText()}.`} Sobrescrito ao lado da posição: <sup style="font-weight:700;">R</sup>=reformas, <sup style="font-weight:700;">C</sup>=reparos do pneu (quando houver).</div>
         </div>
         ${renderSulcoDetail(d)}
       </div>`;
@@ -2096,16 +2179,57 @@
       .map((v) => ({ ...v, qtd: v.itens.length }))
       .sort((a, b) => b.qtd - a.qtd || a.veiculo.localeCompare(b.veiculo));
 
+    // Modo "Todos os veículos" (2026-10-08): todos os veículos da frota, cada um com o último
+    // estado conhecido de cada posição (pressaoTires = mês corrente + pressaoOutros = meses
+    // anteriores) e a data da última leitura. "Desatualizado" = nenhum evento do veículo na
+    // rodada/mês que está selecionada no painel (mesma base de eventosDoRound).
+    let veiculosTodos = null;
+    if (state.pressaoTodos) {
+      const info = DATA.veiculosInfo || {};
+      const inspecionadosNoPeriodo = new Set(eventosDoRound(round).map((e) => e.veiculo));
+      const periodoSemDado = round !== "geral" && !disponivel;
+      const rotuloPeriodo = round === "insp1" ? "1ª quinzena" : round === "insp2" ? "2ª quinzena" : "mês selecionado";
+      const porVeic = new Map();
+      (DATA.pressaoTires || []).concat(DATA.pressaoOutros || []).forEach((tr) => {
+        if (!porVeic.has(tr.veiculo)) porVeic.set(tr.veiculo, []);
+        porVeic.get(tr.veiculo).push(tr);
+      });
+      const placas = new Set([...Object.keys(info), ...porVeic.keys()]);
+      veiculosTodos = [];
+      placas.forEach((placa) => {
+        const tires = porVeic.get(placa) || [];
+        const meta = tires[0] || info[placa] || {};
+        const filial = tires[0] ? tires[0].filial : (info[placa] && info[placa].filial);
+        if (!filial || ehFilialSucata(filial)) return;
+        if (state.filtroFilial !== "all" && filial !== state.filtroFilial) return;
+        if (state.busca && !placa.toLowerCase().includes(state.busca.toLowerCase())) return;
+        if (state.selFiliais.size && !state.selFiliais.has(filial)) return;
+        const datas = tires.map((x) => x.dataInsp).filter(Boolean).sort();
+        const ultima = datas.length ? datas[datas.length - 1] : ((info[placa] && info[placa].ultimaInsp) || null);
+        const fora = tires.filter((x) => !x.semPadrao && (x.semLeitura || x.faixa !== "correta"));
+        veiculosTodos.push({
+          veiculo: placa, filial, tipoDesc: meta.tipoDesc || (info[placa] && info[placa].tipoDesc) || null,
+          tires, qtd: fora.length,
+          grave: fora.some((x) => x.semLeitura || x.faixa === "muito_baixa" || x.faixa === "muito_alta"),
+          ultimaLeitura: ultima,
+          desatualizado: !periodoSemDado && !inspecionadosNoPeriodo.has(placa),
+        });
+      });
+      veiculosTodos.sort((a, b) => b.qtd - a.qtd || a.veiculo.localeCompare(b.veiculo));
+      veiculosTodos.rotulo = rotuloPeriodo;
+    }
+
     return {
       round, disponivel, rows, posicoesInspecionadas, denomQuadro3, foraPadrao, semLeitura, semPadrao, cobertura, faixaCounts,
       pctCorreta, totalComPadraoConhecido, pctInspecionados, pctPressaoZero, insp, barData, pieData, pressaoQuadro3Geral,
-      veiculosQuadro1Geral, foraPadraoDetalhe, veiculosForaPadrao, mesAtivo: mesAtivoGeral,
+      veiculosQuadro1Geral, foraPadraoDetalhe, veiculosForaPadrao, mesAtivo: mesAtivoGeral, veiculosTodos,
     };
   }
 
   function renderPressaoPanel() {
     const d = computePressao();
-    const filiais = Array.from(new Set(DATA.pressaoTires.map((t) => t.filial))).sort();
+    const listaPressao = state.pressaoTodos && d.veiculosTodos ? d.veiculosTodos : d.veiculosForaPadrao;
+    const filiais = Array.from(new Set(DATA.pressaoTires.concat(DATA.pressaoOutros || []).map((t) => t.filial))).sort();
     const scopeLabel = scopeLabelText();
     const roundsPressao = `<div class="seg-group">
         <button class="seg-btn ${state.pressaoRound === "insp1" ? "active" : ""}" data-pressao-round="insp1">1ª quinzena</button>
@@ -2120,6 +2244,9 @@
     const mesSelectPressao = mesesDisponiveisPressao.length > 1 ? `<select id="ctl-mes-pressao">
         ${mesesDisponiveisPressao.slice().reverse().map((m) => `<option value="${m}" ${m === d.mesAtivo ? "selected" : ""}>${escapeHtml(fmtMesAno(m))}</option>`).join("")}
       </select>` : "";
+    const todosPressaoBtn = `<div class="seg-group">
+        <button class="seg-btn ${state.pressaoTodos ? "active" : ""}" data-pressao-todos="1" title="Lista todos os veículos da frota e o mapa de pressão de cada um">Todos os veículos</button>
+      </div>`;
     const rodadaLabel = state.pressaoRound === "insp1" ? "1ª quinzena" : state.pressaoRound === "insp2" ? "2ª quinzena" : "mês";
     const vendoMesAtual = d.mesAtivo === mesPressaoPadrao();
     const desc = d.round !== "geral" && !d.disponivel
@@ -2133,7 +2260,7 @@
     const arrowHtml = vendoMesAtual ? pressaoCorretaValueArrowHtml() : "";
 
     return `
-      ${panelHeader("Pressão de Ar", desc, filiais, roundsPressao + mesSelectPressao)}
+      ${panelHeader("Pressão de Ar", desc, filiais, roundsPressao + todosPressaoBtn + mesSelectPressao)}
       <div class="kpi-grid">
         ${(() => {
           // Corrigido (2026-10-01): quinzena individual sem leitura ainda mostrava "100%" (0
@@ -2163,24 +2290,28 @@
         </div>
       </div>
       <div class="card">
-        <div class="card-title">Veículos com pneus fora do padrão</div>
-        <div class="chart-hint">${d.foraPadraoDetalhe.length} pneu(s) em ${d.veiculosForaPadrao.length} veículo(s)${scopeLabel} — ${rodadaLabel}. Inclui pressão zero (sem leitura); não inclui medida sem padrão cadastrado.</div>
+        <div class="card-title">${state.pressaoTodos ? "Todos os veículos" : "Veículos com pneus fora do padrão"}</div>
+        <div class="chart-hint">${state.pressaoTodos && d.veiculosTodos ? `${d.veiculosTodos.length} veículo(s)${scopeLabel} — ${d.veiculosTodos.filter((v) => v.desatualizado).length} sem inspeção na ${d.veiculosTodos.rotulo} (mapa marcado como desatualizado). Mostra o último estado conhecido de cada posição.` : `${d.foraPadraoDetalhe.length} pneu(s) em ${d.veiculosForaPadrao.length} veículo(s)${scopeLabel} — ${rodadaLabel}. Inclui pressão zero (sem leitura); não inclui medida sem padrão cadastrado.`}</div>
         <div class="sulco-layout" style="margin-top:8px;">
           <div class="table-wrap" style="margin:0;">
             <table>
-              <thead><tr>${sortTh("fp_placa", "Placa")}${sortTh("fp_filial", "Filial")}${sortTh("fp_tipo", "Tipo")}${sortTh("fp_qtd", "Qtd. fora do padrão")}</tr></thead>
+              <thead><tr>${sortTh("fp_placa", "Placa")}${sortTh("fp_filial", "Filial")}${sortTh("fp_tipo", "Tipo")}${sortTh("fp_qtd", "Qtd. fora do padrão")}${state.pressaoTodos ? sortTh("fp_ult", "Última leitura") : ""}</tr></thead>
               <tbody>
-                ${d.veiculosForaPadrao.length === 0 ? emptyRow(4, "Nenhum veículo com pneu fora do padrão nesse filtro.") :
-                  applySort(d.veiculosForaPadrao, {
+                ${listaPressao.length === 0 ? emptyRow(state.pressaoTodos ? 5 : 4, state.pressaoTodos ? "Nenhum veículo encontrado." : "Nenhum veículo com pneu fora do padrão nesse filtro.") :
+                  applySort(listaPressao, {
                     fp_placa: (v) => v.veiculo, fp_filial: (v) => normalizeText(filialFullName(v.filial)),
-                    fp_tipo: (v) => v.tipoDesc, fp_qtd: (v) => v.qtd,
+                    fp_tipo: (v) => v.tipoDesc || "", fp_qtd: (v) => v.qtd, fp_ult: (v) => v.ultimaLeitura || "",
                   }).map((v) => {
-                    const grave = v.itens.some((i) => i.faixaKey === "muito_baixa" || i.faixaKey === "muito_alta" || i.faixaKey === "zero");
+                    const grave = v.itens ? v.itens.some((i) => i.faixaKey === "muito_baixa" || i.faixaKey === "muito_alta" || i.faixaKey === "zero") : v.grave;
+                    const celulaQtd = state.pressaoTodos
+                      ? (v.tires.length === 0 ? `<span style="color:var(--text-faint)">sem leitura</span>` : v.qtd > 0 ? severityPill(grave ? "danger" : "warning", String(v.qtd)) : severityPill("success", "OK"))
+                      : severityPill(grave ? "danger" : "warning", String(v.qtd));
                     return `<tr class="pressao-fora-row ${state.selVeiculoPressao === v.veiculo ? "selected" : ""}" data-veiculo="${escapeHtml(v.veiculo)}">
                       <td class="mono" style="font-weight:600;">${escapeHtml(v.veiculo)}</td>
                       <td>${escapeHtml(filialSigla(v.filial))} <span style="color:var(--text-faint)">— ${escapeHtml(filialFullName(v.filial))}</span></td>
                       <td style="color:var(--text-dim);">${escapeHtml(v.tipoDesc || "—")}</td>
-                      <td>${severityPill(grave ? "danger" : "warning", String(v.qtd))}</td>
+                      <td>${celulaQtd}</td>
+                      ${state.pressaoTodos ? `<td class="mono">${v.ultimaLeitura ? escapeHtml(fmtDate(v.ultimaLeitura)) : "—"}${v.desatualizado ? `<span class="stale-pill">desatualizado</span>` : ""}</td>` : ""}
                     </tr>`;
                   }).join("")}
               </tbody>
@@ -2386,8 +2517,8 @@
       const atual = m.get(p) || { placa: p, filial: "", tipo: "" };
       m.set(p, { placa: p, filial: String(filial || atual.filial || "").trim(), tipo: String(tipo || atual.tipo || "").trim() });
     };
-    DATA.sulcoTires.forEach((t) => dados(t.veiculo, t.filial, t.tipoDesc));
-    DATA.pressaoTires.forEach((t) => dados(t.veiculo, t.filial, t.tipoDesc));
+    DATA.sulcoTires.concat(DATA.sulcoOutros || []).forEach((t) => dados(t.veiculo, t.filial, t.tipoDesc));
+    DATA.pressaoTires.concat(DATA.pressaoOutros || []).forEach((t) => dados(t.veiculo, t.filial, t.tipoDesc));
     DATA.vazias.forEach((v) => dados(v.placa, v.filial, v.tipoDesc));
     _planoVeics = m;
     return m;
@@ -2406,8 +2537,9 @@
   // Devolve os mapas disponíveis do veículo (sulco e/ou pressão). O relatório de sulco não cobre
   // a frota toda (só veículos medidos), então nem todo veículo tem mapa de sulco.
   function planoVehicleMap(placa) {
-    const s = DATA.sulcoTires.filter((t) => limpaPlaca(t.veiculo) === placa);
-    const p = DATA.pressaoTires.filter((t) => limpaPlaca(t.veiculo) === placa);
+    // inclui os pneus de veículos sem sulco baixo / posições sem leitura no mês (modo "Todos os veículos")
+    const s = DATA.sulcoTires.concat(DATA.sulcoOutros || []).filter((t) => limpaPlaca(t.veiculo) === placa);
+    const p = DATA.pressaoTires.concat(DATA.pressaoOutros || []).filter((t) => limpaPlaca(t.veiculo) === placa);
     if (!s.length && !p.length) return null;
     const preferido = state.planoMapa === "pressao" && p.length ? "pressao" : state.planoMapa === "sulco" && s.length ? "sulco" : (s.length ? "sulco" : "pressao");
     return {
@@ -3201,7 +3333,13 @@
       state.pressaoMes = selMesPressao.value; state.selFiliais.clear(); state.pressaoFiltroSel.clear(); state.pressaoFaixaSel.clear(); render();
     });
     document.querySelectorAll(".seg-btn[data-sulco-filter]").forEach((btn) => btn.addEventListener("click", () => {
-      state.sulcoSoTrocar = btn.getAttribute("data-sulco-filter") === "trocar"; render();
+      const modo = btn.getAttribute("data-sulco-filter");
+      state.sulcoSoTrocar = modo === "trocar";
+      state.sulcoTodos = modo === "veiculos";
+      state.selVeiculoSulco = null; render();
+    }));
+    document.querySelectorAll(".seg-btn[data-pressao-todos]").forEach((btn) => btn.addEventListener("click", () => {
+      state.pressaoTodos = !state.pressaoTodos; state.selVeiculoPressao = null; render();
     }));
     document.querySelectorAll(".seg-btn[data-pressao-round]").forEach((btn) => btn.addEventListener("click", () => {
       state.pressaoRound = btn.getAttribute("data-pressao-round"); state.selFiliais.clear(); state.pressaoFiltroSel.clear(); state.pressaoFaixaSel.clear(); render();
