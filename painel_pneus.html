@@ -3310,7 +3310,7 @@
           <div class="brand-sub mono">RAJA · Gestão de Frota</div>
         </div>
       </div>
-      <div class="updated-strip"><span class="dot"></span>Atualizado em ${fmtDate(DATA.generatedAt)}</div>
+      <div class="updated-strip"><span class="dot"></span>Atualizado em ${fmtDate(DATA.generatedAt)}${DATA.generatedHora ? ` às ${escapeHtml(DATA.generatedHora)}` : ""}</div>
       <nav>
         <div class="nav-label">Painéis</div>
         <div class="nav-list">
