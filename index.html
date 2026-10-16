@@ -415,6 +415,12 @@
 
 .tire-chip.chip-fora { opacity:.6; filter:grayscale(.85); border-style:dotted !important; }
 .chip-fora-tag { font-size:8px; font-weight:800; color:var(--danger); letter-spacing:.2px; line-height:1.1; margin-top:2px; white-space:nowrap; }
+
+/* Informativo: quadros lado a lado (tela de TV) */
+.inf-grid { display:grid; grid-template-columns:1fr 1fr; gap:16px; align-items:start; margin-top:16px; }
+.inf-grid .card { min-width:0; }
+.inf-grid td, .inf-grid th { padding-top:7px; padding-bottom:7px; }
+@media (max-width: 1000px) { .inf-grid { grid-template-columns:1fr; } }
 </style>
 </head>
 <body>
@@ -3399,12 +3405,14 @@
         <td>${escapeHtml(fmtDate(v.inicio))}</td><td style="text-align:right;"><strong>${v.dias}</strong> dia${v.dias === 1 ? "" : "s"}</td>
         <td style="white-space:normal;">${v.resolvido ? `<span class="pill pill-warning">${TAG_RESOLVIDO}</span>` : Array.from(new Set(v.laudos.map((l) => l.codigo))).sort().map((c) => `<span class="sug-cod">${escapeHtml(c)}</span>`).join(" ")}</td></tr>`).join("");
     return `${panelHeader("Informativo", "Veículos bloqueados por laudo: situação da frota, indisponibilidade por unidade e tempo de bloqueio de cada placa.", filiais, "")}${kpis}
+      <div class="inf-grid">
       <div class="card"><div class="card-title">Indisponibilidade por unidade</div>
         <div class="chart-hint">Veículos bloqueados ÷ frota registrada da unidade. Ordenado do maior para o menor percentual.</div>
         <div class="table-wrap"><table><thead><tr><th>Unidade</th><th style="text-align:right;">Bloqueados</th><th style="text-align:right;">Frota</th><th>% da frota</th></tr></thead><tbody>${linhasU}${tot}</tbody></table></div></div>
-      <div class="card" style="margin-top:16px;"><div class="card-title">Placas bloqueadas (${nB}${lista.length > nB ? ` + ${lista.length - nB} aguardando nova inspeção` : ""})</div>
+      <div class="card"><div class="card-title">Placas bloqueadas (${nB}${lista.length > nB ? ` + ${lista.length - nB} aguardando nova inspeção` : ""})</div>
         <div class="chart-hint">Início do bloqueio = data da inspeção que gerou o laudo bloqueante (o mais antigo ainda ativo). Dias = de lá até hoje. Ordenado do mais antigo para o mais recente.</div>
-        <div class="table-wrap"><table><thead><tr><th>Placa</th><th>Unidade</th><th>Bloqueado desde</th><th style="text-align:right;">Dias bloqueado</th><th>Laudos</th></tr></thead><tbody>${linhasP}</tbody></table></div></div>`;
+        <div class="table-wrap"><table><thead><tr><th>Placa</th><th>Unidade</th><th>Bloqueado desde</th><th style="text-align:right;">Dias bloqueado</th><th>Laudos</th></tr></thead><tbody>${linhasP}</tbody></table></div></div>
+      </div>`;
   }
 
   function planoItemHtml(i, placa) {
