@@ -665,6 +665,7 @@
     { key: "pressao", label: "Pressão de Ar", icon: "ring" },
     { key: "plano", label: "Plano de Ação", icon: "plan" },
     { key: "bloqueados", label: "Veículos Bloqueados", icon: "alert" },
+    { key: "informativo", label: "Informativo", icon: "gauge" },
   ];
 
   const state = {
@@ -3349,6 +3350,63 @@
     document.querySelectorAll("[data-blq-mapa]").forEach((b) => b.addEventListener("click", () => { state.blqMapa = b.getAttribute("data-blq-mapa"); render(); }));
   }
 
+  // ================= Aba "Informativo" =================
+  // Resumo gerencial: (1) veículos bloqueados × frota, (2) indisponibilidade por unidade (filial),
+  // (3) placas bloqueadas com a data do início (inspeção que gerou o bloqueio = laudo bloqueante mais antigo
+  // ainda ativo) e os dias bloqueados. Veículo com ação concluída (amarelo) não entra nas contagens: só na lista, com a tag.
+  function infFrota() {
+    // frota registrada (relatório de veículos registrados) por unidade; filtra pela filial selecionada
+    const out = new Map();
+    Object.keys(DATA.veiculosInfo || {}).forEach((pl) => {
+      const f = DATA.veiculosInfo[pl].filial; if (!f || ehFilialSucata(f)) return;
+      if (state.filtroFilial !== "all" && filialSigla(f) !== filialSigla(state.filtroFilial)) return;
+      const k = filialSigla(f); if (!out.has(k)) out.set(k, { filial: f, total: 0, bloq: 0 }); out.get(k).total++;
+    });
+    return out;
+  }
+  function infDias(iso) {
+    const a = new Date(String(iso).slice(0, 10) + "T12:00:00"), b = new Date(hojeIso() + "T12:00:00");
+    return Math.max(0, Math.round((b - a) / 86400000));
+  }
+  function infBarra(pct, cor) { return `<div style="display:inline-block;vertical-align:middle;width:90px;height:7px;background:var(--surface-2);border-radius:4px;overflow:hidden;margin-right:8px;"><div style="width:${Math.min(100, pct)}%;height:100%;background:${cor};"></div></div>`; }
+  function infPct(n, d) { return d ? (Math.round(n / d * 1000) / 10).toString().replace(".", ",") + "%" : "—"; }
+  function renderInformativoPanel() {
+    const veics = planoVeiculos(); const filiais = planoFiliais(veics);
+    const bl = planoBloqueados();
+    const frota = infFrota();
+    const lista = Array.from(bl.values()).map((v) => {
+      const ds = v.laudos.map((l) => String(l.desde || l.data).slice(0, 10)).sort();
+      return { ...v, inicio: ds[0], dias: infDias(ds[0]) };
+    });
+    const bloqueados = lista.filter((v) => !v.resolvido);
+    lista.forEach((v) => { if (v.resolvido) return; const k = filialSigla(v.filial); if (!frota.has(k)) frota.set(k, { filial: v.filial, total: 0, bloq: 0 }); frota.get(k).bloq++; });
+    let totalFrota = 0; frota.forEach((u) => { totalFrota += u.total; });
+    const nB = bloqueados.length;
+    const kpis = `<div class="kpi-grid">
+      ${kpiCard("Veículos bloqueados", nB, `${infPct(nB, totalFrota)} da frota (${fmtInt(totalFrota)} veículos)`, ICONS.alert, "var(--danger)")}
+      ${kpiCard("Ação resolvida", lista.length - nB, "aguardando nova inspeção", ICONS.check, "var(--warning)")}
+      ${kpiCard("Maior tempo bloqueado", bloqueados.length ? Math.max.apply(null, bloqueados.map((v) => v.dias)) + " dias" : "—", bloqueados.length ? "placa " + bloqueados.slice().sort((a, b) => b.dias - a.dias)[0].placa : "nenhum veículo bloqueado", ICONS.clipboard, "var(--chart2)")}
+    </div>`;
+    const unid = Array.from(frota.values()).sort((a, b) => (b.bloq / (b.total || 1)) - (a.bloq / (a.total || 1)) || b.bloq - a.bloq || normalizeText(filialFullName(a.filial)).localeCompare(normalizeText(filialFullName(b.filial))));
+    const linhasU = unid.map((u) => { const pct = u.total ? u.bloq / u.total * 100 : 0;
+      return `<tr><td>${escapeHtml(filialSigla(u.filial))} <span style="color:var(--text-faint);font-size:11px;">${escapeHtml(filialFullName(u.filial))}</span></td>
+        <td style="text-align:right;">${u.bloq}</td><td style="text-align:right;">${fmtInt(u.total)}</td>
+        <td style="white-space:nowrap;">${infBarra(pct, "var(--danger)")}<strong>${infPct(u.bloq, u.total)}</strong></td></tr>`; }).join("");
+    const tot = `<tr style="font-weight:700;border-top:2px solid var(--border-strong);"><td>Total</td><td style="text-align:right;">${nB}</td><td style="text-align:right;">${fmtInt(totalFrota)}</td><td>${infPct(nB, totalFrota)}</td></tr>`;
+    const ord = lista.slice().sort((a, b) => b.dias - a.dias || a.placa.localeCompare(b.placa));
+    const linhasP = ord.length === 0 ? emptyRow(5, "Nenhum veículo bloqueado.") : ord.map((v) => `<tr class="${v.resolvido ? "blq-resolvido" : ""}">
+        <td class="mono" style="font-weight:600;">${escapeHtml(v.placa)}</td><td>${escapeHtml(filialSigla(v.filial))}</td>
+        <td>${escapeHtml(fmtDate(v.inicio))}</td><td style="text-align:right;"><strong>${v.dias}</strong> dia${v.dias === 1 ? "" : "s"}</td>
+        <td style="white-space:normal;">${v.resolvido ? `<span class="pill pill-warning">${TAG_RESOLVIDO}</span>` : Array.from(new Set(v.laudos.map((l) => l.codigo))).sort().map((c) => `<span class="sug-cod">${escapeHtml(c)}</span>`).join(" ")}</td></tr>`).join("");
+    return `${panelHeader("Informativo", "Veículos bloqueados por laudo: situação da frota, indisponibilidade por unidade e tempo de bloqueio de cada placa.", filiais, "")}${kpis}
+      <div class="card"><div class="card-title">Indisponibilidade por unidade</div>
+        <div class="chart-hint">Veículos bloqueados ÷ frota registrada da unidade. Ordenado do maior para o menor percentual.</div>
+        <div class="table-wrap"><table><thead><tr><th>Unidade</th><th style="text-align:right;">Bloqueados</th><th style="text-align:right;">Frota</th><th>% da frota</th></tr></thead><tbody>${linhasU}${tot}</tbody></table></div></div>
+      <div class="card" style="margin-top:16px;"><div class="card-title">Placas bloqueadas (${nB}${lista.length > nB ? ` + ${lista.length - nB} aguardando nova inspeção` : ""})</div>
+        <div class="chart-hint">Início do bloqueio = data da inspeção que gerou o laudo bloqueante (o mais antigo ainda ativo). Dias = de lá até hoje. Ordenado do mais antigo para o mais recente.</div>
+        <div class="table-wrap"><table><thead><tr><th>Placa</th><th>Unidade</th><th>Bloqueado desde</th><th style="text-align:right;">Dias bloqueado</th><th>Laudos</th></tr></thead><tbody>${linhasP}</tbody></table></div></div>`;
+  }
+
   function planoItemHtml(i, placa) {
     const meta = [];
     if (i.pneus) meta.push(`pneus: ${escapeHtml(i.pneus)}`);
@@ -4020,6 +4078,7 @@
       pressao: new Set(DATA.pressaoTires.filter((t) => t.faixa && t.faixa !== "correta").map((t) => t.veiculo)).size,
       plano: planoAbertosCount(),
       bloqueados: planoBloqCount(planoBloqueados()),
+      informativo: planoBloqCount(planoBloqueados()),
     };
     return `
       <div class="brand">
@@ -4060,6 +4119,7 @@
     else if (state.panel === "sulco") main.innerHTML = renderSulcoPanel();
     else if (state.panel === "plano") main.innerHTML = renderPlanoPanel();
     else if (state.panel === "bloqueados") main.innerHTML = renderBloqueadosPanel();
+    else if (state.panel === "informativo") main.innerHTML = renderInformativoPanel();
     else main.innerHTML = renderPressaoPanel();
 
     bindNav();
