@@ -425,6 +425,18 @@
 .inf-grid > .inf-col2 .table-wrap { flex:1; min-height:0; overflow:auto; }
 .inf-grid > .inf-col2 thead th { position:sticky; top:0; z-index:1; background:var(--surface-2, var(--bg-elev)); }
 @media (max-width: 1000px) { .inf-grid { grid-template-columns:1fr; } .inf-grid > .inf-col2 { height:auto; min-height:0; max-height:70vh; } }
+
+/* Informativo: fonte maior (TV) */
+.inf-root { zoom:1.22; display:flex; flex-direction:column; gap:22px; }
+
+/* Menu lateral recolhível (desktop): começa oculto; botão ☰ expande/recolhe */
+#navToggle { position:fixed; top:12px; left:12px; z-index:35; width:42px; height:42px; border-radius:10px; border:1px solid var(--border-strong, #3a414c); background:var(--bg-elev, #1c2026); color:var(--text, #e6e8eb); display:flex; align-items:center; justify-content:center; cursor:pointer; }
+#navToggle:hover { border-color:var(--accent, #e08a4b); color:var(--accent, #e08a4b); }
+body:not(.nav-collapsed) #navToggle { left:284px; }
+body.nav-collapsed #sidebar { display:none; }
+body.nav-collapsed #main { padding-left:72px; }
+@media (max-width: 920px) { #navToggle { display:none; } body.nav-collapsed #sidebar { display:flex; } body.nav-collapsed #main { padding-left:16px; } }
+body.printing #navToggle { display:none !important; }
 </style>
 </head>
 <body>
@@ -437,6 +449,7 @@
   <span class="mono" style="font-size:11px;color:var(--text-dim);">Auditoria de Pneus</span>
 </div>
 
+<button id="navToggle" aria-label="Expandir menu" title="Expandir/recolher o menu"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="4" y1="7" x2="20" y2="7"/><line x1="4" y1="12" x2="20" y2="12"/><line x1="4" y1="17" x2="20" y2="17"/></svg></button>
 <div id="app">
   <aside id="sidebar"></aside>
   <main id="main"></main>
@@ -3408,7 +3421,7 @@
         <td class="mono" style="font-weight:600;">${escapeHtml(v.placa)}</td><td>${escapeHtml(filialSigla(v.filial))}</td>
         <td>${escapeHtml(fmtDate(v.inicio))}</td><td style="text-align:right;"><strong>${v.dias}</strong> dia${v.dias === 1 ? "" : "s"}</td>
         <td style="white-space:normal;">${v.resolvido ? `<span class="pill pill-warning">${TAG_RESOLVIDO}</span>` : Array.from(new Set(v.laudos.map((l) => l.codigo))).sort().map((c) => `<span class="sug-cod">${escapeHtml(c)}</span>`).join(" ")}</td></tr>`).join("");
-    return `${panelHeader("Informativo", "Veículos bloqueados por laudo: situação da frota, indisponibilidade por unidade e tempo de bloqueio de cada placa.", filiais, "")}${kpis}
+    return `<div class="inf-root">${panelHeader("Informativo", "Veículos bloqueados por laudo: situação da frota, indisponibilidade por unidade e tempo de bloqueio de cada placa.", filiais, "")}${kpis}
       <div class="inf-grid">
       <div class="card"><div class="card-title">Indisponibilidade por unidade</div>
         <div class="chart-hint">Veículos bloqueados ÷ frota registrada da unidade. Ordenado do maior para o menor percentual.</div>
@@ -3416,7 +3429,7 @@
       <div class="card inf-col2"><div class="card-title">Placas bloqueadas (${nB}${lista.length > nB ? ` + ${lista.length - nB} aguardando nova inspeção` : ""})</div>
         <div class="chart-hint">Início do bloqueio = data da inspeção que gerou o laudo bloqueante (o mais antigo ainda ativo). Dias = de lá até hoje. Ordenado do mais antigo para o mais recente.</div>
         <div class="table-wrap"><table><thead><tr><th>Placa</th><th>Unidade</th><th>Bloqueado desde</th><th style="text-align:right;">Dias bloqueado</th><th>Laudos</th></tr></thead><tbody>${linhasP}</tbody></table></div></div>
-      </div>`;
+      </div></div>`;
   }
 
   function planoItemHtml(i, placa) {
@@ -4267,6 +4280,16 @@
     }
   }
 
+  (function () {
+    const btn = document.getElementById("navToggle");
+    const aplica = () => {
+      const aberto = lsGet("raja_nav_aberto") === "1";
+      document.body.classList.toggle("nav-collapsed", !aberto);
+      if (btn) { btn.setAttribute("aria-label", aberto ? "Ocultar menu" : "Expandir menu"); btn.title = aberto ? "Ocultar o menu" : "Expandir o menu"; }
+    };
+    if (btn) btn.addEventListener("click", () => { lsSet("raja_nav_aberto", lsGet("raja_nav_aberto") === "1" ? "0" : "1"); aplica(); drawCharts(); });
+    aplica();
+  })();
   document.getElementById("menuBtn").addEventListener("click", () => {
     document.getElementById("sidebar").classList.add("open");
     document.getElementById("overlay").classList.add("open");
