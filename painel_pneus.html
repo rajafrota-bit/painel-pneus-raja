@@ -427,7 +427,7 @@
 @media (max-width: 1000px) { .inf-grid { grid-template-columns:1fr; } .inf-grid > .inf-col2 { height:auto; min-height:0; max-height:70vh; } }
 
 /* Informativo: fonte maior (TV) */
-.inf-root { zoom:1.22; display:flex; flex-direction:column; gap:22px; }
+.inf-root { zoom:1.22; /* refinado por JS (infAjustaTela) para caber na tela */ display:flex; flex-direction:column; gap:22px; }
 
 /* Menu lateral recolhível (desktop): começa oculto; botão ☰ expande/recolhe */
 #navToggle { position:fixed; top:12px; left:12px; z-index:35; width:42px; height:42px; border-radius:10px; border:1px solid var(--border-strong, #3a414c); background:var(--bg-elev, #1c2026); color:var(--text, #e6e8eb); display:flex; align-items:center; justify-content:center; cursor:pointer; }
@@ -437,6 +437,8 @@ body.nav-collapsed #sidebar { display:none; }
 body.nav-collapsed #main { padding-left:72px; }
 @media (max-width: 920px) { #navToggle { display:none; } body.nav-collapsed #sidebar { display:flex; } body.nav-collapsed #main { padding-left:16px; } }
 body.printing #navToggle { display:none !important; }
+body.nav-collapsed:has(.inf-root) #main { padding-bottom:24px; }
+#main:has(.inf-root) { padding-bottom:24px; }
 </style>
 </head>
 <body>
@@ -3393,7 +3395,21 @@ body.printing #navToggle { display:none !important; }
   }
   function infBarra(pct, cor) { return `<div style="display:inline-block;vertical-align:middle;width:90px;height:7px;background:var(--surface-2);border-radius:4px;overflow:hidden;margin-right:8px;"><div style="width:${Math.min(100, pct)}%;height:100%;background:${cor};"></div></div>`; }
   function infPct(n, d) { return d ? (Math.round(n / d * 1000) / 10).toString().replace(".", ",") + "%" : "—"; }
+  // Ajusta o zoom do Informativo para caber na altura da tela (sem barra de rolagem da página): usa até 1,22x
+  // e só diminui o que for preciso (mínimo 0,7x). A lista de placas rola por dentro do quadro.
+  const INF_ZOOM_MAX = 1.22;
+  function infAjustaTela() {
+    const root = document.querySelector(".inf-root"); if (!root || state.panel !== "informativo") return;
+    root.style.zoom = "1";
+    const natural = root.getBoundingClientRect().height; if (!natural) return;
+    const main = document.getElementById("main"); const cs = main ? getComputedStyle(main) : null;
+    const pad = cs ? (parseFloat(cs.paddingTop) || 0) + (parseFloat(cs.paddingBottom) || 0) : 90;
+    const z = Math.max(0.7, Math.min(INF_ZOOM_MAX, (window.innerHeight - pad - 6) / natural));
+    root.style.zoom = String(Math.round(z * 100) / 100);
+  }
+  window.addEventListener("resize", () => infAjustaTela());
   function renderInformativoPanel() {
+    setTimeout(infAjustaTela, 0);
     const veics = planoVeiculos(); const filiais = planoFiliais(veics);
     const bl = planoBloqueados();
     const frota = infFrota();
