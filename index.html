@@ -2545,6 +2545,10 @@
         if (!texto) throw new Error("Escreva a ação.");
         this.itens.push({ id: novoId(), planoId: d.planoId, texto, pneus: d.pneus || "", feito: false, feitoEm: "", feitoPor: "", criadoEm: agora, prazo: d.prazo || "" });
         this._recalc(d.planoId, agora);
+      } else if (acao === "itens_add") {
+        if (!this.planos.find((q) => q.id === d.planoId)) throw new Error("Plano não encontrado (pode ter sido excluído).");
+        (d.itens || []).filter((i) => i && String(i.texto || "").trim()).forEach((i) => this.itens.push({ id: novoId(), planoId: d.planoId, texto: String(i.texto).trim(), pneus: i.pneus || "", feito: false, feitoEm: "", feitoPor: "", criadoEm: agora, prazo: i.prazo || "" }));
+        this._recalc(d.planoId, agora);
       } else if (acao === "item_prazo") {
         const x = this.itens.find((q) => q.id === d.id);
         if (!x) throw new Error("Ação não encontrada (pode ter sido excluída).");
@@ -3008,7 +3012,7 @@
   const TAG_RESOLVIDO = "Ação resolvida - aguardando nova inspeção";
   function planoBloqCount(bl) { let n = 0; bl.forEach((v) => { if (!v.resolvido) n++; }); return n; }
   function planoBloqueadosHtml(bl) {
-    const arr = Array.from(bl.values()).sort((a, b) => b.laudos.length - a.laudos.length || a.placa.localeCompare(b.placa));
+    const arr = Array.from(bl.values()).sort((a, b) => a.placa.localeCompare(b.placa));
     const linhas = arr.length === 0 ? `<tr><td colspan="4" class="detail-empty" style="padding:16px;">Nenhum veículo bloqueado.</td></tr>` : arr.map((v) => {
       const planos = PlanoStore.planos.filter((p) => p.placa === v.placa && PLANO_ABERTOS.indexOf(p.status) >= 0);
       return `<tr><td style="white-space:nowrap;"><span class="mono" style="font-weight:600;">${escapeHtml(v.placa)}</span></td>
@@ -3071,7 +3075,7 @@
       v.sugs.sort((a, b) => PLANO_ORD_PRIO[a.map.prio] - PLANO_ORD_PRIO[b.map.prio] || a.posicao.localeCompare(b.posicao));
       v.prio = v.sugs[0].map.prio;
     });
-    arr.sort((a, b) => PLANO_ORD_PRIO[a.prio] - PLANO_ORD_PRIO[b.prio] || b.sugs.length - a.sugs.length || a.placa.localeCompare(b.placa));
+    arr.sort((a, b) => a.placa.localeCompare(b.placa));   // ordem fixa por placa (dispensar/aprovar não reordena a lista)
     return arr;
   }
 
@@ -3194,8 +3198,13 @@
     if (aberto) {
       // não recria ação automática idêntica (mesmo laudo + mesmos pneus) que já está em aberto no plano
       const jaTem = (it) => PlanoStore.itens.some((x) => x.planoId === aberto.id && !x.feito && x.texto === it.texto && String(x.pneus || "").trim() === String(it.pneus || "").trim());
+      const novos = itens.filter((it) => !jaTem(it));
+      if (!novos.length) return 0;
+      if (await PlanoStore.exec("itens_add", { planoId: aberto.id, itens: novos })) return novos.length;
+      if (!/desconhecida/i.test(PlanoStore.erro || "")) return false;
+      // Code.gs antigo (sem itens_add): cai para uma chamada por ação
       let n = 0;
-      for (const it of itens) { if (jaTem(it)) continue; if (!(await PlanoStore.exec("item_add", { planoId: aberto.id, ...it }))) return false; n++; }
+      for (const it of novos) { if (!(await PlanoStore.exec("item_add", { planoId: aberto.id, ...it }))) return false; n++; }
       return n;
     }
     const prio = v.sugs.filter((s) => sugSelecionados(s).length).map((s) => s.map.prio).sort((a, b) => PLANO_ORD_PRIO[a] - PLANO_ORD_PRIO[b])[0] || v.prio;
@@ -3206,8 +3215,9 @@
   const sugChave = (s) => s.key;
   let aprovando = false;   // trava: clique duplo / vários cliques enquanto a nuvem responde criavam ações repetidas
   async function planoAprovarSugestoes(placas, chave) {
-    if (aprovando) return;
+    if (aprovando) { toast("Aguarde: a aprovação anterior ainda está sendo gravada…"); return; }
     aprovando = true;
+    if (PlanoStore.modo !== "local") toast("Gravando no plano… (a nuvem pode levar alguns segundos)");
     try { await planoAprovarSugestoes_(placas, chave); } finally { aprovando = false; }
   }
   async function planoAprovarSugestoes_(placas, chave) {
@@ -3312,7 +3322,7 @@
     const bl = planoBloqueados();
     const q = normalizeText(state.busca);
     const arr = Array.from(bl.values()).filter((v) => !q || normalizeText(v.placa).indexOf(q) >= 0)
-      .sort((a, b) => b.laudos.length - a.laudos.length || a.placa.localeCompare(b.placa));
+      .sort((a, b) => a.placa.localeCompare(b.placa));
     const semAcao = arr.filter((v) => !v.resolvido && v.laudos.some((l) => bloqueioSituacao(v.placa, l).k === "sem")).length;
     const nPneus = arr.reduce((s, v) => s + new Set(v.laudos.map((l) => l.pneu)).size, 0);
     const kpis = `<div class="kpi-grid">
@@ -3802,7 +3812,11 @@
       if (ev.target.closest("button, label, input")) return;
       const placa = ev.currentTarget.getAttribute("data-sug-veic");
       const ln = ev.target.closest(".sug-line");
-      if (ln) state.sugPneu = ln.getAttribute("data-sug-pneu") || null;
+      if (ln) {
+        const pn = ln.getAttribute("data-sug-pneu") || null;
+        // clicar de novo na ação já selecionada cancela a seleção (tira o destaque dos pneus)
+        state.sugPneu = (pn && state.sugSel === placa && state.sugPneu === pn) ? null : pn;
+      }
       else if (state.sugSel !== placa) state.sugPneu = null;
       state.sugSel = placa; render();
     });
