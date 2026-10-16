@@ -3408,10 +3408,10 @@ body.nav-collapsed:has(.inf-root) #main { padding-bottom:24px; }
   }
   function infBarra(pct, cor) { return `<div style="display:inline-block;vertical-align:middle;width:90px;height:7px;background:var(--surface-2);border-radius:4px;overflow:hidden;margin-right:8px;"><div style="width:${Math.min(100, pct)}%;height:100%;background:${cor};"></div></div>`; }
   function infPct(n, d) { return d ? (Math.round(n / d * 1000) / 10).toString().replace(".", ",") + "%" : "—"; }
-  // Ajusta o zoom do Informativo para caber na tela (altura E largura): usa até 1,22x e só diminui o necessário
-  // (mínimo 0,5x). A largura "de projeto" é ~1500 px: em TV/monitor de resolução menor (ex.: 1280x720 após escala do
+  // Ajusta o zoom do Informativo para caber na tela (altura E largura): usa o MAIOR zoom que cabe (até 3x)
+  // (mínimo 0,5x). A largura "de projeto" é ~1250 px: em TV/monitor de resolução menor (ex.: 1280x720 após escala do
   // Windows) o painel é reduzido para os dois quadros caberem lado a lado sem cortar. Placas rolam dentro do quadro.
-  const INF_ZOOM_MAX = 1.22, INF_ZOOM_MIN = 0.5, INF_LARGURA_PROJETO = 1500;
+  const INF_ZOOM_MAX = 3, INF_ZOOM_MIN = 0.5, INF_LARGURA_PROJETO = 1250;
   function infAjustaTela() {
     const root = document.querySelector(".inf-root"); if (!root || state.panel !== "informativo") return;
     root.style.zoom = "1";
