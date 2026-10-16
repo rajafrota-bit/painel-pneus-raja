@@ -412,6 +412,9 @@
 
 .sug-row.blq-resolvido td { background:var(--warning-bg); }
 .sug-row.blq-resolvido.sug-sel { box-shadow:inset 3px 0 0 var(--warning); }
+
+.tire-chip.chip-fora { opacity:.6; filter:grayscale(.85); border-style:dotted !important; }
+.chip-fora-tag { font-size:8px; font-weight:800; color:var(--danger); letter-spacing:.2px; line-height:1.1; margin-top:2px; white-space:nowrap; }
 </style>
 </head>
 <body>
@@ -1852,7 +1855,7 @@
       ${pillPressao}
       ${bannerPressao}
       <div class="card-title" style="margin-top:18px;">Esquema do veículo <span style="color:var(--danger)">· ${escapeHtml(v.tipoDesc || "")}</span></div>
-      ${planoOperadorHtml({ placa: limpaPlaca(v.veiculo) })}${vehicle.tires.length ? renderTireDiagram(vehicle, pressaoTireChip) : `<div class="detail-empty">Nenhuma leitura de pressão registrada para este veículo.</div>`}
+      ${planoOperadorHtml({ placa: limpaPlaca(v.veiculo) })}${vehicle.tires.length ? renderTireDiagram(vehicle, pressaoChipAplicado) : `<div class="detail-empty">Nenhuma leitura de pressão registrada para este veículo.</div>`}
       <div class="table-note" style="padding-left:0;">
         Cor de cada pneu = faixa de pressão: <span style="color:${FAIXA_PRESSAO_TONE.muito_baixa}">muito baixa</span> ·
         <span style="color:${FAIXA_PRESSAO_TONE.baixa}">baixa</span> ·
@@ -2650,7 +2653,7 @@
     const preferido = pm === "pressao" && p.length ? "pressao" : pm === "sulco" && s.length ? "sulco" : (s.length ? "sulco" : "pressao");
     return {
       placa, temSulco: s.length > 0, temPressao: p.length > 0, atual: preferido,
-      tires: preferido === "sulco" ? s : p, chip: preferido === "sulco" ? tireChip : pressaoTireChip,
+      tires: preferido === "sulco" ? s : p, chip: preferido === "sulco" ? tireChip : pressaoChipAplicado,
       fonte: preferido === "sulco" ? "sulco (mm)" : "pressão de ar (psi)",
     };
   }
@@ -2947,6 +2950,30 @@
     d.setDate(d.getDate() + n);
     return d.toISOString().slice(0, 10);
   }
+  // O laudo é do pneu que foi LIDO na inspeção; se depois o pneu foi trocado (ex.: estepe), o relatório de
+  // sulco/veículo mostra outro pneu no carro. Só gera ação/bloqueio para pneu que de fato está aplicado:
+  // pneu do laudo presente em algum ponto do veículo no relatório de sulco. Sem dado de sulco do veículo → mantém.
+  let _aplicMemo = null;
+  function laudoPneuAplicado(l) {
+    if (!_aplicMemo || _aplicMemo.ref !== DATA.sulcoTires) {
+      const m = new Map();
+      DATA.sulcoTires.concat(DATA.sulcoOutros || []).forEach((t) => {
+        if (t.pneu == null || t.pneu === "") return;
+        const k = limpaPlaca(t.veiculo); if (!m.has(k)) m.set(k, new Set()); m.get(k).add(String(t.pneu).trim());
+      });
+      _aplicMemo = { ref: DATA.sulcoTires, m };
+    }
+    const set = _aplicMemo.m.get(limpaPlaca(l.veiculo));
+    return !set || set.has(String(l.pneu).trim());
+  }
+  // Chip de pressão de pneu que não está mais no veículo (trocado depois da inspeção): esmaecido + etiqueta "FORA"
+  function pressaoChipAplicado(t) {
+    let h = pressaoTireChip(t);
+    if (!t || t.pneu == null || laudoPneuAplicado({ veiculo: t.veiculo, pneu: t.pneu })) return h;
+    h = h.replace('<div class="tire-chip"', '<div class="tire-chip chip-fora"').replace(/title="/, 'title="NÃO ESTÁ MAIS NO VEÍCULO (pneu trocado depois da inspeção) · ');
+    return h.replace(/<\/div>\s*$/, '<div class="chip-fora-tag">FORA DO VEÍCULO</div></div>');
+  }
+  function laudosAplicados() { return (DATA.laudosAtuais || []).filter(laudoPneuAplicado); }
   function laudoDispensados() { try { return JSON.parse(lsGet("raja_laudo_dispensados") || "{}"); } catch (e) { return {}; } }
   function laudoChaveDisp(l) { return `${l.veiculo}|${l.pneu}|${l.codigo}|${l.data}`; }
   function laudoSeries() { return state.laudoSeries || (state.laudoSeries = { "100": true, "200": true, "300": true, "350": true, "400": true }); }
@@ -2965,7 +2992,7 @@
     });
     const veics = planoVeiculos();
     const out = new Map();
-    (DATA.laudosAtuais || []).forEach((l) => {
+    laudosAplicados().forEach((l) => {
       const mp = LAUDO_MAP[l.codigo]; if (!mp || !laudoBloqueia(l.codigo, l.desde || l.data)) return;
       const resolvido = concl[`${l.veiculo}|${l.pneu}|${l.codigo}`] >= l.data;   // ação concluída, mas o laudo segue na última inspeção
       const info = veics.get(limpaPlaca(l.veiculo));
@@ -2996,7 +3023,7 @@
 
   // Sugestões pendentes, já agrupadas por veículo. `semFiltroSerie` serve para contar nos chips.
   function planoSugestoes(semFiltroSerie) {
-    const lista = (DATA.laudosAtuais || []);
+    const lista = laudosAplicados();
     if (!lista.length) return [];
     const disp = laudoDispensados();
     const feitos = {};   // placa|pneu|codigo -> itens já criados
@@ -3165,8 +3192,11 @@
     if (!itens.length) return 0;
     const aberto = PlanoStore.planos.find((p) => p.placa === v.placa && PLANO_ABERTOS.indexOf(p.status) >= 0);
     if (aberto) {
-      for (const it of itens) { if (!(await PlanoStore.exec("item_add", { planoId: aberto.id, ...it }))) return false; }
-      return itens.length;
+      // não recria ação automática idêntica (mesmo laudo + mesmos pneus) que já está em aberto no plano
+      const jaTem = (it) => PlanoStore.itens.some((x) => x.planoId === aberto.id && !x.feito && x.texto === it.texto && String(x.pneus || "").trim() === String(it.pneus || "").trim());
+      let n = 0;
+      for (const it of itens) { if (jaTem(it)) continue; if (!(await PlanoStore.exec("item_add", { planoId: aberto.id, ...it }))) return false; n++; }
+      return n;
     }
     const prio = v.sugs.filter((s) => sugSelecionados(s).length).map((s) => s.map.prio).sort((a, b) => PLANO_ORD_PRIO[a] - PLANO_ORD_PRIO[b])[0] || v.prio;
     const plano = { id: "", placa: v.placa, filial: v.filial || "", tipo: v.tipo || "", prioridade: prio, responsavel: "", prazo: "",
@@ -3174,7 +3204,13 @@
     return (await PlanoStore.exec("plano_save", { plano, itens })) ? itens.length : false;
   }
   const sugChave = (s) => s.key;
+  let aprovando = false;   // trava: clique duplo / vários cliques enquanto a nuvem responde criavam ações repetidas
   async function planoAprovarSugestoes(placas, chave) {
+    if (aprovando) return;
+    aprovando = true;
+    try { await planoAprovarSugestoes_(placas, chave); } finally { aprovando = false; }
+  }
+  async function planoAprovarSugestoes_(placas, chave) {
     let grupos = planoSugestoes(false).filter((v) => !placas || placas.indexOf(v.placa) >= 0);
     if (chave) grupos = grupos.map((v) => ({ ...v, sugs: v.sugs.filter((s) => sugChave(s) === chave) })).filter((v) => v.sugs.length)
       .map((v) => ({ ...v, prio: v.sugs[0].map.prio }));
@@ -3249,7 +3285,7 @@
     const cabecL = cabec + tagRes + listaLaudos;
     if (!mapa) return `${cabecL}<div class="detail-empty">Sem dados de pneus deste veículo nos relatórios atuais.</div>`;
     const marca = new Map();
-    (DATA.laudosAtuais || []).filter((l) => limpaPlaca(l.veiculo) === placa && LAUDO_MAP[l.codigo]).forEach((l) => {
+    laudosAplicados().filter((l) => limpaPlaca(l.veiculo) === placa && LAUDO_MAP[l.codigo]).forEach((l) => {
       const bloq = laudoBloqueia(l.codigo, l.desde || l.data);
       if (!bloq && !laudoNotifica(l.codigo)) return;
       const k = String(l.pneu);
@@ -3386,6 +3422,7 @@
         <div>
           <div class="card-title">Ações do plano</div>
           <div class="chart-hint">Criado por ${escapeHtml(p.criadoPor || "—")} em ${escapeHtml(fmtDataHora(p.criadoEm))}${p.origem ? ` · origem: ${escapeHtml(p.origem)}` : ""}${p.concluidoEm ? ` · concluído em ${escapeHtml(fmtDataHora(p.concluidoEm))}` : ""}</div>
+          ${planoDuplicadas(p.id).length ? `<div class="banner banner-warn" style="margin:6px 0;">⚠ ${planoDuplicadas(p.id).length} ação(ões) automática(s) repetida(s) neste plano. <button class="btn btn-sm" data-plano-dedup="${escapeHtml(p.id)}">Remover repetidas</button></div>` : ""}
           ${checklist}
           <div class="item-add">
             <input id="pl-item-texto" placeholder="Nova ação (ex.: Inverter pneus do eixo de tração)" autocomplete="off">
@@ -3602,6 +3639,23 @@
     render();
   }
 
+  // Ações automáticas repetidas no mesmo plano (mesmo texto + pneus): mantém a mais antiga (concluída tem preferência)
+  function planoDuplicadas(planoId) {
+    const vistos = new Map(), dups = [];
+    planoItens(planoId).slice().sort((a, b) => (b.feito ? 1 : 0) - (a.feito ? 1 : 0)).forEach((i) => {
+      if (!LAUDO_RE.test(i.texto || "")) return;
+      const k = `${i.texto}|${String(i.pneus || "").trim()}`;
+      if (vistos.has(k)) dups.push(i); else vistos.set(k, i);
+    });
+    return dups;
+  }
+  async function planoRemoverDuplicadas(planoId) {
+    const dups = planoDuplicadas(planoId); if (!dups.length) return;
+    if (!window.confirm(`Remover ${dups.length} ação(ões) automática(s) repetida(s) deste plano? Fica uma de cada.`)) return;
+    for (const d of dups) { if (!(await PlanoStore.exec("item_del", { id: d.id }))) break; }
+    render();
+  }
+
   async function planoItemDel(itemId) {
     const it = PlanoStore.itens.find((i) => i.id === itemId);
     if (!it) return;
@@ -3726,6 +3780,7 @@
     on("[data-plano-edit]", "click", (ev) => planoEditar(ev.currentTarget.getAttribute("data-plano-edit")));
     on("[data-plano-del]", "click", (ev) => planoExcluir(ev.currentTarget.getAttribute("data-plano-del")));
     on("[data-item-toggle]", "click", (ev) => planoItemToggle(ev.currentTarget.getAttribute("data-item-toggle"), ev.currentTarget.getAttribute("data-feito") === "1"));
+    on("[data-plano-dedup]", "click", (ev) => planoRemoverDuplicadas(ev.currentTarget.getAttribute("data-plano-dedup")));
     on("[data-item-del]", "click", (ev) => planoItemDel(ev.currentTarget.getAttribute("data-item-del")));
     on("[data-item-prazo]", "change", (ev) => planoItemPrazo(ev.currentTarget.getAttribute("data-item-prazo"), ev.currentTarget.value));
     on("[data-item-prazo]", "click", (ev) => ev.stopPropagation());
