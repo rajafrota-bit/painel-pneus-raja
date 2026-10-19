@@ -452,6 +452,31 @@ body.nav-collapsed:has(.inf-root) #main { padding-bottom:24px; }
 .inf-root .kpi-glow { display:none; }
 .inf-root .kpi-icon { padding:4px; }
 .inf-grid { margin-top:0; }
+
+/* ===== Informativo — MODO TV (tela de projeto 1920x1080, escalada por JS) ===== */
+#main:has(.inf-root) { padding:0 !important; gap:0 !important; }
+.inf-root { width:1920px !important; height:1080px !important; box-sizing:border-box; padding:14px 28px 14px 76px; display:flex !important; flex-direction:column; gap:14px !important; overflow:hidden; }
+.inf-root .panel-header { flex:0 0 auto; align-items:center; }
+.inf-root .eyebrow { font-size:14px; }
+.inf-root .panel-title { font-size:40px; margin-top:2px; }
+.inf-root .toolbar select, .inf-root .toolbar input { font-size:18px; height:46px; }
+.inf-root .kpi-grid { flex:0 0 auto; display:grid !important; grid-template-columns:repeat(3,1fr) !important; gap:16px !important; }
+.inf-root .kpi-label { font-size:16px; }
+.inf-root .kpi-value { font-size:46px !important; margin-top:2px !important; }
+.inf-root .kpi-hint { font-size:18px !important; margin-top:2px !important; }
+.inf-root .card.kpi, .inf-root .kpi-grid .card { padding:12px 24px !important; }
+.inf-root .kpi-icon svg { width:26px; height:26px; }
+.inf-root .inf-grid { flex:1 1 auto; min-height:0; display:grid !important; grid-template-columns:1fr 1fr !important; gap:16px; align-items:stretch !important; margin:0 !important; }
+.inf-root .inf-grid > .card { display:flex !important; flex-direction:column; min-height:0 !important; height:auto !important; max-height:none !important; padding:14px 22px; overflow:hidden; }
+.inf-root .inf-grid .card-title { font-size:21px; flex:0 0 auto; }
+.inf-root .inf-grid .table-wrap { flex:1 1 auto; min-height:0; overflow:auto; scrollbar-width:none; }
+.inf-root .inf-grid .table-wrap::-webkit-scrollbar { display:none; }
+.inf-root .inf-grid table { font-size:22px; min-width:0; }
+.inf-root .inf-grid th { font-size:15px; padding:8px 10px; position:sticky; top:0; z-index:1; background:var(--surface-2, var(--bg-elev)); }
+.inf-root .inf-grid td { padding:6px 10px; }
+.inf-root .inf-grid .pill { font-size:15px; }
+.inf-root .inf-grid .sug-cod { font-size:17px; padding:2px 8px; }
+.inf-root .inf-grid td span[style*="font-size:11px"] { font-size:15px !important; }
 </style>
 </head>
 <body>
@@ -697,17 +722,17 @@ body.nav-collapsed:has(.inf-root) #main { padding-bottom:24px; }
   };
 
   const PANELS = [
+    { key: "informativo", label: "Informativo", icon: "gauge" },
     { key: "vazias", label: "Posições Vazias", icon: "alert" },
     { key: "inspecoes", label: "Inspeções Pendentes", icon: "clipboard" },
     { key: "sulco", label: "Sulco Baixo", icon: "gauge" },
     { key: "pressao", label: "Pressão de Ar", icon: "ring" },
     { key: "plano", label: "Plano de Ação", icon: "plan" },
     { key: "bloqueados", label: "Veículos Bloqueados", icon: "alert" },
-    { key: "informativo", label: "Informativo", icon: "gauge" },
   ];
 
   const state = {
-    panel: "vazias",
+    panel: "informativo",
     filtroFilial: "all",
     busca: "",
     inspRound: "geral",
@@ -3408,28 +3433,35 @@ body.nav-collapsed:has(.inf-root) #main { padding-bottom:24px; }
   }
   function infBarra(pct, cor) { return `<div style="display:inline-block;vertical-align:middle;width:90px;height:7px;background:var(--surface-2);border-radius:4px;overflow:hidden;margin-right:8px;"><div style="width:${Math.min(100, pct)}%;height:100%;background:${cor};"></div></div>`; }
   function infPct(n, d) { return d ? (Math.round(n / d * 1000) / 10).toString().replace(".", ",") + "%" : "—"; }
-  // Ajusta o zoom do Informativo para caber na tela (altura E largura): usa o MAIOR zoom que cabe (até 3x)
-  // (mínimo 0,5x). A largura "de projeto" é ~1250 px: em TV/monitor de resolução menor (ex.: 1280x720 após escala do
-  // Windows) o painel é reduzido para os dois quadros caberem lado a lado sem cortar. Placas rolam dentro do quadro.
-  const INF_ZOOM_MAX = 3, INF_ZOOM_MIN = 0.5, INF_LARGURA_PROJETO = 1250;
+  // MODO TV do Informativo: o painel é desenhado numa "tela de projeto" fixa de 1920x1080 e escalada (zoom) para
+  // caber exatamente na janela, qualquer que seja a resolução/escala da TV (nada de media query nem corte).
+  // Se a lista de placas não couber, ela rola sozinha (TV não tem mouse): pausa no começo e no fim.
+  const INF_W = 1920, INF_H = 1080;
   function infAjustaTela() {
     const root = document.querySelector(".inf-root"); if (!root || state.panel !== "informativo") return;
-    root.style.zoom = "1";
-    const natural = root.getBoundingClientRect().height; if (!natural) return;
-    const main = document.getElementById("main"); const cs = main ? getComputedStyle(main) : null;
-    const num = (v) => parseFloat(v) || 0;
-    const padV = cs ? num(cs.paddingTop) + num(cs.paddingBottom) : 90;
-    const padH = cs ? num(cs.paddingLeft) + num(cs.paddingRight) : 108;
-    const sidebar = document.getElementById("sidebar");
-    const menuW = sidebar && !document.body.classList.contains("nav-collapsed") && window.innerWidth > 920 ? sidebar.getBoundingClientRect().width : 0;
-    const zH = (window.innerHeight - padV - 6) / natural;
-    const zW = (window.innerWidth - padH - menuW - 18) / INF_LARGURA_PROJETO;
-    const z = Math.max(INF_ZOOM_MIN, Math.min(INF_ZOOM_MAX, zH, zW));
-    root.style.zoom = String(Math.round(z * 100) / 100);
+    const z = Math.max(0.2, Math.min(window.innerWidth / INF_W, window.innerHeight / INF_H) * 0.995);
+    root.style.zoom = String(Math.round(z * 1000) / 1000);
+    // deixa livre o botão ☰ (fixo, em pixels reais) à esquerda
+    root.style.paddingLeft = Math.round(64 / z) + "px";
+  }
+  let _infAuto = null;
+  function infAutoRolagem() {
+    if (_infAuto) return;
+    let pausa = 0, sobre = false, cache = null;
+    _infAuto = setInterval(() => {
+      const el = document.querySelector(".inf-col2 .table-wrap");
+      if (!el || state.panel !== "informativo") { cache = null; return; }
+      if (el !== cache) { cache = el; pausa = 80; el.addEventListener("mouseenter", () => { sobre = true; }); el.addEventListener("mouseleave", () => { sobre = false; }); }
+      if (sobre || el.scrollHeight <= el.clientHeight + 2) return;
+      if (pausa > 0) { pausa--; return; }
+      if (el.scrollTop + el.clientHeight >= el.scrollHeight - 1) { pausa = 80; el.scrollTop = 0; return; }
+      el.scrollTop += 1.5;
+      if (el.scrollTop + el.clientHeight >= el.scrollHeight - 1) pausa = 80;
+    }, 50);
   }
   window.addEventListener("resize", () => infAjustaTela());
   function renderInformativoPanel() {
-    setTimeout(infAjustaTela, 0);
+    setTimeout(() => { infAjustaTela(); infAutoRolagem(); }, 0);
     const veics = planoVeiculos(); const filiais = planoFiliais(veics);
     const bl = planoBloqueados();
     const frota = infFrota();
