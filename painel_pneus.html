@@ -2531,14 +2531,14 @@ body.nav-collapsed:has(.inf-root) #main { padding-bottom:24px; }
   // ---------- Armazenamento ----------
   const PlanoStore = {
     modo: PLANO_API_URL ? "api" : "local",
-    planos: [], itens: [], andamento: [], config: [], carregando: false, ocupado: false, erro: "",
+    planos: [], itens: [], andamento: [], config: [], dispensados: [], carregando: false, ocupado: false, erro: "",
     pin: lsGet("raja_plano_pin") || "",
     precisaPin: false,
 
     // baseSemPrazoItem: a base do Google ainda é a versão antiga do Code.gs (não devolve "prazo" nas
     // ações) — nesse caso o prazo por ação NÃO é gravado, e o painel avisa em vez de perder em silêncio.
     _receber(o) {
-      this.planos = o.planos || []; this.itens = o.itens || []; this.andamento = o.andamento || []; this.config = o.config || [];
+      this.planos = o.planos || []; this.itens = o.itens || []; this.andamento = o.andamento || []; this.config = o.config || []; this.dispensados = o.dispensados || [];
       // base do Google ainda na versão antiga do Code.gs (não devolve "config"): configuração dos laudos não seria gravada
       this.baseSemConfig = this.modo === "api" && !Object.prototype.hasOwnProperty.call(o, "config");
       this.baseSemPrazoItem = this.modo === "api" && this.itens.length > 0 && !this.itens.some((i) => Object.prototype.hasOwnProperty.call(i, "prazo"));
@@ -2565,7 +2565,7 @@ body.nav-collapsed:has(.inf-root) #main { padding-bottom:24px; }
       } finally { this.carregando = false; }
     },
 
-    _salvarLocal() { lsSet(PLANO_LS_KEY, JSON.stringify({ planos: this.planos, itens: this.itens, andamento: this.andamento, config: this.config })); },
+    _salvarLocal() { lsSet(PLANO_LS_KEY, JSON.stringify({ planos: this.planos, itens: this.itens, andamento: this.andamento, config: this.config, dispensados: this.dispensados })); },
 
     // Espelho local do que o Code.gs faz (resumo, pneus e status do plano a partir das ações)
     _recalc(planoId, agora) {
@@ -2646,6 +2646,9 @@ body.nav-collapsed:has(.inf-root) #main { padding-bottom:24px; }
         const es = (d.entries || []).filter((e) => e && /^\d{3}$/.test(String(e.codigo || "")));
         if (!es.length) throw new Error("Nenhuma alteração para gravar.");
         es.forEach((e) => this.config.push({ id: novoId(), codigo: String(e.codigo), notifica: e.notifica === true, bloqueia: e.bloqueia === true, desde: e.desde || "", em: agora, por: e.por || "", limite: (e.limite === "" || e.limite == null || isNaN(Number(e.limite))) ? "" : Number(e.limite) }));
+      } else if (acao === "disp_add") {
+        const ch = (d.chaves || []).map(String).filter(Boolean); if (!ch.length) throw new Error("Nada para dispensar.");
+        ch.forEach((c) => { if (this.dispensados.indexOf(c) < 0) this.dispensados.push(c); });
       } else throw new Error("Ação desconhecida.");
       this._salvarLocal();
     },
@@ -2995,7 +2998,7 @@ body.nav-collapsed:has(.inf-root) #main { padding-bottom:24px; }
   // "sugestão" e só vira ação quando alguém aprova. Ação aprovada ganha o prefixo
   // "[Auto · Laudo NNN]" no texto — é ele que identifica "Ação gerada automaticamente" e evita
   // sugerir a mesma coisa duas vezes.
-  const LAUDOS = [["100","Pneu em Mau Estado – Perigo","Retirar o pneu de circulação e avaliar sucata/reforma","Alta",1,true,true],["101","Dano Grave – Lateral","Remover o pneu imediatamente e avaliar sucata","Alta",1,true,true],["102","Dano Grave – Coroa","Remover o pneu imediatamente e avaliar sucata","Alta",1,true,true],["103","Dano Grave – Área do Talão","Remover o pneu imediatamente e avaliar sucata","Alta",1,true,true],["104","Pneu Rodou Vazio","Desmontar e inspecionar a carcaça; decidir reparo ou sucata","Alta",1,true,true],["105","Roda Muito Danificada","Trocar a roda e remontar o pneu","Alta",2,true,true],["106","Remover Imediatamente","Remover o pneu imediatamente","Alta",1,true,true],["107","Veículo c/ Problema Grave","Encaminhar o veículo para a manutenção antes de rodar","Alta",1,true,true],["109","Roda Enferrujada","Tratar/trocar a roda enferrujada","Média",7,true,true],["110","Pneu Furado","Reparar o furo ou trocar o pneu","Alta",1,true,true],["111","Pneu Vazio","Calibrar o pneu e verificar vazamento","Alta",1,true,true],["112","Falta porca de roda","Repor a porca de roda faltante","Alta",1,true,true],["121","Pneu em Duplicidade","Corrigir o cadastro: pneu lançado em duas posições","Média",3,true,true],["200","Pneu em Alerta – Sucata","Avaliar e encaminhar o pneu para sucata","Alta",3,true,true],["201","Dano Lateral – Não Grave","Acompanhar o dano lateral e reinspecionar na próxima rodada","Média",7,true,true],["202","Perfuração Lateral","Retirar o pneu para avaliação (perfuração lateral não é reparável)","Alta",2,true,true],["203","Desgaste Irregular [Inspetor]","Verificar alinhamento/geometria e rodiziar o pneu","Média",7,true,false],["204","Desemparelhado [Inspetor]","Emparelhar os pneus do eixo","Média",7,true,false],["205","Manutenção do Veículo","Encaminhar o veículo para a manutenção","Média",7,true,false],["206","Rodiziar [Inspetor]","Executar o rodízio do pneu","Média",7,true,false],["207","Desenho Incompatível [Inspetor]","Corrigir o desenho incompatível no eixo","Média",15,true,false],["208","Falta Tampinha da Válvula","Repor a tampinha da válvula","Baixa",7,true,false],["209","Problemas no Bico e/ou Válvula","Trocar o bico/válvula","Média",3,true,false],["210","Quebra no Ombro Provocada por Arrasto","Avaliar o dano no ombro e verificar a causa do arrasto","Média",7,true,true],["211","Indícios de Fadiga da Carcaça","Avaliar a carcaça; programar retirada do pneu","Alta",7,true,false],["212","Veículo Recém Chegado – Pneus Quentes","Reinspecionar a pressão com os pneus frios","Baixa",2,true,false],["213","Bico ou válvula inacessível","Corrigir o acesso à válvula (extensor/roda)","Média",7,true,false],["214","Materiais Perigosos na Estrada","Verificar o pneu quanto a cortes/perfurações; avisar a operação sobre a rota","Média",3,true,true],["215","Montagem Inadequada de pneu/roda","Desmontar e remontar corretamente","Alta",3,true,true],["216","Desalinhamento","Fazer alinhamento do veículo","Média",7,true,false],["217","Largura de Banda Incompatível","Corrigir a medida do pneu no eixo","Média",15,true,false],["300","Liso – Sair para Reforma [Inspetor]","Retirar o pneu e enviar para reforma","Alta",3,true,true],["301","Reparo Necessário","Fazer o reparo do pneu","Média",3,true,true],["302","Inspecionado. Normal.","(sem ação — pneu normal)","Baixa",0,false,false],["303","Corrigir Pressão [Inspetor]","Corrigir a pressão do pneu","Média",1,true,false],["304","Desmontar em 1 Mês","Programar a desmontagem do pneu em até 1 mês","Baixa",30,true,false],["305","Desmontar em 1 Semana","Programar a desmontagem do pneu em até 1 semana","Média",7,true,false],["306","Desmontar em 2 Semanas","Programar a desmontagem do pneu em até 2 semanas","Média",14,true,false],["307","Desmontar em 3 Semanas","Programar a desmontagem do pneu em até 3 semanas","Baixa",21,true,false],["308","EQUAL instalado","(informativo — sem ação)","Baixa",0,false,false],["309","Balanceamento com Chumbo","(informativo — sem ação)","Baixa",0,false,false],["310","Sem Balanceamento","Balancear o pneu","Baixa",15,true,false],["351","Desalinhamento de Direção","Alinhar a direção","Média",7,true,false],["352","Paralelismo Entre Eixos","Corrigir o paralelismo entre eixos","Média",7,true,false],["353","Trinca(s) na Roda","Trocar a roda trincada","Alta",2,true,true],["354","Folga E.P.M. Forte","Corrigir a folga do E.P.M. na manutenção","Alta",3,true,true],["355","Folga Anel / Rolamento de Encosto","Corrigir a folga do anel/rolamento de encosto","Média",7,true,true],["356","Folga do Rolamento do Cubo","Corrigir a folga do rolamento do cubo","Alta",3,true,true],["357","Problema no Feixe de Molas","Encaminhar para a manutenção (feixe de molas)","Média",7,true,true],["358","Freio Preso","Liberar/reparar o freio preso","Alta",1,true,true],["359","Folga na Caixa de Direção","Corrigir a folga da caixa de direção","Alta",3,true,true],["360","Lubrificantes ou Graxa nos Estepes","Limpar o estepe e corrigir a origem do lubrificante","Baixa",7,true,false],["361","Vazamento de Ar nas Válvulas dos Pneus","Reparar o vazamento de ar na válvula","Média",3,true,true],["362","Peça Raspando no Pneu","Corrigir a peça que está raspando no pneu","Alta",2,true,true],["363","Saída de Escapamento nos Pneus","Corrigir a saída do escapamento direcionada ao pneu","Média",7,true,true],["364","Raio da Ventoinha","Verificar/corrigir o raio da ventoinha","Média",7,true,false],["365","Má Centragem Parafusos do Amortecedor","Corrigir a centragem dos parafusos do amortecedor","Média",7,true,true],["366","Castanhas de Centralização Gastas","Trocar as castanhas de centralização","Média",7,true,false],["400","Liso – Sair para Reforma [Sistema]","Retirar o pneu e enviar para reforma","Alta",3,true,true],["401","Pressão Não Revisada [Sistema]","Revisar a pressão do pneu","Média",2,true,false],["402","Marcado como Furado [Sistema]","Verificar o pneu marcado como furado e reparar","Alta",1,true,true],["403","Desgaste Irregular [Sistema]","Verificar alinhamento/geometria e rodiziar o pneu","Média",7,true,false],["404","Desemparelhado [Sistema]","Emparelhar os pneus do eixo","Média",7,true,false],["405","Desenho Incompatível [Sistema]","Corrigir o desenho incompatível no eixo","Média",15,true,false]];   // [código, descrição, ação, prioridade, prazo(dias), gera]
+  const LAUDOS = /*__LAUDOS__*/[];   // [código, descrição, ação, prioridade, prazo(dias), gera]
   const LAUDO_MAP = {};
   LAUDOS.forEach((l) => { LAUDO_MAP[l[0]] = { cod: l[0], desc: l[1], acao: l[2], prio: l[3], dias: l[4], gera: !!l[5], bloqueia: !!l[6] }; });
   const LAUDO_RE = /^\[Auto · Laudo (\d+)\]\s*/;
@@ -3083,7 +3086,12 @@ body.nav-collapsed:has(.inf-root) #main { padding-bottom:24px; }
     return h.replace(/<\/div>\s*$/, '<div class="chip-fora-tag">FORA DO VEÍCULO</div></div>');
   }
   function laudosAplicados() { return laudosEfetivos().filter(laudoPneuAplicado); }
-  function laudoDispensados() { try { return JSON.parse(lsGet("raja_laudo_dispensados") || "{}"); } catch (e) { return {}; } }
+  // Dispensados = da base compartilhada (todos veem) + os antigos salvos só neste navegador
+  function laudoDispensados() {
+    let d = {}; try { d = JSON.parse(lsGet("raja_laudo_dispensados") || "{}"); } catch (e) { d = {}; }
+    (PlanoStore.dispensados || []).forEach((c) => { d[c] = 1; });
+    return d;
+  }
   function laudoChaveDisp(l) { return `${l.veiculo}|${l.pneu}|${l.codigo}|${l.data}`; }
   function laudoSeries() { return state.laudoSeries || (state.laudoSeries = { "100": true, "200": true, "300": true, "350": true, "400": true }); }
 
@@ -3280,7 +3288,7 @@ body.nav-collapsed:has(.inf-root) #main { padding-bottom:24px; }
       corpo = `<div class="sug-chips"><span class="rel-label">Séries:</span>${chips}</div>
         <div class="sug-layout"><div class="sug-lista">
         <div class="table-wrap"><table><thead><tr><th>Veículo</th><th>Ações sugeridas (laudo → ação)</th><th></th><th></th></tr></thead><tbody>${linhas}</tbody></table>
-        <div class="table-note">Aprove ou dispense <strong>uma a uma</strong> (botões em cada linha) ou o veículo inteiro. Ao aprovar, as ações entram no plano aberto do veículo (ou criam um plano novo) marcadas como <strong>🤖 Ação gerada automaticamente</strong>, com o prazo sugerido. “Dispensar” fica salvo só neste navegador.</div></div></div>
+        <div class="table-note">Aprove ou dispense <strong>uma a uma</strong> (botões em cada linha) ou o veículo inteiro. Ao aprovar, as ações entram no plano aberto do veículo (ou criam um plano novo) marcadas como <strong>🤖 Ação gerada automaticamente</strong>, com o prazo sugerido. “Dispensar” vale para todos (fica salvo na base compartilhada).</div></div></div>
         <aside class="sug-mapa card detail-card">${planoMapaSugestaoHtml(selV)}</aside></div>`;
     }
     return `<div class="card sug-card">
@@ -3335,11 +3343,20 @@ body.nav-collapsed:has(.inf-root) #main { padding-bottom:24px; }
     if (n) toast(`${n} ação(ões) gerada(s) automaticamente no plano.`);
     render();
   }
-  function planoDispensarSugestoes(placa, chave) {
+  async function planoDispensarSugestoes(placa, chave) {
     const v = planoSugestoes(false).find((x) => x.placa === placa); if (!v) return;
-    const disp = laudoDispensados();
-    v.sugs.filter((s) => !chave || sugChave(s) === chave).forEach((s) => sugSelecionados(s).forEach((it) => { disp[laudoChaveDisp(it.l)] = 1; }));
-    lsSet("raja_laudo_dispensados", JSON.stringify(disp));
+    const chaves = [];
+    v.sugs.filter((s) => !chave || sugChave(s) === chave).forEach((s) => sugSelecionados(s).forEach((it) => chaves.push(laudoChaveDisp(it.l))));
+    if (!chaves.length) return;
+    const ok = await PlanoStore.exec("disp_add", { chaves, por: state.planoAutor });
+    if (!ok && PlanoStore.precisaPin) { toast(PlanoStore.erro); return; }
+    if (!ok) {
+      // base ainda na versão antiga do Code.gs: guarda só neste navegador e avisa
+      const disp = {}; try { Object.assign(disp, JSON.parse(lsGet("raja_laudo_dispensados") || "{}")); } catch (e) {}
+      chaves.forEach((c) => { disp[c] = 1; });
+      lsSet("raja_laudo_dispensados", JSON.stringify(disp));
+      toast("Dispensado só neste navegador: atualize o Code.gs no Google para valer para todos.");
+    }
     render();
   }
 
