@@ -477,6 +477,11 @@ body.nav-collapsed:has(.inf-root) #main { padding-bottom:24px; }
 .inf-root .inf-grid .pill { font-size:15px; }
 .inf-root .inf-grid .sug-cod { font-size:17px; padding:2px 8px; }
 .inf-root .inf-grid td span[style*="font-size:11px"] { font-size:15px !important; }
+
+.inf-titulo-linha { display:flex; align-items:baseline; gap:22px; flex-wrap:wrap; }
+.inf-relogio { font-size:13px; color:var(--text-dim); white-space:nowrap; }
+.inf-relogio strong { color:var(--text); font-variant-numeric:tabular-nums; }
+.inf-root .inf-relogio { font-size:21px; }
 </style>
 </head>
 <body>
@@ -3500,7 +3505,7 @@ body.nav-collapsed:has(.inf-root) #main { padding-bottom:24px; }
   // memória e redesenha SÓ o conteúdo (aba, filtros, seleções e rolagem continuam como estavam). Não redesenha
   // enquanto você digita/edita (formulário, engrenagem, campo em foco) — fica pendente para o próximo ciclo.
   const REFRESH_MS = 60000;
-  let _refreshPendente = false, _refreshRodando = false;
+  let _refreshPendente = false, _refreshRodando = false, _proxRefresh = Date.now() + REFRESH_MS;
   let _ultimaDigitacao = 0;
   document.addEventListener("input", () => { _ultimaDigitacao = Date.now(); }, true);
   function refreshOcupado() {
@@ -3536,6 +3541,7 @@ body.nav-collapsed:has(.inf-root) #main { padding-bottom:24px; }
     } catch (e) { return false; }
   }
   async function atualizarAutomatico() {
+    _proxRefresh = Date.now() + REFRESH_MS;
     if (_refreshRodando || document.hidden) return;
     _refreshRodando = true;
     try {
@@ -3545,10 +3551,19 @@ body.nav-collapsed:has(.inf-root) #main { padding-bottom:24px; }
     } finally { _refreshRodando = false; }
   }
   setInterval(atualizarAutomatico, REFRESH_MS);
+  // Relógio + contagem regressiva ao lado do título do Informativo (só mexe no texto, não redesenha nada)
+  function infRelogioTick() {
+    const el = document.getElementById("inf-relogio"); if (!el) return;
+    const p2 = (n) => String(n).padStart(2, "0");
+    const d = new Date(), falta = Math.max(0, Math.ceil((_proxRefresh - Date.now()) / 1000));
+    const estado = _refreshRodando ? "atualizando…" : (_refreshPendente ? "aguardando você terminar de editar" : `próxima atualização em <strong>${Math.floor(falta / 60)}:${p2(falta % 60)}</strong>`);
+    el.innerHTML = `🕒 <strong>${p2(d.getHours())}:${p2(d.getMinutes())}:${p2(d.getSeconds())}</strong> · ${estado} · dados de <strong>${escapeHtml(DATA.generatedHora || "—")}</strong>`;
+  }
+  setInterval(infRelogioTick, 1000);
   document.addEventListener("visibilitychange", () => { if (!document.hidden) atualizarAutomatico(); });   // voltou para a aba: atualiza já
   window.addEventListener("resize", () => infAjustaTela());
   function renderInformativoPanel() {
-    setTimeout(() => { infAjustaTela(); infAutoRolagem(); }, 0);
+    setTimeout(() => { infAjustaTela(); infAutoRolagem(); infRelogioTick(); }, 0);
     const veics = planoVeiculos(); const filiais = planoFiliais(veics);
     const bl = planoBloqueados();
     const frota = infFrota();
@@ -3575,7 +3590,7 @@ body.nav-collapsed:has(.inf-root) #main { padding-bottom:24px; }
         <td class="mono" style="font-weight:600;">${escapeHtml(v.placa)}</td><td>${escapeHtml(filialSigla(v.filial))}</td>
         <td>${escapeHtml(fmtDate(v.inicio))}</td><td style="text-align:right;"><strong>${v.dias}</strong> dia${v.dias === 1 ? "" : "s"}</td>
         <td style="white-space:normal;">${v.resolvido ? `<span class="pill pill-warning">${TAG_RESOLVIDO}</span>` : Array.from(new Set(v.laudos.map((l) => l.codigo))).sort().map((c) => `<span class="sug-cod">${escapeHtml(c)}</span>`).join(" ")}</td></tr>`).join("");
-    return `<div class="inf-root">${panelHeader("Informativo", "", filiais, "")}${kpis}
+    return `<div class="inf-root">${panelHeader("Informativo", "", filiais, "").replace('<h2 class="panel-title">Informativo</h2>', '<div class="inf-titulo-linha"><h2 class="panel-title">Informativo</h2><span id="inf-relogio" class="inf-relogio"></span></div>')}${kpis}
       <div class="inf-grid">
       <div class="card"><div class="card-title">Indisponibilidade por unidade</div>
         <div class="table-wrap"><table><thead><tr><th>Unidade</th><th style="text-align:right;">Bloqueados</th><th style="text-align:right;">Frota</th><th>% da frota</th></tr></thead><tbody>${linhasU}${tot}</tbody></table></div></div>
