@@ -460,7 +460,7 @@ body.nav-collapsed:has(.inf-root) #main { padding-bottom:24px; }
 .inf-root .eyebrow { font-size:14px; }
 .inf-root .panel-title { font-size:40px; margin-top:2px; }
 .inf-root .toolbar select, .inf-root .toolbar input { font-size:18px; height:46px; }
-.inf-root .kpi-grid { flex:0 0 auto; display:grid !important; grid-template-columns:repeat(3,1fr) !important; gap:16px !important; }
+.inf-root .kpi-grid { flex:0 0 auto; display:grid !important; grid-template-columns:repeat(2,1fr) !important; gap:16px !important; }
 .inf-root .kpi-label { font-size:16px; }
 .inf-root .kpi-value { font-size:46px !important; margin-top:2px !important; }
 .inf-root .kpi-hint { font-size:18px !important; margin-top:2px !important; }
@@ -3417,7 +3417,7 @@ body.nav-collapsed:has(.inf-root) #main { padding-bottom:24px; }
   // ================= Aba "Informativo" =================
   // Resumo gerencial: (1) veículos bloqueados × frota, (2) indisponibilidade por unidade (filial),
   // (3) placas bloqueadas com a data do início (inspeção que gerou o bloqueio = laudo bloqueante mais antigo
-  // ainda ativo) e os dias bloqueados. Veículo com ação concluída (amarelo) não entra nas contagens: só na lista, com a tag.
+  // ainda ativo) e os dias bloqueados. Veículo com ação concluída (amarelo) NÃO aparece aqui (só na aba Veículos Bloqueados).
   function infFrota() {
     // frota registrada (relatório de veículos registrados) por unidade; filtra pela filial selecionada
     const out = new Map();
@@ -3527,7 +3527,6 @@ body.nav-collapsed:has(.inf-root) #main { padding-bottom:24px; }
     const nB = bloqueados.length;
     const kpis = `<div class="kpi-grid">
       ${kpiCard("Veículos bloqueados", nB, `${infPct(nB, totalFrota)} da frota (${fmtInt(totalFrota)} veículos)`, ICONS.alert, "var(--danger)")}
-      ${kpiCard("Ação resolvida", lista.length - nB, "aguardando nova inspeção", ICONS.check, "var(--warning)")}
       ${kpiCard("Maior tempo bloqueado", bloqueados.length ? Math.max.apply(null, bloqueados.map((v) => v.dias)) + " dias" : "—", bloqueados.length ? "placa " + bloqueados.slice().sort((a, b) => b.dias - a.dias)[0].placa : "nenhum veículo bloqueado", ICONS.clipboard, "var(--chart2)")}
     </div>`;
     const unid = Array.from(frota.values()).sort((a, b) => (b.bloq / (b.total || 1)) - (a.bloq / (a.total || 1)) || b.bloq - a.bloq || normalizeText(filialFullName(a.filial)).localeCompare(normalizeText(filialFullName(b.filial))));
@@ -3536,7 +3535,7 @@ body.nav-collapsed:has(.inf-root) #main { padding-bottom:24px; }
         <td style="text-align:right;">${u.bloq}</td><td style="text-align:right;">${fmtInt(u.total)}</td>
         <td style="white-space:nowrap;">${infBarra(pct, "var(--danger)")}<strong>${infPct(u.bloq, u.total)}</strong></td></tr>`; }).join("");
     const tot = `<tr style="font-weight:700;border-top:2px solid var(--border-strong);"><td>Total</td><td style="text-align:right;">${nB}</td><td style="text-align:right;">${fmtInt(totalFrota)}</td><td>${infPct(nB, totalFrota)}</td></tr>`;
-    const ord = lista.slice().sort((a, b) => b.dias - a.dias || a.placa.localeCompare(b.placa));
+    const ord = bloqueados.slice().sort((a, b) => b.dias - a.dias || a.placa.localeCompare(b.placa));
     const linhasP = ord.length === 0 ? emptyRow(5, "Nenhum veículo bloqueado.") : ord.map((v) => `<tr class="${v.resolvido ? "blq-resolvido" : ""}">
         <td class="mono" style="font-weight:600;">${escapeHtml(v.placa)}</td><td>${escapeHtml(filialSigla(v.filial))}</td>
         <td>${escapeHtml(fmtDate(v.inicio))}</td><td style="text-align:right;"><strong>${v.dias}</strong> dia${v.dias === 1 ? "" : "s"}</td>
@@ -3545,7 +3544,7 @@ body.nav-collapsed:has(.inf-root) #main { padding-bottom:24px; }
       <div class="inf-grid">
       <div class="card"><div class="card-title">Indisponibilidade por unidade</div>
         <div class="table-wrap"><table><thead><tr><th>Unidade</th><th style="text-align:right;">Bloqueados</th><th style="text-align:right;">Frota</th><th>% da frota</th></tr></thead><tbody>${linhasU}${tot}</tbody></table></div></div>
-      <div class="card inf-col2"><div class="card-title">Placas bloqueadas (${nB}${lista.length > nB ? ` + ${lista.length - nB} aguardando nova inspeção` : ""})</div>
+      <div class="card inf-col2"><div class="card-title">Placas bloqueadas (${nB})</div>
         <div class="table-wrap"><table><thead><tr><th>Placa</th><th>Unidade</th><th>Bloqueado desde</th><th style="text-align:right;">Dias bloqueado</th><th>Laudos</th></tr></thead><tbody>${linhasP}</tbody></table></div></div>
       </div></div>`;
   }
