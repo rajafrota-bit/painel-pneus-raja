@@ -551,7 +551,7 @@ body.nav-collapsed:has(.inf-root) #main { padding-bottom:24px; }
   function semSucata(lista) {
     return Array.isArray(lista) ? lista.filter((item) => !ehFilialSucata(item && item.filial)) : lista;
   }
-  (function saneiaDadosSucata() {
+  function saneiaDadosSucata() {
     if (!DATA) return;
     DATA.vazias = semSucata(DATA.vazias);
     DATA.insp1 = semSucata(DATA.insp1);
@@ -579,7 +579,8 @@ body.nav-collapsed:has(.inf-root) #main { padding-bottom:24px; }
         }
       });
     }
-  })();
+  }
+  saneiaDadosSucata();
   function fmtInt(n) { return Number(n || 0).toLocaleString("pt-BR"); }
   function fmtPct(n) { return `${(Math.round(n * 10) / 10).toLocaleString("pt-BR")}%`; }
   const MESES_PT = ["Janeiro", "Fevereiro", "Março", "Abril", "Maio", "Junho", "Julho", "Agosto", "Setembro", "Outubro", "Novembro", "Dezembro"];
@@ -3459,6 +3460,57 @@ body.nav-collapsed:has(.inf-root) #main { padding-bottom:24px; }
       if (el.scrollTop + el.clientHeight >= el.scrollHeight - 1) pausa = 80;
     }, 50);
   }
+  // ================= Atualização automática (1 min) =================
+  // Sem recarregar a página: baixa de novo o dados.js e a base do Plano; se algo mudou, atualiza os dados em
+  // memória e redesenha SÓ o conteúdo (aba, filtros, seleções e rolagem continuam como estavam). Não redesenha
+  // enquanto você digita/edita (formulário, engrenagem, campo em foco) — fica pendente para o próximo ciclo.
+  const REFRESH_MS = 60000;
+  let _refreshPendente = false, _refreshRodando = false;
+  let _ultimaDigitacao = 0;
+  document.addEventListener("input", () => { _ultimaDigitacao = Date.now(); }, true);
+  function refreshOcupado() {
+    const ae = document.activeElement;
+    // campo em foco só bloqueia se alguém digitou nele há menos de 90 s (TV com a caixa de busca esquecida em foco não trava o refresh)
+    if (ae && /^(INPUT|TEXTAREA|SELECT)$/.test(ae.tagName) && Date.now() - _ultimaDigitacao < 90000) return true;
+    if (state.planoView === "form" || state.cfgAberto || document.querySelector(".ctx-menu")) return true;
+    return !!(PlanoStore.ocupado || aprovando || document.body.classList.contains("printing"));
+  }
+  async function refreshDados() {
+    try {
+      const r = await fetch("dados.js?t=" + Date.now(), { cache: "no-store" }); if (!r.ok) return false;
+      const t = await r.text();
+      const j = JSON.parse(t.slice(t.indexOf("{"), t.lastIndexOf("}") + 1));
+      if (!j || !j.generatedAt) return false;
+      if (j.generatedAt === DATA.generatedAt && (j.generatedHora || "") === (DATA.generatedHora || "")) return false;
+      Object.keys(DATA).forEach((k) => { delete DATA[k]; });
+      Object.assign(DATA, j);
+      saneiaDadosSucata();
+      _planoVeics = null; _aplicMemo = null;
+      return true;
+    } catch (e) { return false; }
+  }
+  async function refreshPlano() {
+    if (PlanoStore.modo !== "api") return false;
+    try {
+      const sig = () => JSON.stringify([PlanoStore.planos, PlanoStore.itens, PlanoStore.andamento, PlanoStore.config]);
+      const antes = sig();
+      const r = await fetch(PLANO_API_URL + "?t=" + Date.now(), { cache: "no-store" });
+      const res = await r.json(); if (!res.ok) return false;
+      PlanoStore._receber(res);
+      return sig() !== antes;
+    } catch (e) { return false; }
+  }
+  async function atualizarAutomatico() {
+    if (_refreshRodando || document.hidden) return;
+    _refreshRodando = true;
+    try {
+      const [d, p] = await Promise.all([refreshDados(), refreshPlano()]);
+      if (d || p) _refreshPendente = true;
+      if (_refreshPendente && !refreshOcupado()) { _refreshPendente = false; render(); }
+    } finally { _refreshRodando = false; }
+  }
+  setInterval(atualizarAutomatico, REFRESH_MS);
+  document.addEventListener("visibilitychange", () => { if (!document.hidden) atualizarAutomatico(); });   // voltou para a aba: atualiza já
   window.addEventListener("resize", () => infAjustaTela());
   function renderInformativoPanel() {
     setTimeout(() => { infAjustaTela(); infAutoRolagem(); }, 0);
