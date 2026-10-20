@@ -2640,7 +2640,7 @@ body.nav-collapsed:has(.inf-root) #main { padding-bottom:24px; }
       } else if (acao === "config_save") {
         const es = (d.entries || []).filter((e) => e && /^\d{3}$/.test(String(e.codigo || "")));
         if (!es.length) throw new Error("Nenhuma alteração para gravar.");
-        es.forEach((e) => this.config.push({ id: novoId(), codigo: String(e.codigo), notifica: e.notifica === true, bloqueia: e.bloqueia === true, desde: e.desde || "", em: agora, por: e.por || "" }));
+        es.forEach((e) => this.config.push({ id: novoId(), codigo: String(e.codigo), notifica: e.notifica === true, bloqueia: e.bloqueia === true, desde: e.desde || "", em: agora, por: e.por || "", limite: (e.limite === "" || e.limite == null || isNaN(Number(e.limite))) ? "" : Number(e.limite) }));
       } else throw new Error("Ação desconhecida.");
       this._salvarLocal();
     },
@@ -2901,14 +2901,15 @@ body.nav-collapsed:has(.inf-root) #main { padding-bottom:24px; }
   const cfgBtnHtml = () => `<button class="btn btn-icon ${state.cfgAberto ? "btn-bloq-on" : ""}" data-cfg-toggle title="Configurar as ações dos laudos (notificar / bloquear)" aria-label="Configurar ações dos laudos">${ICON_GEAR}</button>`;
 
   function cfgDraft() {
-    if (!state.cfgDraft) { state.cfgDraft = {}; LAUDOS.forEach((l) => { state.cfgDraft[l[0]] = { notifica: laudoNotifica(l[0]), bloqueia: laudoBloqueia(l[0], "9999-12-31") }; }); }
+    if (!state.cfgDraft) { state.cfgDraft = {}; LAUDOS.forEach((l) => { state.cfgDraft[l[0]] = { notifica: laudoNotifica(l[0]), bloqueia: laudoBloqueia(l[0], "9999-12-31"), limite: laudoLimite(l[0]) }; }); }
     return state.cfgDraft;
   }
   function cfgMudancas() {
     const d = cfgDraft(); const out = [];
     LAUDOS.forEach((l) => {
       const c = l[0], atualN = laudoNotifica(c), atualB = laudoBloqueia(c, "9999-12-31");
-      if (d[c].notifica !== atualN || d[c].bloqueia !== atualB) out.push({ codigo: c, notifica: d[c].notifica, bloqueia: d[c].bloqueia, antesN: atualN, antesB: atualB });
+      const atualL = laudoLimite(c);
+      if (d[c].notifica !== atualN || d[c].bloqueia !== atualB || String(d[c].limite) !== String(atualL)) out.push({ codigo: c, notifica: d[c].notifica, bloqueia: d[c].bloqueia, limite: d[c].limite, antesN: atualN, antesB: atualB });
     });
     return out;
   }
@@ -2923,19 +2924,20 @@ body.nav-collapsed:has(.inf-root) #main { padding-bottom:24px; }
     let corpo = ""; let serieAtual = "";
     LAUDOS.forEach((l) => {
       const c = l[0], s = laudoSerie(c);
-      if (s !== serieAtual) { serieAtual = s; corpo += `<tr class="cfg-serie"><td colspan="5">${nomesSerie[s]}</td></tr>`; }
+      if (s !== serieAtual) { serieAtual = s; corpo += `<tr class="cfg-serie"><td colspan="6">${nomesSerie[s]}</td></tr>`; }
       corpo += `<tr class="${mudSet.has(c) ? "cfg-mudou" : ""}">
         <td><span class="sug-cod">${escapeHtml(c)}</span></td><td style="white-space:normal;">${escapeHtml(l[1])}</td>
         <td style="text-align:center;"><input type="checkbox" data-cfg-n="${c}" ${d[c].notifica ? "checked" : ""} aria-label="Notificar ${c}"></td>
         <td style="text-align:center;"><input type="checkbox" data-cfg-b="${c}" ${d[c].bloqueia ? "checked" : ""} aria-label="Bloqueia ${c}"></td>
+        <td style="white-space:nowrap;">${c === "402" ? `<input type="number" min="1" max="100" step="1" data-cfg-l="${c}" value="${d[c].limite === "" ? "" : d[c].limite}" placeholder="sem limite" style="width:92px;" aria-label="Limite de pressão em % para o laudo 402"> <span style="color:var(--text-dim);">%</span><div class="chart-hint" style="margin:2px 0 0;white-space:normal;max-width:230px;">Só gera o 402 se a pressão ficar <strong>abaixo</strong> desse % do padrão; senão sugere o 303.</div>` : ""}</td>
         <td style="color:var(--text-faint);font-size:11px;white-space:nowrap;">${escapeHtml(cfgUltima(c))}</td></tr>`;
     });
     const hist = laudoCfg().slice().reverse();
     const histHtml = hist.length === 0 ? `<div class="chart-hint">Nenhuma alteração feita ainda — valendo a configuração padrão.</div>` :
-      `<div class="table-wrap" style="max-height:220px;overflow:auto;"><table><thead><tr><th>Quando</th><th>Quem</th><th>Laudo</th><th>Notificar</th><th>Bloqueia</th><th>Vale para</th></tr></thead><tbody>${hist.map((e) => `<tr>
+      `<div class="table-wrap" style="max-height:220px;overflow:auto;"><table><thead><tr><th>Quando</th><th>Quem</th><th>Laudo</th><th>Notificar</th><th>Bloqueia</th><th>Limite</th><th>Vale para</th></tr></thead><tbody>${hist.map((e) => `<tr>
         <td style="white-space:nowrap;">${escapeHtml(fmtDataHora(e.em))}</td><td>${escapeHtml(e.por || "—")}</td>
         <td><span class="sug-cod">${escapeHtml(e.codigo)}</span> ${escapeHtml((LAUDO_MAP[e.codigo] || {}).desc || "")}</td>
-        <td>${e.notifica ? "Sim" : "Não"}</td><td>${e.bloqueia ? "Sim" : "Não"}</td>
+        <td>${e.notifica ? "Sim" : "Não"}</td><td>${e.bloqueia ? "Sim" : "Não"}</td><td>${e.codigo === "402" && e.limite !== "" && e.limite != null ? `abaixo de ${escapeHtml(String(e.limite))}%` : "—"}</td>
         <td>${e.desde ? `laudos que aparecerem a partir de ${escapeHtml(fmtDate(e.desde))}` : "todos os laudos (inclusive os já existentes)"}</td></tr>`).join("")}</tbody></table></div>`;
     const aviso = PlanoStore.baseSemConfig ? `<div class="banner banner-warn"><strong>A base do Google ainda está na versão antiga do Code.gs:</strong> esta configuração não seria gravada para a equipe. Cole o Code.gs novo e publique uma nova versão.</div>` : "";
     return `<div class="card cfg-card">
@@ -2947,7 +2949,7 @@ body.nav-collapsed:has(.inf-root) #main { padding-bottom:24px; }
           <button class="btn btn-primary btn-sm" data-cfg-salvar ${mud.length ? "" : "disabled"}>Salvar alterações</button>
           <button class="btn btn-sm" data-cfg-cancelar>${mud.length ? "Descartar" : "Fechar"}</button></div></div>
       ${aviso}
-      <div class="table-wrap" style="max-height:420px;overflow:auto;"><table><thead><tr><th>Código</th><th>Descrição</th><th style="text-align:center;">🔔 Notificar</th><th style="text-align:center;">⛔ Bloqueia</th><th>Última alteração</th></tr></thead><tbody>${corpo}</tbody></table></div>
+      <div class="table-wrap" style="max-height:420px;overflow:auto;"><table><thead><tr><th>Código</th><th>Descrição</th><th style="text-align:center;">🔔 Notificar</th><th style="text-align:center;">⛔ Bloqueia</th><th>Limite de pressão</th><th>Última alteração</th></tr></thead><tbody>${corpo}</tbody></table></div>
       <details class="cfg-hist" ${state.cfgHistAberto ? "open" : ""}><summary data-cfg-hist>Histórico de alterações (${hist.length})</summary>${histHtml}</details>
     </div>`;
   }
@@ -2968,7 +2970,7 @@ body.nav-collapsed:has(.inf-root) #main { padding-bottom:24px; }
         const ja = new Set((DATA.laudosAtuais || []).filter((l) => l.codigo === m.codigo).map((l) => l.veiculo));
         if (ja.size && window.confirm(`Laudo ${m.codigo} passa a BLOQUEAR.\\n\\n${ja.size} veículo(s) já têm esse laudo hoje. Aplicar o bloqueio também a eles?\\n\\nOK = sim, bloqueia os que já existem e os novos\\nCancelar = só os laudos que aparecerem a partir de hoje`)) desde = "";
       }
-      entries.push({ codigo: m.codigo, notifica: m.notifica, bloqueia: m.bloqueia, desde, por: state.planoAutor });
+      entries.push({ codigo: m.codigo, notifica: m.notifica, bloqueia: m.bloqueia, limite: m.limite, desde, por: state.planoAutor });
     }
     const ok = await PlanoStore.exec("config_save", { entries });
     if (ok) { state.cfgDraft = null; toast(`${entries.length} alteração(ões) salva(s) no histórico.`); }
@@ -3013,6 +3015,39 @@ body.nav-collapsed:has(.inf-root) #main { padding-bottom:24px; }
     laudoCfg().forEach((e) => { if (e.codigo === cod && (!e.desde || !aparecEm || e.desde <= aparecEm)) r = e.bloqueia; });
     return r;
   }
+  // Limite de pressão (% do padrão) do laudo 402 (furado): último valor configurado ("" = sem limite).
+  // 402 só vale se a pressão coletada do pneu ficar ABAIXO do limite; com pressão igual/acima, vira sugestão do 303.
+  function laudoLimite(cod) {
+    let r = "";
+    laudoCfg().forEach((e) => { if (e.codigo === cod) r = (e.limite === "" || e.limite == null || isNaN(Number(e.limite))) ? "" : Number(e.limite); });
+    return r;
+  }
+  let _pctMemo = null;
+  function pressaoPctDoLaudo(l) {
+    if (!_pctMemo || _pctMemo.ref !== DATA.pressaoTires) {
+      const m = new Map();
+      DATA.pressaoTires.concat(DATA.pressaoOutros || []).forEach((t) => { m.set(`${limpaPlaca(t.veiculo)}|${t.posicao}|${String(t.pneu).trim()}`, t.semLeitura ? 0 : (t.pctPadrao != null ? t.pctPadrao : null)); });
+      _pctMemo = { ref: DATA.pressaoTires, m };
+    }
+    const v = _pctMemo.m.get(`${limpaPlaca(l.veiculo)}|${l.posicao}|${String(l.pneu).trim()}`);
+    return v === undefined ? null : v;
+  }
+  // Laudos já com a regra do limite aplicada (402 acima do limite → 303, sem duplicar um 303 que o pneu já tenha)
+  function laudosEfetivos() {
+    const lim = laudoLimite("402"); const base = DATA.laudosAtuais || [];
+    if (lim === "") return base;
+    const tem303 = new Set(base.filter((l) => l.codigo === "303").map((l) => `${l.veiculo}|${l.pneu}`));
+    const out = [];
+    base.forEach((l) => {
+      if (l.codigo !== "402") { out.push(l); return; }
+      const pct = pressaoPctDoLaudo(l);
+      if (pct == null || pct < lim) { out.push(l); return; }
+      const k = `${l.veiculo}|${l.pneu}`; if (tem303.has(k)) return;
+      tem303.add(k);
+      out.push({ ...l, codigo: "303", reclass: { de: "402", pct, limite: lim } });
+    });
+    return out;
+  }
   function laudoSerie(c) { const n = Number(c); return n < 200 ? "100" : n < 300 ? "200" : n < 350 ? "300" : n < 400 ? "350" : "400"; }
   function addDiasIso(iso, n) {
     const d = new Date(String(iso).slice(0, 10) + "T12:00:00");
@@ -3042,7 +3077,7 @@ body.nav-collapsed:has(.inf-root) #main { padding-bottom:24px; }
     h = h.replace('<div class="tire-chip"', '<div class="tire-chip chip-fora"').replace(/title="/, 'title="NÃO ESTÁ MAIS NO VEÍCULO (pneu trocado depois da inspeção) · ');
     return h.replace(/<\/div>\s*$/, '<div class="chip-fora-tag">FORA DO VEÍCULO</div></div>');
   }
-  function laudosAplicados() { return (DATA.laudosAtuais || []).filter(laudoPneuAplicado); }
+  function laudosAplicados() { return laudosEfetivos().filter(laudoPneuAplicado); }
   function laudoDispensados() { try { return JSON.parse(lsGet("raja_laudo_dispensados") || "{}"); } catch (e) { return {}; } }
   function laudoChaveDisp(l) { return `${l.veiculo}|${l.pneu}|${l.codigo}|${l.data}`; }
   function laudoSeries() { return state.laudoSeries || (state.laudoSeries = { "100": true, "200": true, "300": true, "350": true, "400": true }); }
@@ -3233,7 +3268,7 @@ body.nav-collapsed:has(.inf-root) #main { padding-bottom:24px; }
                 <span class="sug-line-btns"><button class="btn btn-sm btn-primary" data-sug-um="${escapeHtml(s.key)}" ${sel.length ? "" : "disabled"} title="${multi ? `Aprovar 1 ação para os ${sel.length} pneu(s) marcados` : "Aprovar só esta ação"}">Aprovar${multi ? ` (${sel.length})` : ""}</button>
                 <button class="btn btn-sm" data-sug-um-disp="${escapeHtml(s.key)}" ${sel.length ? "" : "disabled"} title="${multi ? "Dispensar os pneus marcados" : "Dispensar só esta ação"}">Dispensar${multi ? ` (${sel.length})` : ""}</button></span>
                 ${multi ? `<div class="sug-pneus">${s.itens.map((it) => { const ek = `${s.veiculo}|${it.pneu}|${s.codigo}`; return `<label class="sug-pneu-chk ${sugExcl()[ek] ? "off" : ""}" title="Marque/desmarque: só os marcados vão para o plano"><input type="checkbox" data-sug-chk="${escapeHtml(ek)}" ${sugExcl()[ek] ? "" : "checked"}> ${escapeHtml(it.pneu)} <span>(${escapeHtml(it.posicao)})</span></label>`; }).join("")}</div>` : ""}
-                <span class="sug-meta">${multi ? `${s.itens.length} pneus` : `pneu ${escapeHtml(s.pneu)} (${escapeHtml(s.posicao)})`} · ${escapeHtml(s.map.desc)}${s.principal ? " · laudo principal" : ""} · inspeção ${escapeHtml(fmtDate(s.data))}${s.desde && s.desde < s.data ? ` · desde ${escapeHtml(fmtDate(s.desde))}` : ""}${s.prazo ? ` · prazo ${escapeHtml(fmtDate(s.prazo))}` : ""}</span></div>`; }).join("")}</td>
+                <span class="sug-meta">${multi ? `${s.itens.length} pneus` : `pneu ${escapeHtml(s.pneu)} (${escapeHtml(s.posicao)})`} · ${escapeHtml(s.map.desc)}${s.principal ? " · laudo principal" : ""}${(() => { const rc = s.itens.map((it) => it.l && it.l.reclass).filter(Boolean); return rc.length ? ` · ↪ era 402: pressão ${rc.map((x) => x.pct).filter((v, i, a) => a.indexOf(v) === i).join("/")}% ≥ limite ${rc[0].limite}%` : ""; })()} · inspeção ${escapeHtml(fmtDate(s.data))}${s.desde && s.desde < s.data ? ` · desde ${escapeHtml(fmtDate(s.desde))}` : ""}${s.prazo ? ` · prazo ${escapeHtml(fmtDate(s.prazo))}` : ""}</span></div>`; }).join("")}</td>
             <td style="white-space:nowrap;text-align:right;">${v.sugs.length} ação(ões)</td>
             <td style="white-space:nowrap;"><button class="btn btn-primary btn-sm" data-sug-aprovar="${escapeHtml(v.placa)}" title="Aprovar todas as ações deste veículo">Aprovar todas</button>
               <button class="btn btn-sm" data-sug-dispensar="${escapeHtml(v.placa)}" title="Esconder todas as sugestões deste veículo (volta se houver nova inspeção com o laudo)">Dispensar todas</button></td></tr>`).join("");
@@ -4004,6 +4039,11 @@ body.nav-collapsed:has(.inf-root) #main { padding-bottom:24px; }
     on("[data-cfg-cancelar]", "click", () => { state.cfgAberto = false; state.cfgDraft = null; render(); });
     on("[data-cfg-salvar]", "click", () => cfgSalvar());
     on("[data-cfg-n]", "change", (ev) => { cfgDraft()[ev.currentTarget.getAttribute("data-cfg-n")].notifica = ev.currentTarget.checked; render(); });
+    on("[data-cfg-l]", "change", (ev) => {
+      const c = ev.currentTarget.getAttribute("data-cfg-l"), v = ev.currentTarget.value.trim();
+      cfgDraft()[c].limite = v === "" || isNaN(Number(v)) ? "" : Math.max(1, Math.min(100, Math.round(Number(v))));
+      render();
+    });
     on("[data-cfg-b]", "change", (ev) => { cfgDraft()[ev.currentTarget.getAttribute("data-cfg-b")].bloqueia = ev.currentTarget.checked; render(); });
     on("[data-cfg-hist]", "click", () => { state.cfgHistAberto = !state.cfgHistAberto; });
     on("[data-laudo-visto]", "click", () => { lsSet("raja_laudo_visto", hojeIso()); render(); });
