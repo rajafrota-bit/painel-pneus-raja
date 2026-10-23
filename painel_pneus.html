@@ -2167,7 +2167,27 @@ body.nav-collapsed:has(.inf-root) #main { padding-bottom:24px; }
     // como "sem dado a ignorar") — então agora entra no denominador, só não conta como acerto.
     // Isso faz esse % bater exatamente com o "Correta" da rosca (mesmo `rows`, mesma exclusão).
     const totalComPadraoConhecido = rows.length - semPadrao.length;
-    const pctCorreta = totalComPadraoConhecido ? (faixaCounts.correta / totalComPadraoConhecido) * 100 : 0;
+    const pctCorretaAtual = totalComPadraoConhecido ? (faixaCounts.correta / totalComPadraoConhecido) * 100 : 0;
+    // REGRA DE REPARO (23/10/2026, campanha): toda leitura entra no denominador (inclusive repetidas), mas só
+    // conta como acerto a leitura "correta" que for a 1ª da posição na quinzena OU que vier depois de uma
+    // leitura NÃO correta da mesma posição, DENTRO DA MESMA QUINZENA (cada quinzena é um ciclo novo; Geral = soma
+    // das duas). Reler posição que já estava correta não soma acerto. Para VOLTAR à regra antiga (conta toda
+    // leitura correta): trocar REGRA_PRESSAO_REPARO para false (ou restaurar BACKUPS/painel_pneus_ANTES_regra_reparo_20261023.html).
+    const REGRA_PRESSAO_REPARO = true;
+    const repPorPos = new Map();
+    comPadraoELeitura.forEach((t, i) => { const k = t.veiculo + "|" + t.posicao + "|q" + t.quinzena; if (!repPorPos.has(k)) repPorPos.set(k, []); repPorPos.get(k).push({ t, i }); });
+    let repAcertos = 0, repReparos = 0, repRelidasOk = 0;
+    repPorPos.forEach((lst) => {
+      lst.sort((a, b) => ((a.t.dataInsp || "") < (b.t.dataInsp || "") ? -1 : (a.t.dataInsp || "") > (b.t.dataInsp || "") ? 1 : a.i - b.i));
+      lst.forEach((x, j) => {
+        if (x.t.faixa !== "correta") return;
+        if (j === 0) repAcertos++;
+        else if (lst[j - 1].t.faixa !== "correta") { repAcertos++; repReparos++; }
+        else repRelidasOk++;
+      });
+    });
+    const pctCorretaReparo = totalComPadraoConhecido ? (repAcertos / totalComPadraoConhecido) * 100 : 0;
+    const pctCorreta = REGRA_PRESSAO_REPARO ? pctCorretaReparo : pctCorretaAtual;
     // Quadro 3: % de POSIÇÕES inspecionadas nesta quinzena/mês (dedup, ver posicoesUnicas),
     // sobre o total de posições registradas do escopo. No modo "Geral" o resumo ("Geral — X de
     // Y") continua sendo a SOMA direta das 2 quinzenas — mesma convenção de sempre (pedido
@@ -2372,7 +2392,7 @@ body.nav-collapsed:has(.inf-root) #main { padding-bottom:24px; }
 
     return {
       round, disponivel, rows, posicoesInspecionadas, denomQuadro3, foraPadrao, semLeitura, semPadrao, cobertura, faixaCounts,
-      pctCorreta, totalComPadraoConhecido, pctInspecionados, pctPressaoZero, insp, barData, pieData, pressaoQuadro3Geral,
+      pctCorreta, pctCorretaAtual, pctCorretaReparo, repAcertos, repReparos, repRelidasOk, REGRA_PRESSAO_REPARO, totalComPadraoConhecido, pctInspecionados, pctPressaoZero, insp, barData, pieData, pressaoQuadro3Geral,
       veiculosQuadro1Geral, foraPadraoDetalhe, veiculosForaPadrao, mesAtivo: mesAtivoGeral, veiculosTodos,
     };
   }
@@ -2423,7 +2443,7 @@ body.nav-collapsed:has(.inf-root) #main { padding-bottom:24px; }
           const tom = semLeituraInsp ? "var(--text-faint)" : d.insp.pctAtingido >= 85 ? "var(--success)" : d.insp.pctAtingido >= 70 ? "var(--warning)" : "var(--danger)";
           return kpiCard("% veículos inspecionados", valor, veiculosQuadro1Hint(d, scopeLabel, rodadaLabel), ICONS.truck, tom, "veiculos_inspecionados", isSel("veiculos_inspecionados"));
         })()}
-        ${kpiCard("% pressão correta", fmtPct(d.pctCorreta), `${d.faixaCounts.correta} de ${d.totalComPadraoConhecido} pneus com padrão de medida conhecido${scopeLabel} — mesmo total da rosca ao lado (pressão zero conta como "não correta")`, ICONS.ring, d.pctCorreta >= 70 ? "var(--success)" : d.pctCorreta >= 40 ? "var(--warning)" : "var(--danger)", "pressao_correta", isSel("pressao_correta"), trendHtml, arrowHtml)}
+        ${kpiCard("% pressão correta", fmtPct(d.pctCorreta), (d.REGRA_PRESSAO_REPARO ? `${d.repAcertos} acertos de ${d.totalComPadraoConhecido} leituras${scopeLabel} — regra de reparo: releitura de pneu já correto não soma; leitura correta após uma incorreta soma (${d.repReparos} reparo(s), ${d.repRelidasOk} releitura(s) sem efeito). Pressão zero conta como "não correta"` : `${d.faixaCounts.correta} de ${d.totalComPadraoConhecido} pneus com padrão de medida conhecido${scopeLabel} — mesmo total da rosca ao lado (pressão zero conta como "não correta")`), ICONS.ring, d.pctCorreta >= 70 ? "var(--success)" : d.pctCorreta >= 40 ? "var(--warning)" : "var(--danger)", "pressao_correta", isSel("pressao_correta"), trendHtml, arrowHtml)}
         ${kpiCard("% pneus inspecionados", fmtPct(d.pctInspecionados), pressaoQuadro3Hint(d, scopeLabel, rodadaLabel), ICONS.clipboard, d.pctInspecionados >= 85 ? "var(--success)" : d.pctInspecionados >= 60 ? "var(--warning)" : "var(--danger)", "pneus_inspecionados", isSel("pneus_inspecionados"))}
         ${kpiCard("% pressão zero", fmtPct(d.pctPressaoZero), `${d.semLeitura.length} de ${d.rows.length} pneus sem leitura${scopeLabel}`, ICONS.alert, d.pctPressaoZero >= 15 ? "var(--danger)" : d.pctPressaoZero >= 5 ? "var(--warning)" : "var(--success)", "pressao_zero", isSel("pressao_zero"))}
       </div>
