@@ -3098,14 +3098,16 @@ body.nav-collapsed:has(.inf-root) #main { padding-bottom:24px; }
   const cfgBtnHtml = () => `<button class="btn btn-icon ${state.cfgAberto ? "btn-bloq-on" : ""}" data-cfg-toggle title="Configurar as ações dos laudos (notificar / bloquear)" aria-label="Configurar ações dos laudos">${ICON_GEAR}</button>`;
 
   function cfgDraft() {
-    if (!state.cfgDraft) { state.cfgDraft = {}; LAUDOS.forEach((l) => { state.cfgDraft[l[0]] = { notifica: laudoNotifica(l[0]), bloqueia: laudoBloqueia(l[0], "9999-12-31"), limite: laudoLimite(l[0]) }; }); }
+    if (!state.cfgDraft) { state.cfgDraft = {}; LAUDOS.forEach((l) => { state.cfgDraft[l[0]] = { notifica: laudoNotifica(l[0]), bloqueia: laudoBloqueia(l[0], "9999-12-31"), limite: laudoLimite(l[0]) }; });
+      const a3 = laudo303Auto(); state.cfgDraft["903"] = { notifica: a3.ativo, bloqueia: false, limite: a3.min }; state.cfgDraft["904"] = { notifica: false, bloqueia: false, limite: a3.max }; }
     return state.cfgDraft;
   }
   function cfgMudancas() {
     const d = cfgDraft(); const out = [];
-    LAUDOS.forEach((l) => {
-      const c = l[0], atualN = laudoNotifica(c), atualB = laudoBloqueia(c, "9999-12-31");
-      const atualL = laudoLimite(c);
+    LAUDOS.map((l) => l[0]).concat(["903", "904"]).forEach((c) => {
+      const a3 = laudo303Auto(); const e3 = c === "903" || c === "904";
+      const atualN = e3 ? (c === "903" ? a3.ativo : false) : laudoNotifica(c), atualB = e3 ? false : laudoBloqueia(c, "9999-12-31");
+      const atualL = e3 ? (c === "903" ? a3.min : a3.max) : laudoLimite(c);
       if (d[c].notifica !== atualN || d[c].bloqueia !== atualB || String(d[c].limite) !== String(atualL)) out.push({ codigo: c, notifica: d[c].notifica, bloqueia: d[c].bloqueia, limite: d[c].limite, antesN: atualN, antesB: atualB });
     });
     return out;
@@ -3119,6 +3121,15 @@ body.nav-collapsed:has(.inf-root) #main { padding-bottom:24px; }
     const d = cfgDraft(); const mud = cfgMudancas(); const mudSet = new Set(mud.map((m) => m.codigo));
     const nomesSerie = { "100": "Série 100 – Perigo", "200": "Série 200 – Alertas do pneu", "300": "Série 300 – Ações e estado", "350": "Série 350 – Mecânica do veículo", "400": "Série 400 – Automáticos do sistema" };
     let corpo = ""; let serieAtual = "";
+    { const a3 = laudo303Auto();
+      corpo += `<tr class="cfg-serie"><td colspan="6">🤖 Sugestão do sistema (laudo calculado pelo painel, não vem do inspetor)</td></tr>
+      <tr class="${mudSet.has("903") || mudSet.has("904") ? "cfg-mudou" : ""}">
+        <td><span class="sug-cod">303🤖</span></td><td style="white-space:normal;">Pressão fora da faixa aceita e sem laudo 303 do inspetor — o painel sugere “Corrigir a pressão”. Se o inspetor já lançou o 303, não faz nada. Abaixo do limite do 402 (${laudoLimite("402") === "" ? 70 : laudoLimite("402")}%) não gera: é caso de 402/bloqueio.</td>
+        <td style="text-align:center;"><input type="checkbox" data-cfg-n="903" ${d["903"].notifica ? "checked" : ""} aria-label="Ativar 303 automático"></td>
+        <td style="text-align:center;color:var(--text-faint);">—</td>
+        <td style="white-space:nowrap;">Faixa aceita (sem sugestão): mín <input type="number" min="1" max="200" step="1" data-cfg-l="903" value="${d["903"].limite === "" ? "" : d["903"].limite}" placeholder="98" style="width:70px;" aria-label="Mínimo em % do padrão"> % · máx <input type="number" min="1" max="200" step="1" data-cfg-l="904" value="${d["904"].limite === "" ? "" : d["904"].limite}" placeholder="103" style="width:70px;" aria-label="Máximo em % do padrão"> %
+          <div class="chart-hint" style="margin:2px 0 0;white-space:normal;max-width:300px;">Marque 🔔 para ativar. Pressão abaixo do mín ou acima do máx (e acima do limite do 402) gera 303🤖. Padrão: 98 a 103%.</div></td>
+        <td style="color:var(--text-faint);font-size:11px;white-space:nowrap;">${escapeHtml(cfgUltima("903"))}</td></tr>`; }
     LAUDOS.forEach((l) => {
       const c = l[0], s = laudoSerie(c);
       if (s !== serieAtual) { serieAtual = s; corpo += `<tr class="cfg-serie"><td colspan="6">${nomesSerie[s]}</td></tr>`; }
@@ -3133,8 +3144,8 @@ body.nav-collapsed:has(.inf-root) #main { padding-bottom:24px; }
     const histHtml = hist.length === 0 ? `<div class="chart-hint">Nenhuma alteração feita ainda — valendo a configuração padrão.</div>` :
       `<div class="table-wrap" style="max-height:220px;overflow:auto;"><table><thead><tr><th>Quando</th><th>Quem</th><th>Laudo</th><th>Notificar</th><th>Bloqueia</th><th>Limite</th><th>Vale para</th></tr></thead><tbody>${hist.map((e) => `<tr>
         <td style="white-space:nowrap;">${escapeHtml(fmtDataHora(e.em))}</td><td>${escapeHtml(e.por || "—")}</td>
-        <td><span class="sug-cod">${escapeHtml(e.codigo)}</span> ${escapeHtml((LAUDO_MAP[e.codigo] || {}).desc || "")}</td>
-        <td>${e.notifica ? "Sim" : "Não"}</td><td>${e.bloqueia ? "Sim" : "Não"}</td><td>${e.codigo === "402" && e.limite !== "" && e.limite != null ? `abaixo de ${escapeHtml(String(e.limite))}%` : "—"}</td>
+        <td><span class="sug-cod">${escapeHtml(e.codigo === "903" || e.codigo === "904" ? "303🤖" : e.codigo)}</span> ${escapeHtml(e.codigo === "903" ? "Sugestão do sistema — ativo/mínimo" : e.codigo === "904" ? "Sugestão do sistema — máximo" : ((LAUDO_MAP[e.codigo] || {}).desc || ""))}</td>
+        <td>${e.notifica ? "Sim" : "Não"}</td><td>${e.bloqueia ? "Sim" : "Não"}</td><td>${e.codigo === "903" && e.limite !== "" && e.limite != null ? `mín ${escapeHtml(String(e.limite))}%` : e.codigo === "904" && e.limite !== "" && e.limite != null ? `máx ${escapeHtml(String(e.limite))}%` : e.codigo === "402" && e.limite !== "" && e.limite != null ? `abaixo de ${escapeHtml(String(e.limite))}%` : "—"}</td>
         <td>${e.desde ? `laudos que aparecerem a partir de ${escapeHtml(fmtDate(e.desde))}` : "todos os laudos (inclusive os já existentes)"}</td></tr>`).join("")}</tbody></table></div>`;
     const aviso = PlanoStore.baseSemConfig ? `<div class="banner banner-warn"><strong>A base do Google ainda está na versão antiga do Code.gs:</strong> esta configuração não seria gravada para a equipe. Cole o Code.gs novo e publique uma nova versão.</div>` : "";
     return `<div class="card cfg-card">
@@ -3152,6 +3163,8 @@ body.nav-collapsed:has(.inf-root) #main { padding-bottom:24px; }
   }
   async function cfgSalvar() {
     const mud = cfgMudancas(); if (!mud.length) return;
+    { const d9 = cfgDraft(); const mn = d9["903"].limite === "" ? 98 : d9["903"].limite, mx = d9["904"].limite === "" ? 103 : d9["904"].limite;
+      if (mn > mx) { toast("Faixa do 303🤖 inválida: o mínimo (" + mn + "%) é maior que o máximo (" + mx + "%)."); return; } }
     // Alterar a configuração exige a MESMA senha de lançamento do Plano (o servidor confere; ela nunca
     // fica escrita no código do site). Pede aqui, antes de gravar, se ainda não foi informada.
     if (PlanoStore.modo === "api" && !PlanoStore.pin) {
@@ -3230,7 +3243,7 @@ body.nav-collapsed:has(.inf-root) #main { padding-bottom:24px; }
     return v === undefined ? null : v;
   }
   // Laudos já com a regra do limite aplicada (402 acima do limite → 303, sem duplicar um 303 que o pneu já tenha)
-  function laudosEfetivos() {
+  function laudosEfetivos402() {
     const lim = laudoLimite("402"); const base = DATA.laudosAtuais || [];
     if (lim === "") return base;
     const tem303 = new Set(base.filter((l) => l.codigo === "303").map((l) => `${l.veiculo}|${l.pneu}`));
@@ -3242,6 +3255,33 @@ body.nav-collapsed:has(.inf-root) #main { padding-bottom:24px; }
       const k = `${l.veiculo}|${l.pneu}`; if (tem303.has(k)) return;
       tem303.add(k);
       out.push({ ...l, codigo: "303", reclass: { de: "402", pct, limite: lim } });
+    });
+    return out;
+  }
+  // 303🤖 (configurável na engrenagem; códigos internos 903 = ativo + mínimo %, 904 = máximo %; gravados em ConfigLaudos).
+  // Ativo: pneu com leitura FORA da faixa aceita [mín, máx] (% do padrão) mas >= piso (limite do 402; padrão 70 — abaixo disso é
+  // caso de 402/bloqueio) e SEM laudo 303 do inspetor => o painel gera um 303 marcado auto303.
+  function laudo303Auto() {
+    let ativo = false, min = 98, max = 103;
+    laudoCfg().forEach((e) => {
+      const n = (e.limite === "" || e.limite == null || isNaN(Number(e.limite))) ? null : Number(e.limite);
+      if (e.codigo === "903") { ativo = e.notifica === true; if (n != null) min = n; }
+      else if (e.codigo === "904") { if (n != null) max = n; }
+    });
+    return { ativo, min, max };
+  }
+  function laudosEfetivos() {
+    const base = laudosEfetivos402();
+    const cfg = laudo303Auto(); if (!cfg.ativo) return base;
+    const lim = laudoLimite("402"); const piso = lim === "" ? 70 : lim;
+    const tem = new Set(base.filter((l) => l.codigo === "303").map((l) => `${limpaPlaca(l.veiculo)}|${String(l.pneu).trim()}`));
+    const out = base.slice();
+    (DATA.pressaoTires || []).concat(DATA.pressaoOutros || []).forEach((t) => {
+      if (!t || !t.pneu || t.semLeitura || t.semPadrao || t.pctPadrao == null) return;
+      if (t.pctPadrao < piso || (t.pctPadrao >= cfg.min && t.pctPadrao <= cfg.max)) return;
+      const k = `${limpaPlaca(t.veiculo)}|${String(t.pneu).trim()}`; if (tem.has(k)) return; tem.add(k);
+      out.push({ veiculo: t.veiculo, posicao: t.posicao, pneu: t.pneu, codigo: "303", principal: false, data: t.dataInsp, desde: t.dataInsp,
+        filial: t.filial, operacao: t.operacao, tipoDesc: t.tipoDesc, auto303: { pct: t.pctPadrao, psi: t.pressaoAtual, padrao: t.padraoPsi, faixa: t.faixa } });
     });
     return out;
   }
@@ -3319,7 +3359,7 @@ body.nav-collapsed:has(.inf-root) #main { padding-bottom:24px; }
       const planos = PlanoStore.planos.filter((p) => p.placa === v.placa && PLANO_ABERTOS.indexOf(p.status) >= 0);
       return `<tr><td style="white-space:nowrap;"><span class="mono" style="font-weight:600;">${escapeHtml(v.placa)}</span></td>
         <td>${escapeHtml(filialSigla(v.filial))}</td>
-        <td style="white-space:normal;">${v.laudos.map((l) => `<div class="sug-line"><span class="sug-cod">${escapeHtml(l.codigo)}</span> ${escapeHtml(l.map.desc)} <span class="sug-meta">pneu ${escapeHtml(l.pneu)} (${escapeHtml(l.posicao)}) · inspeção ${escapeHtml(fmtDate(l.data))}</span></div>`).join("")}</td>
+        <td style="white-space:normal;">${v.laudos.map((l) => `<div class="sug-line"><span class="sug-cod">${escapeHtml(l.codigo)}${l.auto303 ? "🤖" : ""}</span> ${escapeHtml(l.map.desc)} <span class="sug-meta">pneu ${escapeHtml(l.pneu)} (${escapeHtml(l.posicao)}) · inspeção ${escapeHtml(fmtDate(l.data))}</span></div>`).join("")}</td>
         <td style="white-space:nowrap;">${v.resolvido ? `<span class="pill pill-warning">${TAG_RESOLVIDO}</span>` : planos.length ? `<span class="pill pill-warning">com plano aberto</span>` : `<span class="pill pill-danger">sem ação aprovada</span>`}</td></tr>`;
     }).join("");
     return `<div class="card sug-card"><div class="card-title">⛔ Veículos bloqueados (${planoBloqCount(bl)})${arr.length > planoBloqCount(bl) ? ` · ${arr.length - planoBloqCount(bl)} aguardando nova inspeção` : ""}</div>
@@ -3465,12 +3505,12 @@ body.nav-collapsed:has(.inf-root) #main { padding-bottom:24px; }
               const cls = state.sugPneu ? (pn.indexOf(String(state.sugPneu)) >= 0 ? "sug-line-hl" : "sug-line-dim") : "";
               const sel = sugSelecionados(s);
               return `<div class="sug-line ${cls}" ${multi ? "" : `data-sug-pneu="${escapeHtml(s.pneu)}"`} data-sug-pneus="${escapeHtml(pn.join("|"))}">
-                ${planoPrioPill(s.map.prio)}${s.bloq ? ` <span class="bloq-badge" title="Este laudo bloqueia o veículo de circular">⛔ bloqueia</span>` : ""} <span class="sug-cod" title="${escapeHtml(s.map.desc)}">${escapeHtml(s.codigo)}</span>
+                ${planoPrioPill(s.map.prio)}${s.bloq ? ` <span class="bloq-badge" title="Este laudo bloqueia o veículo de circular">⛔ bloqueia</span>` : ""} <span class="sug-cod" title="${escapeHtml(s.map.desc)}">${escapeHtml(s.codigo)}${s.itens.some((it) => it.l && it.l.auto303) ? "🤖" : ""}</span>
                 <strong>${escapeHtml(s.map.acao)}</strong>${multi ? ` <span class="unif-badge" title="Mesmo laudo em vários pneus: gera 1 ação só, com todos os pneus marcados">1 ação · ${s.itens.length} pneus</span>` : ""}
                 <span class="sug-line-btns"><button class="btn btn-sm btn-primary" data-sug-um="${escapeHtml(s.key)}" ${sel.length ? "" : "disabled"} title="${multi ? `Aprovar 1 ação para os ${sel.length} pneu(s) marcados` : "Aprovar só esta ação"}">Aprovar${multi ? ` (${sel.length})` : ""}</button>
                 <button class="btn btn-sm" data-sug-um-disp="${escapeHtml(s.key)}" ${sel.length ? "" : "disabled"} title="${multi ? "Dispensar os pneus marcados" : "Dispensar só esta ação"}">Dispensar${multi ? ` (${sel.length})` : ""}</button></span>
-                ${multi ? `<div class="sug-pneus">${s.itens.map((it) => { const ek = `${s.veiculo}|${it.pneu}|${s.codigo}`; return `<label class="sug-pneu-chk ${sugExcl()[ek] ? "off" : ""}" title="Marque/desmarque: só os marcados vão para o plano"><input type="checkbox" data-sug-chk="${escapeHtml(ek)}" ${sugExcl()[ek] ? "" : "checked"}> ${escapeHtml(it.pneu)} <span>(${escapeHtml(it.posicao)})</span></label>`; }).join("")}</div>` : ""}
-                <span class="sug-meta">${multi ? `${s.itens.length} pneus` : `pneu ${escapeHtml(s.pneu)} (${escapeHtml(s.posicao)})`} · ${escapeHtml(s.map.desc)}${s.principal ? " · laudo principal" : ""}${(() => { const rc = s.itens.map((it) => it.l && it.l.reclass).filter(Boolean); return rc.length ? ` · ↪ era 402: pressão ${rc.map((x) => x.pct).filter((v, i, a) => a.indexOf(v) === i).join("/")}% ≥ limite ${rc[0].limite}%` : ""; })()} · inspeção ${escapeHtml(fmtDate(s.data))}${s.desde && s.desde < s.data ? ` · desde ${escapeHtml(fmtDate(s.desde))}` : ""}${s.prazo ? ` · prazo ${escapeHtml(fmtDate(s.prazo))}` : ""}</span></div>`; }).join("")}</td>
+                ${multi ? `<div class="sug-pneus">${s.itens.map((it) => { const ek = `${s.veiculo}|${it.pneu}|${s.codigo}`; return `<label class="sug-pneu-chk ${sugExcl()[ek] ? "off" : ""}" title="Marque/desmarque: só os marcados vão para o plano"><input type="checkbox" data-sug-chk="${escapeHtml(ek)}" ${sugExcl()[ek] ? "" : "checked"}> ${escapeHtml(it.pneu)} <span>(${escapeHtml(it.posicao)})${it.l && it.l.auto303 ? " 🤖" : ""}</span></label>`; }).join("")}</div>` : ""}
+                <span class="sug-meta">${multi ? `${s.itens.length} pneus` : `pneu ${escapeHtml(s.pneu)} (${escapeHtml(s.posicao)})`} · ${escapeHtml(s.map.desc)}${s.principal ? " · laudo principal" : ""}${(() => { const au = s.itens.map((it) => it.l && it.l.auto303).filter(Boolean); return au.length ? ` · 🤖 sugerido pelo sistema: pressão fora do padrão (${au.map((x) => x.pct + "%").join("/")}) e sem laudo 303 do inspetor` : ""; })()}${(() => { const rc = s.itens.map((it) => it.l && it.l.reclass).filter(Boolean); return rc.length ? ` · ↪ era 402: pressão ${rc.map((x) => x.pct).filter((v, i, a) => a.indexOf(v) === i).join("/")}% ≥ limite ${rc[0].limite}%` : ""; })()} · inspeção ${escapeHtml(fmtDate(s.data))}${s.desde && s.desde < s.data ? ` · desde ${escapeHtml(fmtDate(s.desde))}` : ""}${s.prazo ? ` · prazo ${escapeHtml(fmtDate(s.prazo))}` : ""}</span></div>`; }).join("")}</td>
             <td style="white-space:nowrap;text-align:right;">${v.sugs.length} ação(ões)</td>
             <td style="white-space:nowrap;"><button class="btn btn-primary btn-sm" data-sug-aprovar="${escapeHtml(v.placa)}" title="Aprovar todas as ações deste veículo">Aprovar todas</button>
               <button class="btn btn-sm" data-sug-dispensar="${escapeHtml(v.placa)}" title="Esconder todas as sugestões deste veículo (volta se houver nova inspeção com o laudo)">Dispensar todas</button></td></tr>`).join("");
@@ -3494,7 +3534,7 @@ body.nav-collapsed:has(.inf-root) #main { padding-bottom:24px; }
   async function planoAprovarVeiculo(v) {
     // só os pneus MARCADOS de cada sugestão entram; uma sugestão unificada vira uma ação com todos eles
     const itens = v.sugs.map((s) => ({ s, sel: sugSelecionados(s) })).filter((x) => x.sel.length)
-      .map(({ s, sel }) => ({ texto: `[Auto · Laudo ${s.codigo}] ${s.map.acao} (pos. ${sel.map((it) => it.posicao).join(", ")})`, pneus: sel.map((it) => it.pneu).join(", "), prazo: s.prazo }));
+      .map(({ s, sel }) => ({ texto: `[Auto · Laudo ${s.codigo}] ${s.map.acao} (pos. ${sel.map((it) => it.posicao).join(", ")})${sel.some((it) => it.l && it.l.auto303) ? " · 🤖 pressão fora do padrão, sem laudo do inspetor" : ""}`, pneus: sel.map((it) => it.pneu).join(", "), prazo: s.prazo }));
     if (!itens.length) return 0;
     const aberto = PlanoStore.planos.find((p) => p.placa === v.placa && PLANO_ABERTOS.indexOf(p.status) >= 0);
     if (aberto) {
@@ -4262,7 +4302,7 @@ body.nav-collapsed:has(.inf-root) #main { padding-bottom:24px; }
     on("[data-cfg-n]", "change", (ev) => { cfgDraft()[ev.currentTarget.getAttribute("data-cfg-n")].notifica = ev.currentTarget.checked; render(); });
     on("[data-cfg-l]", "change", (ev) => {
       const c = ev.currentTarget.getAttribute("data-cfg-l"), v = ev.currentTarget.value.trim();
-      cfgDraft()[c].limite = v === "" || isNaN(Number(v)) ? "" : Math.max(1, Math.min(100, Math.round(Number(v))));
+      cfgDraft()[c].limite = v === "" || isNaN(Number(v)) ? "" : Math.max(1, Math.min(c === "903" || c === "904" ? 200 : 100, Math.round(Number(v))));
       render();
     });
     on("[data-cfg-b]", "change", (ev) => { cfgDraft()[ev.currentTarget.getAttribute("data-cfg-b")].bloqueia = ev.currentTarget.checked; render(); });
