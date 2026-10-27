@@ -482,6 +482,25 @@ body.nav-collapsed:has(.inf-root) #main { padding-bottom:24px; }
 .inf-relogio { font-size:13px; color:var(--text-dim); white-space:nowrap; }
 .inf-relogio strong { color:var(--text); font-variant-numeric:tabular-nums; }
 .inf-root .inf-relogio { font-size:21px; }
+  /* ---------- Histórico de inspeções do veículo (modal) ---------- */
+  .hist-backdrop { position: fixed; inset: 0; z-index: 40; background: rgba(0,0,0,.68); overflow: auto; padding: 22px 16px; display: flex; justify-content: center; align-items: flex-start; }
+  .hist-box { width: min(1180px, 100%); background: var(--surface); border: 1px solid var(--border-strong); border-radius: var(--radius); padding: 18px 20px 22px; }
+  .hist-head { display: flex; gap: 14px; align-items: flex-start; justify-content: space-between; flex-wrap: wrap; }
+  .hist-title { font-size: 20px; font-weight: 700; letter-spacing: .02em; }
+  .hist-sub { color: var(--text-dim); font-size: 12.5px; margin-top: 3px; }
+  .hist-toolbar { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; margin: 14px 0 6px; }
+  .hist-chip { display: inline-flex; align-items: center; gap: 6px; padding: 5px 11px; border-radius: 999px; border: 1px solid var(--border-strong); font-size: 12.5px; color: var(--text-dim); cursor: pointer; user-select: none; }
+  .hist-chip.on { border-color: var(--accent-border); background: var(--accent-dim); color: var(--text); }
+  .hist-chip input { accent-color: var(--accent); margin: 0; }
+  .hist-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(330px, 1fr)); gap: 14px; margin-top: 12px; }
+  .hist-card { border: 1px solid var(--border); border-radius: var(--radius-sm); background: var(--bg-elev); padding: 12px 14px 10px; min-width: 0; }
+  .hist-card-head { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; flex-wrap: wrap; margin-bottom: 4px; }
+  .hist-data { font-size: 15px; font-weight: 700; }
+  .hist-meta { color: var(--text-dim); font-size: 11.5px; }
+  .hist-nota { color: var(--text-faint); font-size: 11.5px; margin-top: 6px; }
+  .hist-vazio { color: var(--text-dim); padding: 26px 4px; text-align: center; }
+  .hist-card-atual { border-color: var(--accent-border); background: var(--accent-dim); }
+
 </style>
 </head>
 <body>
@@ -1818,6 +1837,7 @@ body.nav-collapsed:has(.inf-root) #main { padding-bottom:24px; }
       <div class="detail-sub">${escapeHtml(filialSigla(v.filial))} — ${escapeHtml(filialFullName(v.filial))} · ${escapeHtml(v.tipoDesc)}${v.odometro ? ` · ${fmtInt(v.odometro)} km` : ""}</div>
       ${pillSulco}
       ${bannerSulco}
+      <div style="margin:12px 0 2px;"><button class="btn btn-sm" data-hist-abrir="sulco" data-hist-placa="${escapeHtml(v.veiculo)}">Ver inspeções anteriores</button></div>
       <div class="card-title" style="margin-top:18px;">Esquema do veículo <span style="color:${worstColor}">· ${escapeHtml(v.tipoDesc)}</span></div>
       ${planoOperadorHtml({ placa: limpaPlaca(v.veiculo) })}${v.tires.length ? renderTireDiagram(v) : `<div class="detail-empty">Este veículo não aparece no relatório de sulco.</div>`}
       <div class="table-note" style="padding-left:0;">Números em cada pneu = sulco atual (mm). <span style="color:var(--danger)">Vermelho</span> ≤ 3mm (trocar) · <span style="color:var(--warning)">amarelo</span> 3,1–5mm (atenção). Sobrescrito ao lado do nº do pneu: <sup style="font-weight:700;">R</sup>=reformas, <sup style="font-weight:700;">C</sup>=reparos.</div>
@@ -1935,6 +1955,7 @@ body.nav-collapsed:has(.inf-root) #main { padding-bottom:24px; }
       <div class="detail-sub">${escapeHtml(filialSigla(v.filial))} — ${escapeHtml(filialFullName(v.filial))} · ${escapeHtml(v.tipoDesc || "—")}</div>
       ${pillPressao}
       ${bannerPressao}
+      <div style="margin:12px 0 2px;"><button class="btn btn-sm" data-hist-abrir="pressao" data-hist-placa="${escapeHtml(v.veiculo)}">Ver inspeções anteriores</button></div>
       <div class="card-title" style="margin-top:18px;">Esquema do veículo <span style="color:var(--danger)">· ${escapeHtml(v.tipoDesc || "")}</span></div>
       ${planoOperadorHtml({ placa: limpaPlaca(v.veiculo) })}${vehicle.tires.length ? renderTireDiagram(vehicle, pressaoChipAplicado) : `<div class="detail-empty">Nenhuma leitura de pressão registrada para este veículo.</div>`}
       <div class="table-note" style="padding-left:0;">
@@ -1948,6 +1969,163 @@ body.nav-collapsed:has(.inf-root) #main { padding-bottom:24px; }
       </div>
     </div>`;
   }
+
+  // ================= Histórico de inspeções do veículo (modal) — 27/10/2026 =================
+  // Fonte: DATA.pressaoHistoricoMensal[mês].geral.eventos (1 evento = 1 pneu lido numa data). Cada data
+  // = 1 inspeção; o mapa de cada data é desenhado com os pneus lidos NAQUELE dia (leitura repetida no mesmo
+  // dia: vale a última). Sulco = campo sulcoInsp do evento (R343A); pode faltar em períodos sem exportação.
+  const HIST_MES_NOME = ["jan", "fev", "mar", "abr", "mai", "jun", "jul", "ago", "set", "out", "nov", "dez"];
+  function histMesLabel(k) { const p = String(k).split("-"); return `${HIST_MES_NOME[Number(p[1]) - 1] || p[1]}/${p[0]}`; }
+  function histInspecoesDaPlaca(placa) {
+    const out = new Map();   // mês -> Map(data -> Map(posição -> evento))
+    const H = DATA.pressaoHistoricoMensal || {};
+    Object.keys(H).sort().forEach((mes) => {
+      const evs = (H[mes] && H[mes].geral && H[mes].geral.eventos) || [];
+      evs.forEach((e) => {
+        if (e.veiculo !== placa || !e.dataInsp) return;
+        if (!out.has(mes)) out.set(mes, new Map());
+        const dias = out.get(mes);
+        if (!dias.has(e.dataInsp)) dias.set(e.dataInsp, new Map());
+        dias.get(e.dataInsp).set(e.posicao, e);
+      });
+    });
+    return out;
+  }
+  function histAbrir(aba, placa) {
+    state.histVeic = { aba, placa, meses: new Set(histInspecoesDaPlaca(placa).keys()) };
+    let bd = document.getElementById("hist-modal");
+    if (!bd) { bd = document.createElement("div"); bd.id = "hist-modal"; bd.className = "hist-backdrop"; document.body.appendChild(bd); }
+    histRender();
+  }
+  function histFechar() { state.histVeic = null; const bd = document.getElementById("hist-modal"); if (bd) bd.remove(); }
+  // Mapa ATUAL (sempre o primeiro card, fora do filtro de meses): composição real do veículo hoje = relatório de
+  // sulco (pneus APLICADOS em cada posição, já com troca feita depois da última inspeção) + posições vazias.
+  // Pressão: última leitura de CADA PNEU (pelo nº do pneu, não pela posição); pneu trocado depois da última
+  // inspeção aparece com o nº e sem leitura ("—"), nunca com a leitura do pneu antigo.
+  function histUltimaLeituraPorPneu(placa) {
+    const m = new Map(); const H = DATA.pressaoHistoricoMensal || {};
+    Object.keys(H).sort().forEach((mes) => ((H[mes] && H[mes].geral && H[mes].geral.eventos) || []).forEach((e) => {
+      if (e.veiculo !== placa || !e.pneu) return;
+      const a = m.get(e.pneu); if (!a || String(e.dataInsp) >= String(a.dataInsp)) m.set(e.pneu, e);
+    }));
+    return m;
+  }
+  function histChipSemLeitura(t) {
+    return `<div class="tire-chip" style="border-color:var(--border-strong);background:var(--bg-elev);" title="${escapeHtml(t.posicao)} · Pneu ${escapeHtml(t.pneu || "—")} · sem leitura de pressão deste pneu (trocado depois da última inspeção?)">
+      <div class="tire-chip-val" style="color:var(--text-faint);font-size:12px;">—</div>
+      <div class="tire-chip-pos">${escapeHtml(t.posicao)}</div>
+      <div class="tire-chip-pneu" style="white-space:nowrap;">Nº ${escapeHtml(t.pneu || "—")}</div>
+    </div>`;
+  }
+  function histAtualHtml(h) {
+    const placa = h.placa;
+    const base = (DATA.sulcoTires || []).concat(DATA.sulcoOutros || []).filter((t) => t.veiculo === placa).map((t) => ({ ...t }));
+    (DATA.vazias || []).filter((x) => (x.placa || x.veiculo) === placa).forEach((v) => (v.posicoes || []).forEach((p) => {
+      if (!base.some((t) => t.posicao === p)) base.push({ posicao: p, vazio: true, pneu: null });
+    }));
+    const info = (DATA.veiculosInfo || {})[placa] || {};
+    const ult = info.ultimaInsp ? `última inspeção: ${escapeHtml(fmtDate(info.ultimaInsp))}` : "";
+    if (!base.length) {
+      return `<div class="hist-card hist-card-atual"><div class="hist-card-head"><span class="hist-data">Atual (cadastro)</span><span class="hist-meta">${ult}</span></div>
+        <div class="hist-nota">Este veículo não tem pneus no relatório de sulco.</div></div>`;
+    }
+    let tires, chip, nota;
+    if (h.aba === "sulco") {
+      chip = tireChip; tires = base;
+      nota = "Pneus que estão no veículo agora (relatório de sulco), com o último sulco medido de cada um.";
+    } else {
+      const ult2 = histUltimaLeituraPorPneu(placa);
+      chip = (t) => (t.__sem ? histChipSemLeitura(t) : pressaoTireChip(t));
+      tires = base.map((t) => {
+        if (t.vazio) return t;
+        const e = ult2.get(t.pneu);
+        return e ? { ...e, posicao: t.posicao } : { posicao: t.posicao, pneu: t.pneu, produto: t.produto, __sem: true };
+      });
+      nota = "Pneus que estão no veículo agora, com a última leitura de pressão de cada um. Pneu trocado depois da última inspeção aparece sem leitura (—).";
+    }
+    return `<div class="hist-card hist-card-atual">
+      <div class="hist-card-head"><span class="hist-data">Atual (cadastro)</span><span class="hist-meta">${ult}</span></div>
+      ${severityPill("neutral", "Composição de hoje")}
+      ${renderTireDiagram({ tires }, chip)}
+      <div class="hist-nota">${nota}</div>
+    </div>`;
+  }
+  function histCardHtml(h, data, posMap) {
+    const evs = Array.from(posMap.values());
+    const ops = Array.from(new Set(evs.map((e) => e.operador).filter(Boolean)));
+    let resumo = "", nota = "";
+    let tires, chip;
+    if (h.aba === "sulco") {
+      chip = tireChip;
+      tires = evs.map((e) => ({ posicao: e.posicao, pneu: e.pneu || "—", produto: e.produto, banda: e.banda, sulco: e.sulcoInsp != null ? e.sulcoInsp : null, semDado: e.sulcoInsp == null }));
+      const com = tires.filter((t) => t.sulco != null);
+      if (!com.length) { resumo = severityPill("neutral", "Sulco não registrado"); nota = `<div class="hist-nota">Sulco desta inspeção não foi guardado (período sem exportação do R343A).</div>`; }
+      else {
+        const tr = com.filter((t) => t.sulco <= 3).length, at = com.filter((t) => t.sulco > 3 && t.sulco <= 5).length;
+        resumo = tr ? severityPill("danger", `${tr} pneu(s) ≤ 3mm`) : at ? severityPill("warning", `${at} pneu(s) de 3,1 a 5mm`) : severityPill("success", "Nenhum pneu abaixo de 5mm");
+        if (com.length < tires.length) nota = `<div class="hist-nota">${tires.length - com.length} pneu(s) sem sulco registrado nesta data.</div>`;
+      }
+    } else {
+      chip = pressaoTireChip; tires = evs;
+      const lid = evs.filter((e) => !e.semPadrao);
+      const ok = lid.filter((e) => !e.semLeitura && e.faixa === "correta").length;
+      resumo = lid.length ? (ok === lid.length ? severityPill("success", `${ok} de ${lid.length} corretos`) : severityPill("warning", `${ok} de ${lid.length} corretos`)) : severityPill("neutral", "Sem padrão de pressão");
+    }
+    return `<div class="hist-card">
+      <div class="hist-card-head"><span class="hist-data">${escapeHtml(fmtDate(data))}</span><span class="hist-meta">${escapeHtml(ops.length ? "por " + ops.join(", ") : "")}</span></div>
+      ${resumo}
+      ${renderTireDiagram({ tires }, chip)}
+      ${nota}
+    </div>`;
+  }
+  function histRender() {
+    const h = state.histVeic, bd = document.getElementById("hist-modal"); if (!h || !bd) return;
+    const dados = histInspecoesDaPlaca(h.placa);
+    const meses = Array.from(dados.keys());
+    const info = (DATA.veiculosInfo || {})[h.placa] || {};
+    const cab = `${info.filial ? escapeHtml(filialSigla(info.filial)) + " — " + escapeHtml(filialFullName(info.filial)) : ""}${info.tipoDesc ? " · " + escapeHtml(info.tipoDesc) : ""}`;
+    const chips = meses.map((m) => {
+      const n = dados.get(m).size, on = h.meses.has(m);
+      return `<label class="hist-chip ${on ? "on" : ""}"><input type="checkbox" data-hist-mes="${m}" ${on ? "checked" : ""}> ${histMesLabel(m)} <span style="color:var(--text-faint)">· ${n} insp.</span></label>`;
+    }).join("");
+    const sel = meses.filter((m) => h.meses.has(m)).reverse();   // mês mais novo primeiro
+    const aviso = !meses.length ? `<div class="hist-vazio">Nenhuma inspeção registrada para este veículo.</div>`
+      : !sel.length ? `<div class="hist-vazio">Marque ao menos um mês acima para ver as inspeções anteriores.</div>` : "";
+    const cards = [histAtualHtml(h)];
+    sel.forEach((m) => Array.from(dados.get(m).keys()).sort().reverse().forEach((d) => cards.push(histCardHtml(h, d, dados.get(m).get(d)))));
+    const corpo = `<div class="hist-grid">${cards.join("")}</div>${aviso}`;
+    const seg = (k, t) => `<button class="seg-btn ${h.aba === k ? "active" : ""}" data-hist-metrica="${k}">${t}</button>`;
+    const topo = bd.scrollTop;
+    bd.innerHTML = `<div class="hist-box" role="dialog" aria-label="Inspeções anteriores">
+      <div class="hist-head">
+        <div><div class="hist-title">Inspeções anteriores · ${escapeHtml(h.placa)}</div><div class="hist-sub">${cab}</div></div>
+        <div style="display:flex;gap:10px;align-items:center;"><div class="seg" style="display:inline-flex;gap:2px;">${seg("sulco", "Sulco")}${seg("pressao", "Pressão")}</div><button class="btn btn-sm" data-hist-fechar="1">Fechar ✕</button></div>
+      </div>
+      <div class="hist-toolbar"><span class="hist-meta">Meses:</span>${chips}
+        ${meses.length > 1 ? `<button class="btn btn-sm" data-hist-todos="1">Todos</button><button class="btn btn-sm" data-hist-nenhum="1">Nenhum</button>` : ""}</div>
+      ${corpo}
+    </div>`;
+    bd.scrollTop = topo;
+  }
+  document.addEventListener("click", (ev) => {
+    const t = ev.target; if (!t || !t.closest) return;
+    const ab = t.closest("[data-hist-abrir]");
+    if (ab) { histAbrir(ab.getAttribute("data-hist-abrir"), ab.getAttribute("data-hist-placa")); return; }
+    if (!state.histVeic) return;
+    if (t.closest("[data-hist-fechar]") || t.id === "hist-modal") { histFechar(); return; }
+    const mt = t.closest("[data-hist-metrica]");
+    if (mt) { state.histVeic.aba = mt.getAttribute("data-hist-metrica"); histRender(); return; }
+    if (t.closest("[data-hist-todos]")) { state.histVeic.meses = new Set(histInspecoesDaPlaca(state.histVeic.placa).keys()); histRender(); return; }
+    if (t.closest("[data-hist-nenhum]")) { state.histVeic.meses = new Set(); histRender(); }
+  });
+  document.addEventListener("change", (ev) => {
+    const cb = ev.target && ev.target.closest && ev.target.closest("[data-hist-mes]");
+    if (!cb || !state.histVeic) return;
+    const m = cb.getAttribute("data-hist-mes");
+    if (cb.checked) state.histVeic.meses.add(m); else state.histVeic.meses.delete(m);
+    histRender();
+  });
+  document.addEventListener("keydown", (ev) => { if (ev.key === "Escape" && state.histVeic) histFechar(); });
 
   function renderSulcoPanel() {
     const d = computeSulco();
