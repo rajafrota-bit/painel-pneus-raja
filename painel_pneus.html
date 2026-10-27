@@ -1754,7 +1754,18 @@ body.nav-collapsed:has(.inf-root) #main { padding-bottom:24px; }
       groups.get(p.group).tires.push({ t, p });
     });
     const allGroups = Array.from(groups.values());
-    const axleGroups = allGroups.filter((g) => g.kind !== "spare");
+    // ORDEM DOS EIXOS (26/10/2026): fixa pela convenção física dianteira→traseira — Direcional (D, 2D…),
+    // Tração (T, 2T…), Livre (1L, 2L…) — e não mais pela ordem das linhas da planilha, que em alguns
+    // veículos vem embaralhada (ex.: SYO1H78 mostrava o Eixo Livre acima do Direcional). Empate = ordem original.
+    const _rankEixo = { D: 0, T: 1, L: 2 };
+    const axleGroups = allGroups.filter((g) => g.kind !== "spare")
+      .map((g, i) => ({ g, i }))
+      .sort((a, b) => {
+        const ra = a.g.letter in _rankEixo ? _rankEixo[a.g.letter] : 3, rb = b.g.letter in _rankEixo ? _rankEixo[b.g.letter] : 3;
+        if (ra !== rb) return ra - rb;
+        const na = a.g.num || 1, nb = b.g.num || 1;
+        return na !== nb ? na - nb : a.i - b.i;
+      }).map((x) => x.g);
     const estepes = allGroups.find((g) => g.kind === "spare");
     const bySide = (g, side, ioOrder) => g.tires.filter((x) => x.p.side === side)
       .sort((a, b) => ioOrder.indexOf(a.p.io) - ioOrder.indexOf(b.p.io)).map((x) => x.t);
