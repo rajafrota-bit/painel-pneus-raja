@@ -625,6 +625,30 @@ body.nav-collapsed:has(.inf-root) #main { padding-bottom:24px; }
     const chaves = Object.keys(DATA.pressaoHistoricoMensal || {}).sort();
     return chaves.length ? chaves[chaves.length - 1] : null;
   }
+  // ---- Meses antigos de pressão (carregados sob demanda) ----
+  // O dados.js só traz os meses mais recentes (DATA.pressaoHistoricoMensal); os anteriores ficam em
+  // historico_pressao/pressao_YYYY-MM.js e DATA.pressaoMesesLazy lista quais são. Carrega ao escolher o mês
+  // na aba Pressão de Ar ou ao pedir "meses anteriores" no histórico de uma placa.
+  function pressaoMesCarregado(m) { return !!(DATA.pressaoHistoricoMensal && DATA.pressaoHistoricoMensal[m]); }
+  function pressaoMesesPendentes() { return (DATA.pressaoMesesLazy || []).filter((m) => !pressaoMesCarregado(m)); }
+  const _lazyPressao = {};
+  function carregaMesPressao(m) {
+    if (pressaoMesCarregado(m)) return Promise.resolve();
+    if (_lazyPressao[m]) return _lazyPressao[m];
+    _lazyPressao[m] = new Promise((res, rej) => {
+      const sc = document.createElement("script");
+      sc.src = `historico_pressao/pressao_${m}.js?v=${encodeURIComponent(DATA.generatedAt || "")}`;
+      sc.onload = () => {
+        const d = (window.__HIST_PRESSAO || {})[m];
+        if (!d) { delete _lazyPressao[m]; rej(new Error("arquivo do mês vazio")); return; }
+        ["insp1", "insp2", "geral"].forEach((k) => { if (d[k] && Array.isArray(d[k].eventos)) d[k].eventos = semSucata(d[k].eventos); });
+        DATA.pressaoHistoricoMensal[m] = d; delete window.__HIST_PRESSAO[m]; res();
+      };
+      sc.onerror = () => { delete _lazyPressao[m]; rej(new Error("não foi possível carregar " + m)); };
+      document.head.appendChild(sc);
+    });
+    return _lazyPressao[m];
+  }
   // Linhas (veiculo+filial) pendentes no round indicado, pro mês corrente — mesma lógica de
   // pendência de computeInspecoes(), mas parametrizada por round explícito (não lê
   // state.inspRound, pra não interferir com o toggle da aba Inspeções Pendentes) e sem
@@ -635,6 +659,7 @@ body.nav-collapsed:has(.inf-root) #main { padding-bottom:24px; }
     // o de Inspeções Pendentes), passa a chave explícita. Sem isso cai no mês mais recente, como
     // sempre foi.
     const mesAtivo = mes || mesInspPadrao();
+    if (mes && DATA.historicoMensal && !DATA.historicoMensal[mes]) return [];
     const mesDados = (DATA.historicoMensal && DATA.historicoMensal[mesAtivo]) || {
       insp1: DATA.insp1, insp2: DATA.insp2, insp1Disponivel: DATA.insp1Disponivel, insp2Disponivel: DATA.insp2Disponivel,
     };
@@ -666,6 +691,9 @@ body.nav-collapsed:has(.inf-root) #main { padding-bottom:24px; }
     // insp1Disponivel/insp2Disponivel do resto do app) pra quem renderiza poder mostrar "ainda
     // sem leitura" em vez de um 100% enganoso.
     const mesAtivo = mes || mesInspPadrao();
+    // Mês sem snapshot de Inspeções Pendentes (ex.: meses antigos importados só de pressão): não há como
+    // dizer % de veículos inspecionados — devolve "sem dado" em vez de cair nos números do mês corrente.
+    if (mes && DATA.historicoMensal && !DATA.historicoMensal[mes]) return { pctAtingido: 0, pendentes: 0, denom: 0, disponivel: false, semDado: true };
     const mesDadosDisp = (DATA.historicoMensal && DATA.historicoMensal[mesAtivo]) || {};
     const disponivel = round === "insp1" ? mesDadosDisp.insp1Disponivel !== false
       : round === "insp2" ? mesDadosDisp.insp2Disponivel !== false
@@ -2102,6 +2130,7 @@ body.nav-collapsed:has(.inf-root) #main { padding-bottom:24px; }
         <div style="display:flex;gap:10px;align-items:center;"><div class="seg" style="display:inline-flex;gap:2px;">${seg("sulco", "Sulco")}${seg("pressao", "Pressão")}</div><button class="btn btn-sm" data-hist-fechar="1">Fechar ✕</button></div>
       </div>
       <div class="hist-toolbar"><span class="hist-meta">Meses:</span>${chips}
+        ${pressaoMesesPendentes().length ? (h.carregando ? `<span class="hist-meta">Carregando meses anteriores…</span>` : `<button class="btn btn-sm" data-hist-carregar="1" title="Carrega ${pressaoMesesPendentes().map(histMesLabel).join(", ")}">+ Meses anteriores (${histMesLabel(pressaoMesesPendentes()[0])} a ${histMesLabel(pressaoMesesPendentes()[pressaoMesesPendentes().length - 1])})</button>`) : ""}
         ${meses.length > 1 ? `<button class="btn btn-sm" data-hist-todos="1">Todos</button><button class="btn btn-sm" data-hist-nenhum="1">Nenhum</button>` : ""}</div>
       ${corpo}
     </div>`;
@@ -2115,6 +2144,14 @@ body.nav-collapsed:has(.inf-root) #main { padding-bottom:24px; }
     if (t.closest("[data-hist-fechar]") || t.id === "hist-modal") { histFechar(); return; }
     const mt = t.closest("[data-hist-metrica]");
     if (mt) { state.histVeic.aba = mt.getAttribute("data-hist-metrica"); histRender(); return; }
+    if (t.closest("[data-hist-carregar]")) {
+      const h = state.histVeic, placa = h.placa; h.carregando = true; histRender();
+      Promise.all(pressaoMesesPendentes().map(carregaMesPressao)).then(() => {
+        h.carregando = false; if (state.histVeic !== h) return;
+        histInspecoesDaPlaca(placa).forEach((_v, m) => h.meses.add(m)); histRender();
+      }).catch((e) => { h.carregando = false; toast("Erro ao carregar meses anteriores: " + e.message); if (state.histVeic === h) histRender(); });
+      return;
+    }
     if (t.closest("[data-hist-todos]")) { state.histVeic.meses = new Set(histInspecoesDaPlaca(state.histVeic.placa).keys()); histRender(); return; }
     if (t.closest("[data-hist-nenhum]")) { state.histVeic.meses = new Set(); histRender(); }
   });
@@ -2417,11 +2454,12 @@ body.nav-collapsed:has(.inf-root) #main { padding-bottom:24px; }
           pctAtingido: veiculosQuadro1Geral.somaTotal ? (veiculosQuadro1Geral.somaCount / veiculosQuadro1Geral.somaTotal) * 100 : 0,
           pendentes: veiculosQuadro1Geral.somaTotal - veiculosQuadro1Geral.somaCount,
           denom: veiculosQuadro1Geral.somaTotal,
+          semDado: !!(vInsp1.semDado && vInsp2.semDado),
         }
       : pctVeiculosInspecionados(round, mesAtivoGeral);
 
     // Filtro cruzado dos 4 quadros sobre os 2 gráficos abaixo (união entre os selecionados).
-    const pendentesSet = new Set(linhasPendentesNoRound(round).map((r) => r.veiculo));
+    const pendentesSet = new Set(linhasPendentesNoRound(round, mesAtivoGeral).map((r) => r.veiculo));
     // "pneus_inspecionados" agora é sempre true: `rows` já vem só com os eventos da rodada
     // ativa (ver eventosDoRound acima), então todo item de `rows` já é, por construção,
     // "inspecionado nesta rodada" — não tem mais um universo mais amplo pra filtrar dentro
@@ -2580,7 +2618,7 @@ body.nav-collapsed:has(.inf-root) #main { padding-bottom:24px; }
     // o filtro de data") — mesmo padrão do seletor de Inspeções Pendentes: só aparece quando
     // há mais de 1 mês arquivado em DATA.pressaoHistoricoMensal (ver
     // build_pressao_historico_mensal_arquivo no generate_data.py).
-    const mesesDisponiveisPressao = Object.keys(DATA.pressaoHistoricoMensal || {}).sort();
+    const mesesDisponiveisPressao = Array.from(new Set(Object.keys(DATA.pressaoHistoricoMensal || {}).concat(DATA.pressaoMesesLazy || []))).sort();
     const mesSelectPressao = mesesDisponiveisPressao.length > 1 ? `<select id="ctl-mes-pressao">
         ${mesesDisponiveisPressao.slice().reverse().map((m) => `<option value="${m}" ${m === d.mesAtivo ? "selected" : ""}>${escapeHtml(fmtMesAno(m))}</option>`).join("")}
       </select>` : "";
@@ -2607,7 +2645,7 @@ body.nav-collapsed:has(.inf-root) #main { padding-bottom:24px; }
           // pendentes interpretado como "tudo inspecionado", quando na real é "sem dado
           // nenhum"). Só se aplica no modo quinzena única — no modo Geral a soma já exclui a
           // quinzena indisponível (ver veiculosQuadro1Geral acima), então o % ali já é real.
-          const semLeituraInsp = d.round !== "geral" && d.insp.disponivel === false;
+          const semLeituraInsp = (d.round !== "geral" && d.insp.disponivel === false) || !!d.insp.semDado;
           const valor = semLeituraInsp ? "—" : fmtPct(d.insp.pctAtingido);
           const tom = semLeituraInsp ? "var(--text-faint)" : d.insp.pctAtingido >= 85 ? "var(--success)" : d.insp.pctAtingido >= 70 ? "var(--warning)" : "var(--danger)";
           return kpiCard("% veículos inspecionados", valor, veiculosQuadro1Hint(d, scopeLabel, rodadaLabel), ICONS.truck, tom, "veiculos_inspecionados", isSel("veiculos_inspecionados"));
@@ -4643,7 +4681,11 @@ body.nav-collapsed:has(.inf-root) #main { padding-bottom:24px; }
     if (selMes) selMes.addEventListener("change", () => { state.inspMes = selMes.value; state.selFiliais.clear(); state.inspGeralFaixaSel.clear(); render(); });
     const selMesPressao = document.getElementById("ctl-mes-pressao");
     if (selMesPressao) selMesPressao.addEventListener("change", () => {
-      state.pressaoMes = selMesPressao.value; state.selFiliais.clear(); state.pressaoFiltroSel.clear(); state.pressaoFaixaSel.clear(); render();
+      const v = selMesPressao.value;
+      const aplicar = () => { state.pressaoMes = v; state.selFiliais.clear(); state.pressaoFiltroSel.clear(); state.pressaoFaixaSel.clear(); render(); };
+      if (pressaoMesCarregado(v)) { aplicar(); return; }
+      selMesPressao.disabled = true; toast(`Carregando ${fmtMesAno(v)}…`);
+      carregaMesPressao(v).then(aplicar).catch((e) => { toast("Erro ao carregar o mês: " + e.message); render(); });
     });
     document.querySelectorAll(".seg-btn[data-sulco-filter]").forEach((btn) => btn.addEventListener("click", () => {
       const modo = btn.getAttribute("data-sulco-filter");
