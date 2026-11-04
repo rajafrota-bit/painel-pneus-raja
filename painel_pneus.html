@@ -3814,10 +3814,11 @@ body.nav-collapsed:has(.inf-root) #main { padding-bottom:24px; }
     const bl = planoBloqueados();
     const frota = infFrota();
     const lista = Array.from(bl.values()).map((v) => {
-      // Processo de bloqueios começou em 16/10/2026: nenhum veículo aparece bloqueado desde antes disso,
-      // mesmo que o laudo exista no histórico desde antes (decisão do Joao, 03/11/2026).
-      const BLOQUEIO_INICIO = "2026-10-16";
-      const ds = v.laudos.map((l) => { const d = String(l.desde || l.data).slice(0, 10); return d < BLOQUEIO_INICIO ? BLOQUEIO_INICIO : d; }).sort();
+      // "Bloqueado desde" conta só a partir de quando o painel passou a tratar o veículo como bloqueado
+      // (DATA.bloqueioInicio, gravado em historico_bloqueios.json), mesmo que o laudo exista há mais tempo
+      // (decisão do Joao, 03/11/2026). Sem registro do veículo: 16/10/2026 (início do processo).
+      const ini = (DATA.bloqueioInicio || {})[v.placa] || "2026-10-16";
+      const ds = v.laudos.map((l) => { const d = String(l.desde || l.data).slice(0, 10); return d < ini ? ini : d; }).sort();
       return { ...v, inicio: ds[0], dias: infDias(ds[0]) };
     });
     const bloqueados = lista.filter((v) => !v.resolvido);
