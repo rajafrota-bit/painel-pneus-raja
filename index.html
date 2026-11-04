@@ -113,6 +113,13 @@
 
   .toolbar { display: flex; gap: 10px; flex-wrap: wrap; align-items: center; }
   .toolbar select, .toolbar input { width: auto; min-width: 150px; }
+  .fm-wrap { position: relative; }
+  .fm-btn { background: var(--bg-elev, #1b1f27); color: inherit; border: 1px solid var(--border, #333); border-radius: 8px; padding: 7px 12px; font: inherit; cursor: pointer; min-width: 190px; text-align: left; }
+  .fm-menu { position: absolute; right: 0; top: calc(100% + 4px); z-index: 60; background: var(--bg-elev, #1b1f27); border: 1px solid var(--border, #444); border-radius: 8px; padding: 6px; min-width: 230px; max-height: 360px; overflow: auto; box-shadow: 0 8px 24px rgba(0,0,0,.5); }
+  .fm-item { display: flex; align-items: center; gap: 8px; padding: 5px 8px; border-radius: 6px; cursor: pointer; white-space: nowrap; font-size: 13px; }
+  .fm-item:hover { background: rgba(255,255,255,.07); }
+  .fm-item input { width: auto; min-width: 0; margin: 0; }
+  .fm-all { border-bottom: 1px solid var(--border, #333); margin-bottom: 4px; font-weight: 700; }
   .search-wrap { position: relative; }
   .search-wrap svg { position: absolute; left: 9px; top: 50%; transform: translateY(-50%); color: var(--text-faint); pointer-events: none; }
   .search-wrap input { padding-left: 30px; min-width: 170px; }
@@ -699,7 +706,7 @@ body.nav-collapsed:has(.inf-root) #main { padding-bottom:24px; }
       : round === "insp2" ? mesDadosDisp.insp2Disponivel !== false
       : true;
     let rows = linhasPendentesNoRound(round, mes);
-    if (state.filtroFilial !== "all") rows = rows.filter((r) => r.filial === state.filtroFilial);
+    rows = rows.filter((r) => passaFilial(r.filial));
     if (state.busca) rows = rows.filter((r) => r.veiculo.toLowerCase().includes(state.busca.toLowerCase()));
     rows = scopeRows(rows);
     const denom = registradosTotal(activeScope());
@@ -718,6 +725,11 @@ body.nav-collapsed:has(.inf-root) #main { padding-bottom:24px; }
     return DATA.registrados.porFilial[key] || 0;
   }
   // Escopo ativo: seleção múltipla no gráfico (Ctrl+clique) tem prioridade sobre o dropdown de filial.
+  // Filtro de filial: seleção múltipla (menu) tem prioridade; senão, a filial única do filtro.
+  function passaFilial(f) {
+    if (state.selFiliais.size) { const s = filialSigla(f); return Array.from(state.selFiliais).some((x) => filialSigla(x) === s); }
+    return state.filtroFilial === "all" || filialSigla(f) === filialSigla(state.filtroFilial);
+  }
   function activeScope() { return state.selFiliais.size ? state.selFiliais : state.filtroFilial; }
   function scopeRows(rows) { return state.selFiliais.size ? rows.filter((r) => state.selFiliais.has(r.filial)) : rows; }
   function scopeLabelText() {
@@ -797,6 +809,8 @@ body.nav-collapsed:has(.inf-root) #main { padding-bottom:24px; }
     selVeiculoSulco: null,
     sulcoSoTrocar: false,
     sulcoTodos: false,
+    filialMenuAberto: false,
+    sulcoMedidas: new Set(),
     pressaoTodos: false,
     selVeiculoVazias: null,
     pressaoRound: "geral",
@@ -1273,7 +1287,7 @@ body.nav-collapsed:has(.inf-root) #main { padding-bottom:24px; }
   // ------------------------------------------------------------------
   function computeVazias() {
     let rows = DATA.vazias;
-    if (state.filtroFilial !== "all") rows = rows.filter((r) => r.filial === state.filtroFilial);
+    rows = rows.filter((r) => passaFilial(r.filial));
     if (state.busca) rows = rows.filter((r) => r.placa.toLowerCase().includes(state.busca.toLowerCase()));
     const filtered = scopeRows(rows);
     const totalPos = filtered.reduce((s, r) => s + r.posicoes.length, 0);
@@ -1392,7 +1406,7 @@ body.nav-collapsed:has(.inf-root) #main { padding-bottom:24px; }
         return { veiculo, filial: base.filial, classe: base.classe, emQ1: !!r1, emQ2: !!r2, status };
       });
       let rows = unionAll;
-      if (state.filtroFilial !== "all") rows = rows.filter((r) => r.filial === state.filtroFilial);
+      rows = rows.filter((r) => passaFilial(r.filial));
       if (state.busca) rows = rows.filter((r) => r.veiculo.toLowerCase().includes(state.busca.toLowerCase()));
       const filtered = scopeRows(rows);
       const scopeFilial = activeScope();
@@ -1435,7 +1449,7 @@ body.nav-collapsed:has(.inf-root) #main { padding-bottom:24px; }
     }
     const source = state.inspRound === "insp1" ? mesDados.insp1 : mesDados.insp2;
     let rows = source;
-    if (state.filtroFilial !== "all") rows = rows.filter((r) => r.filial === state.filtroFilial);
+    rows = rows.filter((r) => passaFilial(r.filial));
     if (state.busca) rows = rows.filter((r) => r.veiculo.toLowerCase().includes(state.busca.toLowerCase()));
     const filtered = scopeRows(rows);
     const scopeFilial = activeScope();
@@ -1632,9 +1646,20 @@ body.nav-collapsed:has(.inf-root) #main { padding-bottom:24px; }
     const quando = ultima ? `Última inspeção feita nele: <b>${escapeHtml(fmtDate(ultima))}</b>.` : "<b>Nenhuma inspeção registrada</b> para este veículo.";
     return `<div class="stale-banner"><span class="stale-ico">⚠</span><div><b>Mapa desatualizado</b> — este veículo não teve inspeção ${/^mês/.test(rotulo) ? "no" : "na"} ${escapeHtml(rotulo)}. ${quando}</div></div>`;
   }
+  // Medida do pneu = 2 primeiros caracteres do produto (27→275, 29→295, 11→1100, 21→215)
+  const MEDIDA_POR_PREFIXO = { "27": "275", "29": "295", "11": "1100", "21": "215" };
+  function medidaPneu(t) { return MEDIDA_POR_PREFIXO[String(t.produto || "").slice(0, 2)] || "Outras"; }
+  const ordemMedida = (m) => (m === "Outras" ? 9999 : Number(m));
+  function medidasSulcoDisponiveis() {
+    const c = new Map();
+    (DATA.sulcoTires || []).concat(DATA.sulcoOutros || []).forEach((t) => { const m = medidaPneu(t); c.set(m, (c.get(m) || 0) + 1); });
+    return Array.from(c, ([m, n]) => ({ m, n })).sort((a, b) => ordemMedida(a.m) - ordemMedida(b.m));
+  }
   function computeSulco() {
-    let rows = DATA.sulcoTires;
-    if (state.filtroFilial !== "all") rows = rows.filter((t) => t.filial === state.filtroFilial);
+    const selM = state.sulcoMedidas;
+    const porMedida = (arr) => (selM && selM.size ? arr.filter((t) => selM.has(medidaPneu(t))) : arr);
+    let rows = porMedida(DATA.sulcoTires);
+    rows = rows.filter((t) => passaFilial(t.filial));
     if (state.busca) rows = rows.filter((t) => t.veiculo.toLowerCase().includes(state.busca.toLowerCase()));
     const tires = scopeRows(rows);
 
@@ -1683,8 +1708,8 @@ body.nav-collapsed:has(.inf-root) #main { padding-bottom:24px; }
     if (state.sulcoTodos) {
       const janela = quinzenaAtualJanela();
       const info = DATA.veiculosInfo || {};
-      let all = (DATA.sulcoTires || []).concat(DATA.sulcoOutros || []);
-      if (state.filtroFilial !== "all") all = all.filter((t) => t.filial === state.filtroFilial);
+      let all = porMedida((DATA.sulcoTires || []).concat(DATA.sulcoOutros || []));
+      all = all.filter((t) => passaFilial(t.filial));
       if (state.busca) all = all.filter((t) => t.veiculo.toLowerCase().includes(state.busca.toLowerCase()));
       all = scopeRows(all);
       const por = new Map();
@@ -1704,8 +1729,8 @@ body.nav-collapsed:has(.inf-root) #main { padding-bottom:24px; }
       todos = Array.from(por, ([placa, vt]) => monta(placa, vt, vt[0]));
       // veículos registrados que nem aparecem no relatório de sulco (sem pneu cadastrado)
       Object.entries(info).forEach(([placa, i]) => {
-        if (por.has(placa)) return;
-        if (state.filtroFilial !== "all" && i.filial !== state.filtroFilial) return;
+        if (por.has(placa) || selM.size) return;
+        if (!passaFilial(i.filial)) return;
         if (state.busca && !placa.toLowerCase().includes(state.busca.toLowerCase())) return;
         if (state.selFiliais.size && !state.selFiliais.has(i.filial)) return;
         todos.push(monta(placa, [], i));
@@ -2172,6 +2197,11 @@ body.nav-collapsed:has(.inf-root) #main { padding-bottom:24px; }
         <button class="seg-btn ${!state.sulcoSoTrocar && !state.sulcoTodos ? "active" : ""}" data-sulco-filter="todos">Até 5mm (atenção + trocar)</button>
         <button class="seg-btn ${state.sulcoSoTrocar && !state.sulcoTodos ? "active" : ""}" data-sulco-filter="trocar">Somente ≤ 3mm (trocar)</button>
         <button class="seg-btn ${state.sulcoTodos ? "active" : ""}" data-sulco-filter="veiculos">Todos os veículos</button>
+      </div>
+      <div class="seg-group" title="Medida do pneu (marque uma ou mais). Nenhuma marcada = todas.">
+        <span style="align-self:center;font-size:11px;color:var(--text-faint);padding:0 6px;">Medida:</span>
+        ${medidasSulcoDisponiveis().map((x) => `<button class="seg-btn ${state.sulcoMedidas.has(x.m) ? "active" : ""}" data-sulco-medida="${x.m}">${x.m}</button>`).join("")}
+        ${state.sulcoMedidas.size ? `<button class="seg-btn" data-sulco-medida="__limpar">✕</button>` : ""}
       </div>`;
     const desc = state.sulcoTodos
       ? "Mostrando todos os veículos da frota, com o sulco de todos os pneus de cada um. Os indicadores acima seguem considerando só os veículos com pneu abaixo de 5mm."
@@ -2317,7 +2347,7 @@ body.nav-collapsed:has(.inf-root) #main { padding-bottom:24px; }
     // pelo Joao, 2026-09-14 — selecionar uma filial não pode apagar as demais da comparação).
     const filtraFilialBuscaSemEscopo = (list) => {
       let out = list;
-      if (state.filtroFilial !== "all") out = out.filter((t) => t.filial === state.filtroFilial);
+      out = out.filter((t) => passaFilial(t.filial));
       if (state.busca) out = out.filter((t) => t.veiculo.toLowerCase().includes(state.busca.toLowerCase()));
       return out;
     };
@@ -2579,7 +2609,7 @@ body.nav-collapsed:has(.inf-root) #main { padding-bottom:24px; }
         const meta = tires[0] || info[placa] || {};
         const filial = tires[0] ? tires[0].filial : (info[placa] && info[placa].filial);
         if (!filial || ehFilialSucata(filial)) return;
-        if (state.filtroFilial !== "all" && filial !== state.filtroFilial) return;
+        if (!passaFilial(filial)) return;
         if (state.busca && !placa.toLowerCase().includes(state.busca.toLowerCase())) return;
         if (state.selFiliais.size && !state.selFiliais.has(filial)) return;
         const datas = tires.map((x) => x.dataInsp).filter(Boolean).sort();
@@ -2998,7 +3028,7 @@ body.nav-collapsed:has(.inf-root) #main { padding-bottom:24px; }
 
   function planosVisiveis() {
     let l = PlanoStore.planos.slice();
-    if (state.filtroFilial !== "all") l = l.filter((p) => filialSigla(p.filial) === filialSigla(state.filtroFilial));
+    l = l.filter((p) => passaFilial(p.filial));
     // O plano aberto no checklist continua na tela mesmo se o filtro de status o esconderia
     // (ex.: marcou a última bolinha e ele virou "Concluído" — não pode sumir na sua cara).
     const mantem = (p) => p.id === state.planoSel;
@@ -3095,7 +3125,7 @@ body.nav-collapsed:has(.inf-root) #main { padding-bottom:24px; }
   function planoListaRelatorio() { const m = planoMarcadosVisiveis(); return m.length ? m : planosVisiveis(); }
 
   function renderPlanoLista() {
-    const todosFilial = PlanoStore.planos.filter((p) => state.filtroFilial === "all" || filialSigla(p.filial) === filialSigla(state.filtroFilial));
+    const todosFilial = PlanoStore.planos.filter((p) => passaFilial(p.filial));
     const nAb = todosFilial.filter((p) => p.status === "Aberto").length;
     const nAnd = todosFilial.filter((p) => p.status === "Em andamento").length;
     const nAtr = todosFilial.filter(planoAtrasado).length;
@@ -3381,7 +3411,7 @@ body.nav-collapsed:has(.inf-root) #main { padding-bottom:24px; }
       const resolvido = concl[`${l.veiculo}|${l.pneu}|${l.codigo}`] >= l.data;   // ação concluída, mas o laudo segue na última inspeção
       const info = veics.get(limpaPlaca(l.veiculo));
       const filial = info ? info.filial : l.filial;
-      if (state.filtroFilial !== "all" && filialSigla(filial) !== filialSigla(state.filtroFilial)) return;
+      if (!passaFilial(filial)) return;
       if (!out.has(l.veiculo)) out.set(l.veiculo, { placa: l.veiculo, filial, laudos: [] });
       out.get(l.veiculo).laudos.push({ ...l, map: mp, resolvido });
     });
@@ -3430,7 +3460,7 @@ body.nav-collapsed:has(.inf-root) #main { padding-bottom:24px; }
       if (ja.some((i) => !i.feito || String(i.feitoEm || "").slice(0, 10) >= l.data)) return;
       const info = veics.get(limpaPlaca(l.veiculo));
       const filial = info ? info.filial : l.filial;
-      if (state.filtroFilial !== "all" && filialSigla(filial) !== filialSigla(state.filtroFilial)) return;
+      if (!passaFilial(filial)) return;
       if (!porVeic.has(l.veiculo)) porVeic.set(l.veiculo, { placa: l.veiculo, filial, tipo: info ? info.tipo : (l.tipoDesc || ""), sugs: [] });
       porVeic.get(l.veiculo).sugs.push({ ...l, map: mp, bloq, itens: [{ pneu: l.pneu, posicao: l.posicao, l }] });
     });
@@ -3747,7 +3777,7 @@ body.nav-collapsed:has(.inf-root) #main { padding-bottom:24px; }
     const out = new Map();
     Object.keys(DATA.veiculosInfo || {}).forEach((pl) => {
       const f = DATA.veiculosInfo[pl].filial; if (!f || ehFilialSucata(f)) return;
-      if (state.filtroFilial !== "all" && filialSigla(f) !== filialSigla(state.filtroFilial)) return;
+      if (!passaFilial(f)) return;
       const k = filialSigla(f); if (!out.has(k)) out.set(k, { filial: f, total: 0, bloq: 0 }); out.get(k).total++;
     });
     return out;
@@ -4231,7 +4261,7 @@ body.nav-collapsed:has(.inf-root) #main { padding-bottom:24px; }
   function planoFiltrosTxt() {
     const partes = [];
     partes.push({ abertos: "Em aberto", atrasados: "Atrasados", todos: "Todos os status" }[state.planoStatus] || state.planoStatus);
-    if (state.filtroFilial !== "all") partes.push(filialFullName(state.filtroFilial));
+    if (state.selFiliais.size) partes.push(Array.from(state.selFiliais).map(filialSigla).join("+")); else if (state.filtroFilial !== "all") partes.push(filialFullName(state.filtroFilial));
     if (state.busca) partes.push(`busca “${state.busca}”`);
     return partes.join(" · ");
   }
@@ -4535,6 +4565,15 @@ body.nav-collapsed:has(.inf-root) #main { padding-bottom:24px; }
 
   function emptyRow(colspan, msg) { return `<tr class="empty-row"><td colspan="${colspan}">${escapeHtml(msg)}</td></tr>`; }
 
+  function filialMultiSelectHtml(filiais) {
+    const sel = state.selFiliais.size ? state.selFiliais : (state.filtroFilial !== "all" ? new Set([state.filtroFilial]) : new Set());
+    const label = sel.size === 0 ? `Todas as filiais (${filiais.length})` : sel.size === 1 ? filialFullName(Array.from(sel)[0]) : `${Array.from(sel).map(filialSigla).join(" + ")} (${sel.size})`;
+    const lista = filiais.map((f) => `<label class="fm-item"><input type="checkbox" data-filial-chk="${escapeHtml(f)}" ${sel.has(f) ? "checked" : ""}><span>${escapeHtml(filialFullName(f))}</span></label>`).join("");
+    return `<div class="fm-wrap" id="ctl-filial">
+      <button type="button" class="fm-btn" data-fm-toggle>${escapeHtml(label)} <span style="opacity:.6">▾</span></button>
+      ${state.filialMenuAberto ? `<div class="fm-menu"><label class="fm-item fm-all"><input type="checkbox" data-filial-all ${sel.size === 0 ? "checked" : ""}><span>Todas as filiais (${filiais.length})</span></label>${lista}</div>` : ""}
+    </div>`;
+  }
   function panelHeader(title, desc, filiais, extraControl) {
     const showFilial = true;
     return `
@@ -4546,10 +4585,7 @@ body.nav-collapsed:has(.inf-root) #main { padding-bottom:24px; }
         </div>
         <div class="toolbar">
           ${extraControl || ""}
-          ${showFilial ? `<select id="ctl-filial">
-            <option value="all">Todas as filiais (${filiais.length})</option>
-            ${filiais.map((f) => `<option value="${escapeHtml(f)}" ${state.filtroFilial === f ? "selected" : ""}>${escapeHtml(filialFullName(f))}</option>`).join("")}
-          </select>` : ""}
+          ${showFilial ? filialMultiSelectHtml(filiais) : ""}
           <div class="search-wrap">${ICONS.search}<input id="ctl-busca" placeholder="Buscar placa" value="${escapeHtml(state.busca)}"></div>
         </div>
       </div>`;
@@ -4661,8 +4697,19 @@ body.nav-collapsed:has(.inf-root) #main { padding-bottom:24px; }
   }
 
   function bindToolbar() {
-    const selF = document.getElementById("ctl-filial");
-    if (selF) selF.addEventListener("change", () => { state.filtroFilial = selF.value; state.selFiliais.clear(); state.pressaoFiltroSel.clear(); state.pressaoFaixaSel.clear(); state.inspGeralFaixaSel.clear(); render(); });
+    const limpaFiltrosFilial = () => { state.pressaoFiltroSel.clear(); state.pressaoFaixaSel.clear(); state.inspGeralFaixaSel.clear(); };
+    const fmToggle = document.querySelector("[data-fm-toggle]");
+    if (fmToggle) fmToggle.addEventListener("click", (e) => { e.stopPropagation(); state.filialMenuAberto = !state.filialMenuAberto; render(); });
+    const fmAll = document.querySelector("[data-filial-all]");
+    if (fmAll) fmAll.addEventListener("change", () => { state.filtroFilial = "all"; state.selFiliais.clear(); limpaFiltrosFilial(); render(); });
+    document.querySelectorAll("[data-filial-chk]").forEach((cb) => cb.addEventListener("change", () => {
+      if (state.selFiliais.size === 0 && state.filtroFilial !== "all") state.selFiliais.add(state.filtroFilial);
+      state.filtroFilial = "all";
+      const f = cb.getAttribute("data-filial-chk");
+      if (cb.checked) state.selFiliais.add(f); else state.selFiliais.delete(f);
+      limpaFiltrosFilial(); render();
+    }));
+    if (!window.__fmOutside) { window.__fmOutside = true; document.addEventListener("click", (e) => { if (state.filialMenuAberto && !e.target.closest(".fm-wrap")) { state.filialMenuAberto = false; render(); } }); }
     const inputB = document.getElementById("ctl-busca");
     if (inputB) inputB.addEventListener("input", () => {
       state.busca = inputB.value;
@@ -4691,6 +4738,12 @@ body.nav-collapsed:has(.inf-root) #main { padding-bottom:24px; }
       const modo = btn.getAttribute("data-sulco-filter");
       state.sulcoSoTrocar = modo === "trocar";
       state.sulcoTodos = modo === "veiculos";
+      state.selVeiculoSulco = null; render();
+    }));
+    document.querySelectorAll(".seg-btn[data-sulco-medida]").forEach((btn) => btn.addEventListener("click", () => {
+      const m = btn.getAttribute("data-sulco-medida");
+      if (m === "__limpar") state.sulcoMedidas.clear();
+      else if (state.sulcoMedidas.has(m)) state.sulcoMedidas.delete(m); else state.sulcoMedidas.add(m);
       state.selVeiculoSulco = null; render();
     }));
     document.querySelectorAll(".seg-btn[data-pressao-todos]").forEach((btn) => btn.addEventListener("click", () => {
