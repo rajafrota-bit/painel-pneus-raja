@@ -4930,7 +4930,7 @@ body.nav-collapsed:has(.inf-root) #main { padding-bottom:24px; }
         <div class="nav-list">
           ${PANELS.map((p) => `<button class="nav-btn ${state.panel === p.key ? "active" : ""}" data-panel="${p.key}">
             <span class="nav-icon">${ICONS[p.icon]}</span>${p.label}
-            <span class="nav-count mono">${counts[p.key]}</span>
+            ${counts[p.key] != null ? `<span class="nav-count mono">${counts[p.key]}</span>` : ""}
           </button>`).join("")}
         </div>
       </nav>
