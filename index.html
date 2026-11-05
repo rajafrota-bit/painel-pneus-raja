@@ -113,6 +113,42 @@
 
   .toolbar { display: flex; gap: 10px; flex-wrap: wrap; align-items: center; }
   .toolbar select, .toolbar input { width: auto; min-width: 150px; }
+  .rs-card { margin-bottom: 14px; }
+  .evo-titulo { font-size: 16px; font-weight: 800; margin: 4px 0 12px; }
+  .evo-kpis { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 14px; margin-bottom: 14px; }
+  .evo-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px; }
+  .evo-chart { display: flex; gap: 6px; align-items: flex-end; height: 190px; margin-top: 10px; }
+  .evo-col { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: flex-end; height: 100%; min-width: 0; }
+  .evo-top { font-size: 11px; font-weight: 700; margin-bottom: 3px; }
+  .evo-bar { width: 100%; height: calc(100% - 36px); position: relative; border-radius: 4px 4px 0 0; overflow: hidden; background: rgba(255,255,255,.04); }
+  .evo-stack { display: flex; flex-direction: column; }
+  .evo-vazio { opacity: .3; }
+  .evo-parcial { opacity: .55; }
+  .evo-lbl { font-size: 10.5px; color: var(--text-faint); margin-top: 5px; text-transform: uppercase; }
+  @media (max-width: 900px) { .evo-kpis, .evo-grid { grid-template-columns: 1fr; } }
+  @media print {
+    @page { size: A4 landscape; margin: 8mm; }
+    html, body { background: #12151a !important; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+    body * { visibility: hidden !important; }
+    #evo-print, #evo-print * { visibility: visible !important; }
+    #evo-print { position: absolute; left: 0; top: 0; width: 100%; color: #e6e8ee; }
+    .evo-chart { height: 150px; }
+    .evo-kpis { margin-bottom: 8px; }
+  }
+  .rs-cols { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 18px; }
+  .rs-col { border-left: 2px solid var(--border, #333); padding-left: 14px; min-width: 0; }
+  .rs-colh { font-size: 11px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; color: var(--text-faint); margin-bottom: 4px; }
+  .rs-big { font-size: 30px; font-weight: 800; line-height: 1.15; }
+  .rs-sub { font-size: 12px; color: var(--text-faint); }
+  .rs-chips { display: flex; flex-wrap: wrap; gap: 5px; margin-top: 8px; }
+  .rs-chip { font-family: var(--mono, monospace); font-size: 11.5px; font-weight: 700; padding: 2px 8px; border: 1px solid var(--border, #444); border-radius: 6px; }
+  .rs-two { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px; }
+  .rs-list { margin-top: 10px; display: flex; flex-direction: column; gap: 5px; font-size: 13px; }
+  .rs-stack { display: flex; height: 22px; border-radius: 6px; overflow: hidden; margin-top: 6px; font-size: 11px; font-weight: 700; color: #fff; }
+  .rs-stack > div { display: flex; align-items: center; justify-content: center; }
+  .rs-leg { display: flex; flex-wrap: wrap; gap: 12px; margin-top: 6px; font-size: 11.5px; color: var(--text-faint); }
+  .rs-leg i { display: inline-block; width: 9px; height: 9px; border-radius: 2px; margin-right: 5px; }
+  @media (max-width: 900px) { .rs-cols, .rs-two { grid-template-columns: 1fr; } }
   .fm-wrap { position: relative; }
   .fm-btn { background: var(--bg-elev, #1b1f27); color: inherit; border: 1px solid var(--border, #333); border-radius: 8px; padding: 7px 12px; font: inherit; cursor: pointer; min-width: 190px; text-align: left; }
   .fm-menu { position: absolute; right: 0; top: calc(100% + 4px); z-index: 60; background: var(--bg-elev, #1b1f27); border: 1px solid var(--border, #444); border-radius: 8px; padding: 6px; min-width: 230px; max-height: 360px; overflow: auto; box-shadow: 0 8px 24px rgba(0,0,0,.5); }
@@ -171,6 +207,15 @@
   .axle-label { font-size: 10px; color: var(--text-faint); text-align: center; white-space: nowrap; font-family: 'JetBrains Mono', monospace; }
   .axle-estepes { margin-top: 2px; padding-top: 14px; border-top: 1px dashed var(--border); }
   .tire-chip { width: 52px; flex-shrink: 0; border: 1.5px solid; border-radius: 6px; padding: 5px 2px; text-align: center; }
+  .tire-chip.tcu { width: 60px; padding: 4px 3px 4px; }
+  .tcu-fogo { font-size: 11px; font-weight: 800; font-family: 'JetBrains Mono', monospace; line-height: 1.1; }
+  .tcu-rr { font-size: 8px; font-weight: 700; color: var(--text-faint); font-family: 'JetBrains Mono', monospace; margin: -1px 0 3px; letter-spacing: .02em; }
+  .tcu .chip-laudo-cod { top: -12px; right: 50%; transform: translateX(50%); z-index: 2; }
+  .tire-chip.tcu.chip-laudo { margin-top: 6px; }
+  .tcu-pos { font-size: 8.5px; color: var(--text-faint); font-family: 'JetBrains Mono', monospace; margin: 1px 0 3px; }
+  .tcu-sulco { font-size: 12.5px; font-weight: 700; font-family: 'JetBrains Mono', monospace; line-height: 1.1; }
+  .tcu small, .tcu-psi small { font-size: 7.5px; font-weight: 600; margin-left: 1px; opacity: .8; }
+  .tcu-psi { margin-top: 4px; border: 1px solid var(--border-strong); border-radius: 4px; font-size: 11.5px; font-weight: 700; font-family: 'JetBrains Mono', monospace; padding: 2px 0; color: var(--text-dim); }
   .tire-chip-val { font-size: 11.5px; font-weight: 700; font-family: 'JetBrains Mono', monospace; }
   .tire-chip-pos { font-size: 8px; color: var(--text-faint); margin-top: 2px; font-family: 'JetBrains Mono', monospace; }
   .tire-chip-pneu { font-size: 8px; color: var(--text-dim); margin-top: 1px; font-family: 'JetBrains Mono', monospace; font-weight: 600; }
@@ -788,6 +833,8 @@ body.nav-collapsed:has(.inf-root) #main { padding-bottom:24px; }
 
   const PANELS = [
     { key: "informativo", label: "Informativo", icon: "gauge" },
+    { key: "resumo", label: "Resumo da Unidade", icon: "clipboard" },
+    { key: "evolucao", label: "Evolução Mensal", icon: "ring" },
     { key: "vazias", label: "Posições Vazias", icon: "alert" },
     { key: "inspecoes", label: "Inspeções Pendentes", icon: "clipboard" },
     { key: "sulco", label: "Sulco Baixo", icon: "gauge" },
@@ -809,6 +856,8 @@ body.nav-collapsed:has(.inf-root) #main { padding-bottom:24px; }
     selVeiculoSulco: null,
     sulcoSoTrocar: false,
     sulcoTodos: false,
+    resumoUnid: null,
+    evoCarregando: false,
     filialMenuAberto: false,
     sulcoMedidas: new Set(),
     pressaoTodos: false,
@@ -1814,6 +1863,68 @@ body.nav-collapsed:has(.inf-root) #main { padding-bottom:24px; }
     </div>`;
   }
 
+
+  // ===== Mapa unificado (sulco + pressão no mesmo pneu) =====
+  // Cartão do pneu: nº de fogo, posição, sulco (mm) e pressão (psi). A moldura do cartão segue o SULCO
+  // (amarelo 3,1–5mm, vermelho ≤3mm); só o quadradinho da PRESSÃO é colorido pela faixa de pressão.
+  function mapaUnificadoTires(placa) {
+    const sul = (DATA.sulcoTires || []).concat(DATA.sulcoOutros || []).filter((t) => t.veiculo === placa);
+    const pres = (DATA.pressaoTires || []).concat(DATA.pressaoOutros || []).filter((t) => t.veiculo === placa);
+    const porPneu = new Map(); pres.forEach((p) => { if (p.pneu) porPneu.set(String(p.pneu), p); });
+    let base;
+    if (sul.length) {
+      base = sul.map((t) => ({ ...t }));
+      (DATA.vazias || []).filter((x) => (x.placa || x.veiculo) === placa).forEach((v) => (v.posicoes || []).forEach((p) => {
+        if (!base.some((t) => t.posicao === p)) base.push({ posicao: p, vazio: true, pneu: null, veiculo: placa });
+      }));
+    } else {
+      base = pres.map((p) => ({ veiculo: placa, posicao: p.posicao, pneu: p.pneu, produto: p.produto, banda: p.banda, sulco: p.sulcoInsp != null ? p.sulcoInsp : null }));
+    }
+    return base.map((t) => {
+      if (t.vazio) return t;
+      const p = porPneu.get(String(t.pneu));
+      if (!p) return { ...t, semPressao: true };
+      return { ...t, sulco: t.sulco != null ? t.sulco : (p.sulcoInsp != null ? p.sulcoInsp : null), pressaoAtual: p.pressaoAtual, faixa: p.faixa, semLeitura: p.semLeitura, semPadrao: p.semPadrao, pctPadrao: p.pctPadrao, padraoPsi: p.padraoPsi, operador: p.operador, dataLeitura: p.dataInsp };
+    });
+  }
+  function chipUnificado(t) {
+    if (t.vazio) {
+      return `<div class="tire-chip tcu" style="border-color:var(--danger);background:var(--danger-bg);border-style:dashed;" title="${escapeHtml(t.posicao)} · Posição vazia (sem pneu)">
+        <div class="tcu-fogo" style="color:var(--danger)">VAZIO</div><div class="tcu-pos">${escapeHtml(t.posicao)}</div></div>`;
+    }
+    const st = tireStatus(t.sulco);
+    const bord = st === "trocar" ? "var(--danger)" : st === "atencao" ? "var(--warning)" : "var(--border-strong)";
+    const bg = st === "ok" ? "var(--surface-2)" : tireBg(st);
+    const sulTxt = t.sulco != null ? Number(t.sulco).toFixed(1) : "—";
+    const sulCor = st === "ok" ? "var(--text)" : tireColor(st);
+    let psiTxt = "—", psiCor = null;
+    if (t.semPressao) { psiTxt = "—"; }
+    else if (t.semPadrao) { psiTxt = t.pressaoAtual != null ? String(t.pressaoAtual) : "—"; }
+    else { const k = t.semLeitura ? "zero" : t.faixa; psiCor = FAIXA_PRESSAO_TONE[k] || null; psiTxt = t.semLeitura ? "0" : (t.pressaoAtual != null ? String(t.pressaoAtual) : "—"); }
+    const faixaLbl = t.semPressao ? "sem leitura de pressão deste pneu" : t.semPadrao ? "medida sem padrão de pressão" : (FAIXA_PRESSAO_LABEL[t.semLeitura ? "zero" : t.faixa] || "");
+    const rr = reformaReparoInfo(t);
+    const titulo = `${t.posicao} · Pneu ${t.pneu || "—"}${t.produto ? ` · ${t.produto}` : ""}${t.banda ? ` · banda: ${t.banda}` : ""} · sulco ${sulTxt} mm · pressão ${psiTxt} psi${faixaLbl ? ` (${faixaLbl})` : ""}${t.padraoPsi != null ? ` · padrão ${t.padraoPsi} psi` : ""}${t.pctPadrao != null ? ` · ${t.pctPadrao}% do padrão` : ""}${t.operador ? ` · inspecionado por: ${t.operador}` : ""}`;
+    const dataAttr = st !== "ok" && t.sulco != null ? `data-sulco="${Number(t.sulco).toFixed(1)}"` : (t.pressaoAtual != null ? `data-psi="${t.pressaoAtual}"` : "");
+    return `<div class="tire-chip tcu" style="border-color:${bord};background:${bg}" title="${escapeHtml(titulo)}" data-pneu="${escapeHtml(t.pneu || "")}" data-posicao="${escapeHtml(t.posicao)}" ${dataAttr}>
+      <div class="tcu-fogo">${escapeHtml(t.pneu || "—")}</div>
+      <div class="tcu-pos">${escapeHtml(t.posicao)}</div>
+      ${rr ? `<div class="tcu-rr" title="${escapeHtml(rr.title)}">${rr.text}</div>` : ""}
+      <div class="tcu-sulco" style="color:${sulCor}">${sulTxt}<small>mm</small></div>
+      <div class="tcu-psi" style="${psiCor ? `background:${psiCor}33;color:${psiCor};border-color:${psiCor};` : ""}">${psiTxt}<small>psi</small></div>
+    </div>`;
+  }
+  function mapaUnificadoHtml(placa) {
+    const tires = mapaUnificadoTires(placa);
+    return tires.length ? renderTireDiagram({ tires }, chipUnificado) : `<div class="detail-empty">Este veículo não tem pneus no relatório de sulco nem leitura de pressão.</div>`;
+  }
+  function mapaUnificadoLegenda() {
+    return `<div class="table-note" style="padding-left:0;">
+      Cada pneu: <b>nº de fogo</b> · posição · <b>sulco (mm)</b> · <b>pressão (psi)</b>. Moldura do pneu = sulco:
+      <span style="color:var(--danger)">vermelha</span> ≤ 3mm (trocar) · <span style="color:var(--warning)">amarela</span> 3,1–5mm (atenção). Só a caixinha da pressão leva a cor da faixa:
+      <span style="color:${FAIXA_PRESSAO_TONE.muito_baixa}">muito baixa</span> · <span style="color:${FAIXA_PRESSAO_TONE.baixa}">baixa</span> · <span style="color:${FAIXA_PRESSAO_TONE.correta}">correta</span> · <span style="color:${FAIXA_PRESSAO_TONE.alta}">alta</span> · <span style="color:${FAIXA_PRESSAO_TONE.muito_alta}">muito alta</span> · <span style="color:${FAIXA_PRESSAO_TONE.zero}">zero</span>.
+      Sobrescrito ao lado do nº de fogo: <sup style="font-weight:700;">R</sup>=reformas, <sup style="font-weight:700;">C</sup>=reparos. "—" = sem leitura daquele pneu. Passe o mouse para ver os detalhes.</div>`;
+  }
+
   function renderTireDiagram(vehicle, chipFn = tireChip) {
     // A Map preserva a ordem de primeira inserção — como vehicle.tires já está na mesma ordem
     // da planilha de origem (confirmada como ordem física dianteira→traseira pelos prints de
@@ -1892,8 +2003,8 @@ body.nav-collapsed:has(.inf-root) #main { padding-bottom:24px; }
       ${bannerSulco}
       <div style="margin:12px 0 2px;"><button class="btn btn-sm" data-hist-abrir="sulco" data-hist-placa="${escapeHtml(v.veiculo)}">Ver inspeções anteriores</button></div>
       <div class="card-title" style="margin-top:18px;">Esquema do veículo <span style="color:${worstColor}">· ${escapeHtml(v.tipoDesc)}</span></div>
-      ${planoOperadorHtml({ placa: limpaPlaca(v.veiculo) })}${v.tires.length ? renderTireDiagram(v) : `<div class="detail-empty">Este veículo não aparece no relatório de sulco.</div>`}
-      <div class="table-note" style="padding-left:0;">Números em cada pneu = sulco atual (mm). <span style="color:var(--danger)">Vermelho</span> ≤ 3mm (trocar) · <span style="color:var(--warning)">amarelo</span> 3,1–5mm (atenção). Sobrescrito ao lado do nº do pneu: <sup style="font-weight:700;">R</sup>=reformas, <sup style="font-weight:700;">C</sup>=reparos.</div>
+      ${planoOperadorHtml({ placa: limpaPlaca(v.veiculo) })}${mapaUnificadoHtml(v.veiculo)}
+      ${mapaUnificadoLegenda()}
     </div>`;
   }
 
@@ -2010,16 +2121,8 @@ body.nav-collapsed:has(.inf-root) #main { padding-bottom:24px; }
       ${bannerPressao}
       <div style="margin:12px 0 2px;"><button class="btn btn-sm" data-hist-abrir="pressao" data-hist-placa="${escapeHtml(v.veiculo)}">Ver inspeções anteriores</button></div>
       <div class="card-title" style="margin-top:18px;">Esquema do veículo <span style="color:var(--danger)">· ${escapeHtml(v.tipoDesc || "")}</span></div>
-      ${planoOperadorHtml({ placa: limpaPlaca(v.veiculo) })}${vehicle.tires.length ? renderTireDiagram(vehicle, pressaoChipAplicado) : `<div class="detail-empty">Nenhuma leitura de pressão registrada para este veículo.</div>`}
-      <div class="table-note" style="padding-left:0;">
-        Cor de cada pneu = faixa de pressão: <span style="color:${FAIXA_PRESSAO_TONE.muito_baixa}">muito baixa</span> ·
-        <span style="color:${FAIXA_PRESSAO_TONE.baixa}">baixa</span> ·
-        <span style="color:${FAIXA_PRESSAO_TONE.correta}">correta (OK)</span> ·
-        <span style="color:${FAIXA_PRESSAO_TONE.alta}">alta</span> ·
-        <span style="color:${FAIXA_PRESSAO_TONE.muito_alta}">muito alta</span> ·
-        <span style="color:${FAIXA_PRESSAO_TONE.zero}">pressão zero (sem leitura)</span>.
-        Número em cada pneu = pressão atual (psi) — "0" quando não há leitura, "—" quando o pneu não tem registro de pressão nem medida cadastrada. Passe o mouse pra ver o padrão da medida e o % em relação a ele.
-      </div>
+      ${planoOperadorHtml({ placa: limpaPlaca(v.veiculo) })}${mapaUnificadoHtml(v.veiculo)}
+      ${mapaUnificadoLegenda()}
     </div>`;
   }
 
@@ -2078,24 +2181,18 @@ body.nav-collapsed:has(.inf-root) #main { padding-bottom:24px; }
     }));
     const info = (DATA.veiculosInfo || {})[placa] || {};
     const ult = info.ultimaInsp ? `última inspeção: ${escapeHtml(fmtDate(info.ultimaInsp))}` : "";
-    if (!base.length) {
+    if (!mapaUnificadoTires(placa).length) {
       return `<div class="hist-card hist-card-atual"><div class="hist-card-head"><span class="hist-data">Atual (cadastro)</span><span class="hist-meta">${ult}</span></div>
         <div class="hist-nota">Este veículo não tem pneus no relatório de sulco.</div></div>`;
     }
-    let tires, chip, nota;
-    if (h.aba === "sulco") {
-      chip = tireChip; tires = base;
-      nota = "Pneus que estão no veículo agora (relatório de sulco), com o último sulco medido de cada um.";
-    } else {
-      const ult2 = histUltimaLeituraPorPneu(placa);
-      chip = (t) => (t.__sem ? histChipSemLeitura(t) : pressaoTireChip(t));
-      tires = base.map((t) => {
-        if (t.vazio) return t;
-        const e = ult2.get(t.pneu);
-        return e ? { ...e, posicao: t.posicao } : { posicao: t.posicao, pneu: t.pneu, produto: t.produto, __sem: true };
-      });
-      nota = "Pneus que estão no veículo agora, com a última leitura de pressão de cada um. Pneu trocado depois da última inspeção aparece sem leitura (—).";
-    }
+    const ult2 = histUltimaLeituraPorPneu(placa);
+    const tires = mapaUnificadoTires(placa).map((t) => {
+      if (!t.semPressao) return t;
+      const e = ult2.get(t.pneu); if (!e) return t;
+      return { ...t, semPressao: false, sulco: t.sulco != null ? t.sulco : (e.sulcoInsp != null ? e.sulcoInsp : null), pressaoAtual: e.pressaoAtual, faixa: e.faixa, semLeitura: e.semLeitura, semPadrao: e.semPadrao, pctPadrao: e.pctPadrao, padraoPsi: e.padraoPsi, operador: e.operador };
+    });
+    const chip = chipUnificado;
+    const nota = "Pneus que estão no veículo agora: sulco do relatório de sulco e a última leitura de pressão de cada pneu. Pneu trocado depois da última inspeção aparece sem leitura de pressão (—).";
     return `<div class="hist-card hist-card-atual">
       <div class="hist-card-head"><span class="hist-data">Atual (cadastro)</span><span class="hist-meta">${ult}</span></div>
       ${severityPill("neutral", "Composição de hoje")}
@@ -2106,28 +2203,23 @@ body.nav-collapsed:has(.inf-root) #main { padding-bottom:24px; }
   function histCardHtml(h, data, posMap) {
     const evs = Array.from(posMap.values());
     const ops = Array.from(new Set(evs.map((e) => e.operador).filter(Boolean)));
-    let resumo = "", nota = "";
-    let tires, chip;
-    if (h.aba === "sulco") {
-      chip = tireChip;
-      tires = evs.map((e) => ({ posicao: e.posicao, pneu: e.pneu || "—", produto: e.produto, banda: e.banda, sulco: e.sulcoInsp != null ? e.sulcoInsp : null, semDado: e.sulcoInsp == null }));
-      const com = tires.filter((t) => t.sulco != null);
-      if (!com.length) { resumo = severityPill("neutral", "Sulco não registrado"); nota = `<div class="hist-nota">Sulco desta inspeção não foi guardado (período sem exportação do R343A).</div>`; }
-      else {
-        const tr = com.filter((t) => t.sulco <= 3).length, at = com.filter((t) => t.sulco > 3 && t.sulco <= 5).length;
-        resumo = tr ? severityPill("danger", `${tr} pneu(s) ≤ 3mm`) : at ? severityPill("warning", `${at} pneu(s) de 3,1 a 5mm`) : severityPill("success", "Nenhum pneu abaixo de 5mm");
-        if (com.length < tires.length) nota = `<div class="hist-nota">${tires.length - com.length} pneu(s) sem sulco registrado nesta data.</div>`;
-      }
-    } else {
-      chip = pressaoTireChip; tires = evs;
-      const lid = evs.filter((e) => !e.semPadrao);
-      const ok = lid.filter((e) => !e.semLeitura && e.faixa === "correta").length;
-      resumo = lid.length ? (ok === lid.length ? severityPill("success", `${ok} de ${lid.length} corretos`) : severityPill("warning", `${ok} de ${lid.length} corretos`)) : severityPill("neutral", "Sem padrão de pressão");
+    const tires = evs.map((e) => ({ veiculo: e.veiculo, posicao: e.posicao, pneu: e.pneu || "", produto: e.produto, banda: e.banda, sulco: e.sulcoInsp != null ? e.sulcoInsp : null,
+      pressaoAtual: e.pressaoAtual, faixa: e.faixa, semLeitura: e.semLeitura, semPadrao: e.semPadrao, pctPadrao: e.pctPadrao, padraoPsi: e.padraoPsi, operador: e.operador }));
+    const com = tires.filter((t) => t.sulco != null);
+    let pSul, nota = "";
+    if (!com.length) { pSul = severityPill("neutral", "Sulco não registrado"); nota = `<div class="hist-nota">Sulco desta inspeção não foi guardado (período sem exportação do R343A).</div>`; }
+    else {
+      const tr = com.filter((t) => t.sulco <= 3).length, at = com.filter((t) => t.sulco > 3 && t.sulco <= 5).length;
+      pSul = tr ? severityPill("danger", `${tr} pneu(s) ≤ 3mm`) : at ? severityPill("warning", `${at} pneu(s) de 3,1 a 5mm`) : severityPill("success", "Sulco OK (acima de 5mm)");
+      if (com.length < tires.length) nota = `<div class="hist-nota">${tires.length - com.length} pneu(s) sem sulco registrado nesta data.</div>`;
     }
+    const lid = evs.filter((e) => !e.semPadrao);
+    const ok = lid.filter((e) => !e.semLeitura && e.faixa === "correta").length;
+    const pPres = lid.length ? severityPill(ok === lid.length ? "success" : "warning", `Pressão: ${ok} de ${lid.length} corretos`) : severityPill("neutral", "Sem padrão de pressão");
     return `<div class="hist-card">
       <div class="hist-card-head"><span class="hist-data">${escapeHtml(fmtDate(data))}</span><span class="hist-meta">${escapeHtml(ops.length ? "por " + ops.join(", ") : "")}</span></div>
-      ${resumo}
-      ${renderTireDiagram({ tires }, chip)}
+      <div style="display:flex;gap:6px;flex-wrap:wrap;">${pSul}${pPres}</div>
+      ${renderTireDiagram({ tires }, chipUnificado)}
       ${nota}
     </div>`;
   }
@@ -2152,7 +2244,7 @@ body.nav-collapsed:has(.inf-root) #main { padding-bottom:24px; }
     bd.innerHTML = `<div class="hist-box" role="dialog" aria-label="Inspeções anteriores">
       <div class="hist-head">
         <div><div class="hist-title">Inspeções anteriores · ${escapeHtml(h.placa)}</div><div class="hist-sub">${cab}</div></div>
-        <div style="display:flex;gap:10px;align-items:center;"><div class="seg" style="display:inline-flex;gap:2px;">${seg("sulco", "Sulco")}${seg("pressao", "Pressão")}</div><button class="btn btn-sm" data-hist-fechar="1">Fechar ✕</button></div>
+        <div style="display:flex;gap:10px;align-items:center;"><button class="btn btn-sm" data-hist-fechar="1">Fechar ✕</button></div>
       </div>
       <div class="hist-toolbar"><span class="hist-meta">Meses:</span>${chips}
         ${pressaoMesesPendentes().length ? (h.carregando ? `<span class="hist-meta">Carregando meses anteriores…</span>` : `<button class="btn btn-sm" data-hist-carregar="1" title="Carrega ${pressaoMesesPendentes().map(histMesLabel).join(", ")}">+ Meses anteriores (${histMesLabel(pressaoMesesPendentes()[0])} a ${histMesLabel(pressaoMesesPendentes()[pressaoMesesPendentes().length - 1])})</button>`) : ""}
@@ -2976,7 +3068,7 @@ body.nav-collapsed:has(.inf-root) #main { padding-bottom:24px; }
     const ops = [];
     ps.filter((t) => t.dataInsp === mx).forEach((t) => { const o = t.operador || "Não informado"; if (ops.indexOf(o) < 0) ops.push(o); });
     const d = String(mx).slice(0, 10).split("-").reverse().join("/");
-    return `<div class="map-operador" style="font-size:12px;color:var(--text-dim);margin:8px 0 4px;">Inspecionado por <strong>${ops.map(escapeHtml).join(", ")}</strong> · pressão em ${d}</div>`;
+    return `<div class="map-operador" style="font-size:12px;color:var(--text-dim);margin:8px 0 4px;">Inspecionado por <strong>${ops.map(escapeHtml).join(", ")}</strong> · inspeção em ${d}</div>`;
   }
   function planoVehicleMap(placa, pref) {
     // inclui os pneus de veículos sem sulco baixo / posições sem leitura no mês (modo "Todos os veículos")
@@ -3499,7 +3591,7 @@ body.nav-collapsed:has(.inf-root) #main { padding-bottom:24px; }
       const sel = selPneu && String(tr.pneu) === String(selPneu);
       if (!m && !sel) return h;
       const cls = `tire-chip chip-clk ${m ? "chip-laudo" : ""} ${m && m.bloq ? "chip-laudo-bloq" : ""} ${sel ? "chip-sel" : ""}`;
-      h = h.replace('class="tire-chip"', `class="${cls}"`);
+      h = h.replace(/class="tire-chip( tcu)?"/, (mm, tc) => `class="${cls}${tc || ""}"`);
       if (m && m.cods.length) h = h.replace(/<\/div>\s*$/, `<span class="chip-laudo-cod" title="${escapeHtml(m.tip || "")}">${escapeHtml(m.cods.join(" "))}</span></div>`);
       return h;
     };
@@ -3701,7 +3793,8 @@ body.nav-collapsed:has(.inf-root) #main { padding-bottom:24px; }
   function planoMapaBloqueadoHtml(v) {
     if (!v) return `<div class="detail-empty">Selecione um veículo na lista para ver o mapa.</div>`;
     const placa = limpaPlaca(v.placa);
-    const mapa = planoVehicleMap(placa, state.blqMapa || "pressao");
+    const tiresU = mapaUnificadoTires(placa);
+    const mapa = tiresU.length ? { placa, tires: tiresU } : null;
     const info = planoVeiculos().get(placa);
     const cabec = `<div class="detail-plate-label">Veículo selecionado</div><div class="detail-plate">${escapeHtml(v.placa)}</div>
       <div class="detail-sub">${escapeHtml(filialSigla(v.filial))} — ${escapeHtml(filialFullName(v.filial))}${info && info.tipo ? ` · ${escapeHtml(info.tipo)}` : ""}</div>`;
@@ -3721,19 +3814,16 @@ body.nav-collapsed:has(.inf-root) #main { padding-bottom:24px; }
       if (!marca.has(k)) marca.set(k, { cods: [], bloq: false, tip: "" });
       const m = marca.get(k); m.cods.push(l.codigo); m.bloq = m.bloq || bloq; m.tip += (m.tip ? " | " : "") + l.codigo + " – " + LAUDO_MAP[l.codigo].desc;
     });
-    const dMapa = planoDataMapa(placa, mapa.atual);
+    const dMapa = planoDataMapa(placa, "pressao");
     const laudoMaisRecente = v.laudos.map((l) => l.data).sort().slice(-1)[0];
     const aviso = dMapa && laudoMaisRecente && dMapa > laudoMaisRecente
       ? `<div class="banner banner-warn" style="margin:8px 0;"><strong>⚠ Leitura mais nova que o laudo</strong> (${escapeHtml(fmtDate(dMapa))} × laudo de ${escapeHtml(fmtDate(laudoMaisRecente))}). Confira o mapa antes de liberar.</div>`
-      : (dMapa ? `<div class="chart-hint" style="margin:6px 0;">Mapa atualizado em ${escapeHtml(fmtDate(dMapa))}</div>` : `<div class="chart-hint" style="margin:6px 0;">Sem data de atualização para este mapa.</div>`);
+      : "";
     return `${cabecL}
-      <div class="card-title" style="margin-top:14px;">Esquema do veículo <span style="color:var(--text-faint)">· ${mapa.fonte}</span></div>
+      <div class="card-title" style="margin-top:14px;">Esquema do veículo</div>
       ${aviso}
-      ${mapa.temSulco && mapa.temPressao ? `<div class="seg-group" style="margin-top:8px;width:fit-content;">
-        <button class="seg-btn ${mapa.atual === "sulco" ? "active" : ""}" data-blq-mapa="sulco">Sulco</button>
-        <button class="seg-btn ${mapa.atual === "pressao" ? "active" : ""}" data-blq-mapa="pressao">Pressão</button></div>` : ""}
-      ${planoOperadorHtml(mapa)}${renderTireDiagram({ tires: mapa.tires }, mapaChipWrap(mapa.chip, marca, null))}
-      <div class="table-note" style="padding-left:0;">Código no pneu = laudo. <span style="color:var(--danger);">Vermelho</span> = laudo que bloqueia o veículo; tracejado = outros laudos ativos. Passe o mouse no pneu para ver o laudo, a medida, a marca e a banda aplicada.</div>`;
+      ${planoOperadorHtml(mapa)}${renderTireDiagram({ tires: mapa.tires }, mapaChipWrap(chipUnificado, marca, null))}
+      <div class="table-note" style="padding-left:0;">Código no canto do pneu = laudo: contorno <span style="color:var(--danger);">vermelho</span> = laudo que bloqueia o veículo; tracejado = outros laudos ativos.</div>${mapaUnificadoLegenda()}`;
   }
 
   function renderBloqueadosPanel() {
@@ -3876,6 +3966,231 @@ body.nav-collapsed:has(.inf-root) #main { padding-bottom:24px; }
   setInterval(infRelogioTick, 1000);
   document.addEventListener("visibilitychange", () => { if (!document.hidden) atualizarAutomatico(); });   // voltou para a aba: atualiza já
   window.addEventListener("resize", () => infAjustaTela());
+
+  // ===== Resumo da Unidade (relatório semanal pro encarregado) =====
+  // Reaproveita computePressao/computeSulco/planoBloqueados com o escopo temporariamente travado
+  // na unidade escolhida (e restaura tudo no fim), pra os números baterem exatamente com as outras abas.
+  function resumoUnidades() {
+    const por = new Map();
+    DATA.pressaoTires.concat(DATA.pressaoOutros || [], DATA.sulcoTires || [], DATA.sulcoOutros || []).forEach((t) => {
+      const s = filialSigla(t.filial); if (t.filial && !por.has(s)) por.set(s, t.filial);
+    });
+    return Array.from(por.values()).filter((f) => registradosTotal(f) > 0).sort((a, b) => normalizeText(filialFullName(a)).localeCompare(normalizeText(filialFullName(b))));
+  }
+  function comEscopoUnidade(filial, fn) {
+    const S = ["selFiliais", "pressaoFiltroSel", "pressaoFaixaSel", "sulcoMedidas"];
+    const bak = {}; S.forEach((k) => { bak[k] = Array.from(state[k]); });
+    const sc = { filtroFilial: state.filtroFilial, busca: state.busca, pressaoRound: state.pressaoRound, pressaoMes: state.pressaoMes, sulcoSoTrocar: state.sulcoSoTrocar, sulcoTodos: state.sulcoTodos, pressaoTodos: state.pressaoTodos };
+    try {
+      S.forEach((k) => state[k].clear());
+      state.selFiliais.add(filial); state.filtroFilial = "all"; state.busca = ""; state.pressaoMes = null;
+      state.sulcoSoTrocar = true; state.sulcoTodos = false; state.pressaoTodos = false;
+      return fn();
+    } finally {
+      S.forEach((k) => { state[k].clear(); bak[k].forEach((v) => state[k].add(v)); });
+      Object.assign(state, sc);
+    }
+  }
+  function resumoDados(filial) {
+    return comEscopoUnidade(filial, () => {
+      const rounds = {}; let mes = null;
+      ["insp1", "insp2", "geral"].forEach((r) => {
+        state.pressaoRound = r;
+        const p = computePressao(); mes = p.mesAtivo;
+        const geral = r === "geral";
+        const disp = geral ? !p.insp.semDado : p.insp.disponivel !== false && p.disponivel !== false;
+        const q3 = p.pressaoQuadro3Geral;
+        const pend = linhasPendentesNoRound(r, p.mesAtivo).filter((x) => passaFilial(x.filial)).map((x) => x.veiculo).sort();
+        rounds[r] = {
+          disp, denomVeic: p.insp.denom, pendentes: p.insp.pendentes, pctPend: p.insp.denom ? (p.insp.pendentes / p.insp.denom) * 100 : 0, placasPend: pend,
+          pctCorreta: p.pctCorreta, corretas: p.faixaCounts.correta, totalPneus: p.totalComPadraoConhecido,
+          pctInspPneus: p.pctInspecionados, posInsp: geral ? q3.somaCount : p.posicoesInspecionadas, posTot: geral ? q3.somaTotal : p.denomQuadro3,
+          zero: p.semLeitura.length, lidos: p.rows.length, faixas: { ...p.faixaCounts, zero: p.semLeitura.length },
+        };
+      });
+      state.pressaoRound = "geral";
+      const s = computeSulco();
+      const sulco = { pneus: s.trocarCount, veiculos: s.filtered.map((v) => ({ placa: v.veiculo, pos: v.flagged.filter((t) => t.sulco <= 3).map((t) => `${t.posicao} ${String(t.sulco).replace(".", ",")}mm`) })).sort((a, b) => a.placa.localeCompare(b.placa)) };
+      const bloq = Array.from(planoBloqueados().values()).map((v) => {
+        const ini = (DATA.bloqueioInicio || {})[v.placa] || "2026-10-16";
+        const ds = v.laudos.map((l) => { const d = String(l.desde || l.data).slice(0, 10); return d < ini ? ini : d; }).sort();
+        return { placa: v.placa, resolvido: v.resolvido, dias: infDias(ds[0]), codigos: Array.from(new Set(v.laudos.map((l) => l.codigo))).sort() };
+      }).sort((a, b) => b.dias - a.dias || a.placa.localeCompare(b.placa));
+      return { rounds, mes, sulco, bloq, frota: registradosTotal(filial) };
+    });
+  }
+  function resumoMesRotulo(m) { const [y, mm] = String(m || "").split("-"); const n = ["", "Janeiro", "Fevereiro", "Março", "Abril", "Maio", "Junho", "Julho", "Agosto", "Setembro", "Outubro", "Novembro", "Dezembro"][Number(mm)] || m; return `${n}/${y}`; }
+  function resumoTexto(filial, d) {
+    const R = d.rounds, L = [];
+    const q = { insp1: "1ª quinzena", insp2: "2ª quinzena", geral: "Geral (mês)" };
+    L.push(`*${filialFullName(filial)} — ${resumoMesRotulo(d.mes)}*`, `Dados de ${fmtDate(String(DATA.generatedAt || "").slice(0, 10))} · ${d.frota} veículos`, "");
+    L.push("*INSPEÇÕES*");
+    ["insp1", "insp2", "geral"].forEach((k) => {
+      const r = R[k];
+      if (!r.disp) { L.push(`${q[k]}: ainda sem dado`); return; }
+      L.push(`${q[k]}: ${fmtPct(100 - r.pctPend)} inspecionados (${r.denomVeic - r.pendentes} de ${r.denomVeic})${r.placasPend.length ? " — pendentes: " + r.placasPend.join(", ") : ""}`);
+    });
+    L.push("", "*PRESSÃO*");
+    ["insp1", "insp2", "geral"].forEach((k) => {
+      const r = R[k];
+      if (!r.disp || !r.lidos) { L.push(`${q[k]}: ainda sem leitura`); return; }
+      L.push(`${q[k]}: ${fmtPct(r.pctCorreta)} correta (${r.corretas} de ${r.totalPneus} pneus) · ${fmtPct(r.pctInspPneus)} dos pneus inspecionados`);
+    });
+    L.push("", `*SULCO ≤ 3mm:* ${d.sulco.pneus} pneu(s) em ${d.sulco.veiculos.length} veículo(s)`);
+    d.sulco.veiculos.forEach((v) => L.push(`${v.placa}: ${v.pos.join(", ")}`));
+    const bl = d.bloq.filter((b) => !b.resolvido), rs = d.bloq.filter((b) => b.resolvido);
+    L.push("", `*VEÍCULOS BLOQUEADOS:* ${bl.length}`);
+    bl.forEach((b) => L.push(`${b.placa} — ${b.dias} dia(s) · laudo ${b.codigos.join("/")}`));
+    if (rs.length) L.push(`Ação resolvida, aguardando nova inspeção: ${rs.map((b) => b.placa).join(", ")}`);
+    return L.join("\n");
+  }
+  function renderResumoPanel() {
+    const unids = resumoUnidades();
+    if (!state.resumoUnid || !unids.includes(state.resumoUnid)) state.resumoUnid = unids[0];
+    const filial = state.resumoUnid, d = resumoDados(filial), R = d.rounds;
+    const chip = (p, cor) => `<span class="rs-chip" style="${cor ? `border-color:${cor};color:${cor};` : ""}">${escapeHtml(p)}</span>`;
+    const tone = (v, ok, warn) => (v >= ok ? "var(--success, #3fb950)" : v >= warn ? "var(--warning)" : "var(--danger)");
+    const Q = { insp1: "1ª quinzena", insp2: "2ª quinzena", geral: "Geral (mês)" };
+    const inspCol = (k) => { const r = R[k];
+      if (!r.disp) return `<div class="rs-col"><div class="rs-colh">${Q[k]}</div><div class="rs-big" style="color:var(--text-faint)">—</div><div class="rs-sub">ainda sem dado</div></div>`;
+      const nota = k === "geral" ? (R.insp1.disp && R.insp2.disp ? "pendentes nas duas quinzenas" : "só a quinzena disponível") : "";
+      return `<div class="rs-col"><div class="rs-colh">${Q[k]}</div><div class="rs-big" style="color:${tone(100 - r.pctPend, 80, 50)}">${fmtPct(100 - r.pctPend)}</div>
+        <div class="rs-sub">inspecionados · ${r.denomVeic - r.pendentes} de ${r.denomVeic} veículos · <b>${r.pendentes} pendentes</b></div>
+        ${k === "geral" && !(R.insp1.disp && R.insp2.disp) ? `<div class="rs-sub" style="margin-top:8px">mesmas placas da quinzena disponível</div>` : `<div class="rs-chips">${r.placasPend.length ? r.placasPend.map((p) => chip(p)).join("") : `<span class="rs-sub">nenhuma placa pendente</span>`}</div>${nota ? `<div class="rs-sub" style="margin-top:4px">${nota}</div>` : ""}`}</div>`; };
+    const presCol = (k) => { const r = R[k];
+      if (!r.disp || !r.lidos) return `<div class="rs-col"><div class="rs-colh">${Q[k]}</div><div class="rs-big" style="color:var(--text-faint)">—</div><div class="rs-sub">ainda sem leitura</div></div>`;
+      return `<div class="rs-col"><div class="rs-colh">${Q[k]}</div><div class="rs-big" style="color:${tone(r.pctCorreta, 80, 60)}">${fmtPct(r.pctCorreta)}</div>
+        <div class="rs-sub">pressão correta · ${r.corretas} de ${r.totalPneus} pneus</div>
+        <div class="rs-sub" style="margin-top:6px"><b>${fmtPct(r.pctInspPneus)}</b> dos pneus inspecionados (${r.posInsp} de ${r.posTot} posições)</div>
+        ${r.zero ? `<div class="rs-sub" style="color:var(--danger)">${r.zero} pneu(s) com pressão zero</div>` : ""}</div>`; };
+    const g = R.geral.faixas, tot = FAIXA_PRESSAO_ORDEM.reduce((s, k) => s + (g[k] || 0), 0);
+    const barra = tot ? `<div class="rs-stack">${FAIXA_PRESSAO_ORDEM.map((k) => g[k] ? `<div title="${FAIXA_PRESSAO_LABEL[k]}: ${g[k]}" style="flex:${g[k]};background:${FAIXA_PRESSAO_TONE[k]}">${Math.round(g[k] / tot * 100) >= 6 ? Math.round(g[k] / tot * 100) + "%" : ""}</div>` : "").join("")}</div>
+      <div class="rs-leg">${FAIXA_PRESSAO_ORDEM.map((k) => `<span><i style="background:${FAIXA_PRESSAO_TONE[k]}"></i>${FAIXA_PRESSAO_LABEL[k]} ${g[k] || 0}</span>`).join("")}</div>` : "";
+    const bl = d.bloq.filter((b) => !b.resolvido), rs = d.bloq.filter((b) => b.resolvido);
+    return `
+      <div class="panel-header"><div><div class="eyebrow">Relatório semanal · ${escapeHtml(resumoMesRotulo(d.mes))}</div><h2 class="panel-title">Resumo da Unidade</h2>
+        <p class="panel-desc">Tudo que o encarregado precisa numa tela: inspeções pendentes, pressão, sulco e veículos bloqueados.</p></div>
+        <div class="toolbar"><select id="resumo-unid">${unids.map((u) => `<option value="${escapeHtml(u)}" ${u === filial ? "selected" : ""}>${escapeHtml(filialFullName(u))}</option>`).join("")}</select>
+        <button class="seg-btn" id="resumo-copiar" style="border:1px solid var(--border);border-radius:8px;">Copiar resumo (texto)</button></div></div>
+      <div class="card rs-card"><div class="card-title">Inspeção · ${d.frota} veículos registrados (placas pendentes abaixo)</div><div class="rs-cols">${["insp1", "insp2", "geral"].map(inspCol).join("")}</div></div>
+      <div class="card rs-card"><div class="card-title">Pressão de ar</div><div class="rs-cols">${["insp1", "insp2", "geral"].map(presCol).join("")}</div>${barra ? `<div class="rs-sub" style="margin-top:12px">Composição por faixa — Geral (mês)</div>${barra}` : ""}</div>
+      <div class="rs-two">
+        <div class="card rs-card"><div class="card-title">Sulco ≤ 3mm (trocar)</div><div class="rs-big" style="color:${d.sulco.pneus ? "var(--danger)" : "var(--success, #3fb950)"}">${d.sulco.pneus} <span class="rs-sub" style="font-size:13px">pneu(s) · ${d.sulco.veiculos.length} veículo(s)</span></div>
+          <div class="rs-list">${d.sulco.veiculos.map((v) => `<div><b class="mono">${escapeHtml(v.placa)}</b> <span class="rs-sub">${escapeHtml(v.pos.join(" · "))}</span></div>`).join("") || `<span class="rs-sub">nenhum pneu para trocar</span>`}</div></div>
+        <div class="card rs-card"><div class="card-title">Veículos bloqueados</div><div class="rs-big" style="color:${bl.length ? "var(--danger)" : "var(--success, #3fb950)"}">${bl.length} <span class="rs-sub" style="font-size:13px">de ${d.frota} veículos</span></div>
+          <div class="rs-list">${bl.map((b) => `<div><b class="mono">${escapeHtml(b.placa)}</b> <span class="rs-sub">${b.dias} dia${b.dias === 1 ? "" : "s"} · laudo ${escapeHtml(b.codigos.join(" / "))}</span></div>`).join("") || `<span class="rs-sub">nenhum veículo bloqueado</span>`}
+          ${rs.length ? `<div class="rs-sub" style="margin-top:8px">Ação resolvida, aguardando nova inspeção: ${rs.map((b) => `<b class="mono">${escapeHtml(b.placa)}</b>`).join(", ")}</div>` : ""}</div></div>
+      </div>`;
+  }
+  function bindResumo() {
+    if (state.panel !== "resumo") return;
+    const s = document.getElementById("resumo-unid");
+    if (s) s.addEventListener("change", () => { state.resumoUnid = s.value; render(); });
+    const b = document.getElementById("resumo-copiar");
+    if (b) b.addEventListener("click", () => {
+      const txt = resumoTexto(state.resumoUnid, resumoDados(state.resumoUnid));
+      const ok = () => toast("Resumo copiado — é só colar no WhatsApp/e-mail");
+      if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(txt).then(ok).catch(() => toast("Não consegui copiar"));
+      else { const ta = document.createElement("textarea"); ta.value = txt; document.body.appendChild(ta); ta.select(); try { document.execCommand("copy"); ok(); } catch (e) { toast("Não consegui copiar"); } ta.remove(); }
+    });
+  }
+
+
+  // ===== Evolução Mensal (pressão e inspeção, mês a mês; 1 ou várias unidades) =====
+  // Mesmas regras do relatório em PDF por unidade: % pressão correta = corretas ÷ (leituras − sem padrão);
+  // % pneus inspecionados = posições distintas lidas por quinzena ÷ posições cadastradas (quinzenas disponíveis).
+  function evoMesesTodos() {
+    const ks = new Set(Object.keys(DATA.pressaoHistoricoMensal || {})); (DATA.pressaoMesesLazy || []).forEach((m) => ks.add(m));
+    return Array.from(ks).sort();
+  }
+  function computeEvolucao() {
+    const H = DATA.pressaoHistoricoMensal || {};
+    const todas = resumoUnidades();
+    let selecionadas = todas;
+    const base = state.selFiliais.size ? Array.from(state.selFiliais) : (state.filtroFilial !== "all" ? [state.filtroFilial] : null);
+    if (base) { const sg = new Set(base.map(filialSigla)); selecionadas = todas.filter((f) => sg.has(filialSigla(f))); }
+    const siglas = new Set(selecionadas.map(filialSigla));
+    const denom = selecionadas.reduce((s, f) => s + (DATA.posicoesRegistradas.porFilial[normalizeText(filialFullName(f))] || 0), 0);
+    const hojeMes = String(DATA.generatedAt || "").slice(0, 7);
+    const FAIXAS = ["muito_baixa", "baixa", "correta", "alta", "muito_alta"];
+    const meses = evoMesesTodos().map((m) => {
+      const d = H[m];
+      if (!d) return { m, carregado: false, parcial: m === hojeMes };
+      const ev = (r) => ((d[r] && d[r].eventos) || []).filter((e) => siglas.has(filialSigla(e.filial)));
+      const rows = ev("geral");
+      const semPadrao = rows.filter((e) => e.semPadrao).length;
+      const comPadrao = rows.length - semPadrao;
+      const f = {}; FAIXAS.forEach((k) => { f[k] = rows.filter((e) => !e.semPadrao && !e.semLeitura && e.faixa === k).length; });
+      f.zero = rows.filter((e) => !e.semPadrao && e.semLeitura).length;
+      const pos = (r) => new Set(ev(r).map((e) => e.veiculo + "|" + e.posicao)).size;
+      let nq = 0, soma = 0;
+      ["insp1", "insp2"].forEach((r) => { if (d[r] && d[r].disponivel) { nq++; soma += pos(r); } });
+      return { m, carregado: true, parcial: m === hojeMes, lidos: rows.length, comPadrao, f,
+        pctCorreta: comPadrao ? (f.correta / comPadrao) * 100 : null,
+        pctInsp: nq && denom && rows.length ? (soma / (denom * nq)) * 100 : null };
+    });
+    return { meses, selecionadas, denom, hojeMes };
+  }
+  function renderEvolucaoPanel() {
+    const pend = pressaoMesesPendentes();
+    if (pend.length && !state.evoCarregando) {
+      state.evoCarregando = true;
+      Promise.all(pend.map(carregaMesPressao)).then(() => { state.evoCarregando = false; if (state.panel === "evolucao") render(); })
+        .catch((e) => { state.evoCarregando = false; toast("Erro ao carregar meses anteriores: " + e.message); });
+    }
+    const d = computeEvolucao();
+    const filiais = resumoUnidades();
+    const toolbarExtra = `<button class="seg-btn" id="evo-pdf" style="border:1px solid var(--border);border-radius:8px;">Baixar PDF</button>`;
+    const ms = d.meses.filter((x) => x.carregado);
+    const fechados = ms.filter((x) => !x.parcial && x.lidos);
+    const ult = fechados[fechados.length - 1], ant = fechados[fechados.length - 2];
+    const pp = (a, b) => (a != null && b != null ? `${a - b >= 0 ? "▲" : "▼"} ${Math.abs(a - b).toFixed(1).replace(".", ",")} pp vs ${histMesLabel(ant.m)}` : "");
+    const tone = (v) => (v == null ? "var(--text-faint)" : v >= 80 ? "var(--success, #3fb950)" : v >= 60 ? "var(--warning)" : "var(--danger)");
+    const nomeSel = d.selecionadas.length === filiais.length ? "Todas as unidades" : d.selecionadas.map((f) => filialFullName(f)).join(" + ");
+    const kpi = (rot, val, sub, cor) => `<div class="card rs-card" style="margin:0"><div class="card-title">${rot}</div><div class="rs-big" style="color:${cor || "inherit"}">${val}</div><div class="rs-sub">${sub}</div></div>`;
+    const kpis = ult ? `<div class="evo-kpis">
+        ${kpi("% pressão correta · " + histMesLabel(ult.m), ult.pctCorreta == null ? "—" : fmtPct(ult.pctCorreta), ant ? pp(ult.pctCorreta, ant.pctCorreta) : "último mês fechado", tone(ult.pctCorreta))}
+        ${kpi("% pneus inspecionados · " + histMesLabel(ult.m), ult.pctInsp == null ? "—" : fmtPct(ult.pctInsp), ant ? pp(ult.pctInsp, ant.pctInsp) : "posições lidas ÷ cadastradas", tone(ult.pctInsp))}
+        ${kpi("Pneus lidos · " + histMesLabel(ult.m), fmtInt(ult.lidos), `${d.selecionadas.length} unidade(s) · ${fmtInt(d.denom)} posições cadastradas`)}
+      </div>` : "";
+    const cols = d.meses.map((x) => {
+      const rot = histMesLabel(x.m).split("/")[0];
+      if (!x.carregado || !x.lidos) return `<div class="evo-col"><div class="evo-bar evo-vazio"></div><div class="evo-lbl">${rot}</div></div>`;
+      const segs = [...FAIXA_PRESSAO_ORDEM].reverse().map((k) => { const n = x.f[k] || 0; if (!n || !x.comPadrao) return ""; const p = (n / (x.comPadrao + (x.f.zero && k === "zero" ? 0 : 0))) * 100;
+        return `<div title="${FAIXA_PRESSAO_LABEL[k]}: ${n} (${p.toFixed(1)}%)" style="height:${(n / (x.lidos || 1)) * 100}%;background:${FAIXA_PRESSAO_TONE[k]}"></div>`; }).join("");
+      return `<div class="evo-col ${x.parcial ? "evo-parcial" : ""}"><div class="evo-top">${x.pctCorreta == null ? "" : Math.round(x.pctCorreta)}</div><div class="evo-bar evo-stack">${segs}</div><div class="evo-lbl">${rot}${x.parcial ? "*" : ""}</div></div>`;
+    }).join("");
+    const cols2 = d.meses.map((x) => {
+      const rot = histMesLabel(x.m).split("/")[0];
+      if (!x.carregado || x.pctInsp == null) return `<div class="evo-col"><div class="evo-bar evo-vazio"></div><div class="evo-lbl">${rot}</div></div>`;
+      const v = Math.min(100, x.pctInsp);
+      return `<div class="evo-col ${x.parcial ? "evo-parcial" : ""}"><div class="evo-top">${Math.round(x.pctInsp)}</div><div class="evo-bar"><div style="height:${v}%;background:var(--chart2, #4f8ff7);width:100%;position:absolute;bottom:0"></div></div><div class="evo-lbl">${rot}${x.parcial ? "*" : ""}</div></div>`;
+    }).join("");
+    const leg = [...FAIXA_PRESSAO_ORDEM].map((k) => `<span><i style="background:${FAIXA_PRESSAO_TONE[k]}"></i>${FAIXA_PRESSAO_LABEL[k]}</span>`).join("");
+    const pc = (n, t) => (t ? `${((n / t) * 100).toFixed(1).replace(".", ",")}%` : "—");
+    const linhas = d.meses.filter((x) => x.carregado).map((x) => `<tr ${x.parcial ? 'style="opacity:.6"' : ""}><td><b>${histMesLabel(x.m)}${x.parcial ? "*" : ""}</b></td><td style="text-align:right">${fmtInt(x.lidos || 0)}</td>
+      <td style="text-align:right"><b>${x.pctCorreta == null ? "—" : fmtPct(x.pctCorreta)}</b></td>
+      ${["muito_baixa", "baixa", "alta", "muito_alta", "zero"].map((k) => `<td style="text-align:right">${pc(x.f ? x.f[k] : 0, x.comPadrao)}</td>`).join("")}
+      <td style="text-align:right"><b>${x.pctInsp == null ? "—" : fmtPct(x.pctInsp)}</b></td></tr>`).join("");
+    return `${panelHeader("Evolução Mensal", "Pressão e inspeção mês a mês. Escolha uma ou mais unidades no filtro; \"Baixar PDF\" gera o relatório do que está na tela.", filiais, toolbarExtra)}
+      <div id="evo-print">
+        <div class="evo-titulo">Evolução mensal · pressão e inspeção — ${escapeHtml(nomeSel)}<span class="rs-sub"> · dados de ${escapeHtml(fmtDate(String(DATA.generatedAt || "").slice(0, 10)))}</span></div>
+        ${state.evoCarregando ? `<div class="rs-sub" style="margin:8px 0">Carregando meses anteriores…</div>` : ""}
+        ${kpis}
+        <div class="evo-grid">
+          <div class="card rs-card"><div class="card-title">Composição da pressão por faixa (100% = pneus lidos)</div><div class="rs-sub">Número no topo = % pressão correta</div><div class="evo-chart">${cols}</div><div class="rs-leg">${leg}</div></div>
+          <div class="card rs-card"><div class="card-title">% de pneus inspecionados, por mês</div><div class="rs-sub">Posições lidas ÷ posições cadastradas (por quinzena)</div><div class="evo-chart">${cols2}</div></div>
+        </div>
+        <div class="card rs-card"><div class="table-wrap"><table><thead><tr><th>Mês</th><th style="text-align:right">Pneus lidos</th><th style="text-align:right">% correta</th><th style="text-align:right">Muito baixa</th><th style="text-align:right">Baixa</th><th style="text-align:right">Alta</th><th style="text-align:right">Muito alta</th><th style="text-align:right">Zero</th><th style="text-align:right">% inspecionados</th></tr></thead><tbody>${linhas}</tbody></table></div></div>
+        <div class="rs-sub">* mês em andamento (parcial). Pressão correta = 98% a 103% do padrão da medida; pressão zero conta como não correta. A 2ª quinzena só entra quando há leitura.</div>
+      </div>`;
+  }
+  function bindEvolucao() {
+    if (state.panel !== "evolucao") return;
+    const b = document.getElementById("evo-pdf");
+    if (b) b.addEventListener("click", () => window.print());
+  }
+
   function renderInformativoPanel() {
     setTimeout(() => { infAjustaTela(); infAutoRolagem(); infRelogioTick(); }, 0);
     const veics = planoVeiculos(); const filiais = planoFiliais(veics);
@@ -4641,6 +4956,8 @@ body.nav-collapsed:has(.inf-root) #main { padding-bottom:24px; }
     else if (state.panel === "plano") main.innerHTML = renderPlanoPanel();
     else if (state.panel === "bloqueados") main.innerHTML = renderBloqueadosPanel();
     else if (state.panel === "informativo") main.innerHTML = renderInformativoPanel();
+    else if (state.panel === "resumo") main.innerHTML = renderResumoPanel();
+    else if (state.panel === "evolucao") main.innerHTML = renderEvolucaoPanel();
     else main.innerHTML = renderPressaoPanel();
 
     bindNav();
@@ -4651,6 +4968,8 @@ body.nav-collapsed:has(.inf-root) #main { padding-bottom:24px; }
     bindPressaoForaRows();
     bindPlano();
     bindBloqueados();
+    bindResumo();
+    bindEvolucao();
     drawCharts();
 
     window.scrollTo(0, scrollY);
