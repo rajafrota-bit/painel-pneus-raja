@@ -122,6 +122,7 @@
   .evo-top { font-size: 10px; font-weight: 700; margin-bottom: 3px; white-space: nowrap; letter-spacing: -.02em; }
   .evo-bar { width: 100%; height: calc(100% - 36px); position: relative; border-radius: 4px 4px 0 0; overflow: hidden; background: rgba(255,255,255,.04); }
   .evo-stack { display: flex; flex-direction: column; }
+  .evo-seg { display: flex; align-items: center; justify-content: center; font-size: 9px; font-weight: 700; overflow: hidden; white-space: nowrap; letter-spacing: -.02em; }
   .evo-vazio { opacity: .3; }
   .evo-parcial { opacity: .55; }
   .evo-lbl { font-size: 10.5px; color: var(--text-faint); margin-top: 5px; text-transform: uppercase; }
@@ -4156,9 +4157,10 @@ body.nav-collapsed:has(.inf-root) #main { padding-bottom:24px; }
     const cols = d.meses.map((x) => {
       const rot = histMesLabel(x.m).split("/")[0];
       if (!x.carregado || !x.lidos) return `<div class="evo-col"><div class="evo-bar evo-vazio"></div><div class="evo-lbl">${rot}</div></div>`;
-      const segs = [...FAIXA_PRESSAO_ORDEM].reverse().map((k) => { const n = x.f[k] || 0; if (!n || !x.comPadrao) return ""; const p = (n / (x.comPadrao + (x.f.zero && k === "zero" ? 0 : 0))) * 100;
-        return `<div title="${FAIXA_PRESSAO_LABEL[k]}: ${n} (${p.toFixed(1)}%)" style="height:${(n / (x.lidos || 1)) * 100}%;background:${FAIXA_PRESSAO_TONE[k]}"></div>`; }).join("");
-      return `<div class="evo-col ${x.parcial ? "evo-parcial" : ""}"><div class="evo-top">${x.pctCorreta == null ? "" : x.pctCorreta.toFixed(2).replace(".", ",")}</div><div class="evo-bar evo-stack">${segs}</div><div class="evo-lbl">${rot}${x.parcial ? "*" : ""}</div></div>`;
+      const segs = [...FAIXA_PRESSAO_ORDEM].reverse().map((k) => { const n = x.f[k] || 0; if (!n || !x.comPadrao) return ""; const p = (n / x.comPadrao) * 100;
+        const txt = k === "baixa" ? "#1b1d21" : "#fff";
+        return `<div title="${FAIXA_PRESSAO_LABEL[k]}: ${n} (${p.toFixed(2).replace(".", ",")}%)" style="height:${p}%;background:${FAIXA_PRESSAO_TONE[k]};color:${txt}" class="evo-seg">${p >= 8 ? p.toFixed(2).replace(".", ",") : ""}</div>`; }).join("");
+      return `<div class="evo-col ${x.parcial ? "evo-parcial" : ""}"><div class="evo-top">&nbsp;</div><div class="evo-bar evo-stack">${segs}</div><div class="evo-lbl">${rot}${x.parcial ? "*" : ""}</div></div>`;
     }).join("");
     const cols2 = d.meses.map((x) => {
       const rot = histMesLabel(x.m).split("/")[0];
@@ -4178,7 +4180,7 @@ body.nav-collapsed:has(.inf-root) #main { padding-bottom:24px; }
         ${state.evoCarregando ? `<div class="rs-sub" style="margin:8px 0">Carregando meses anteriores…</div>` : ""}
         ${kpis}
         <div class="evo-grid">
-          <div class="card rs-card"><div class="card-title">Composição da pressão por faixa (100% = pneus lidos)</div><div class="rs-sub">Número no topo = % pressão correta</div><div class="evo-chart">${cols}</div><div class="rs-leg">${leg}</div></div>
+          <div class="card rs-card"><div class="card-title">Composição da pressão por faixa (100% = pneus lidos com padrão de medida)</div><div class="rs-sub">Cada faixa mostra o seu % (faixas pequenas ficam sem rótulo; passe o mouse para ver)</div><div class="evo-chart">${cols}</div><div class="rs-leg">${leg}</div></div>
           <div class="card rs-card"><div class="card-title">% de pneus inspecionados, por mês</div><div class="rs-sub">Posições lidas ÷ posições cadastradas (por quinzena)</div><div class="evo-chart">${cols2}</div></div>
         </div>
         <div class="card rs-card"><div class="table-wrap"><table><thead><tr><th>Mês</th><th style="text-align:right">Pneus lidos</th><th style="text-align:right">% correta</th><th style="text-align:right">Muito baixa</th><th style="text-align:right">Baixa</th><th style="text-align:right">Alta</th><th style="text-align:right">Muito alta</th><th style="text-align:right">Zero</th><th style="text-align:right">% inspecionados</th></tr></thead><tbody>${linhas}</tbody></table></div></div>
