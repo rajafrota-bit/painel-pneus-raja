@@ -762,7 +762,7 @@ body.nav-collapsed:has(.inf-root) #main { padding-bottom:24px; }
       : round === "insp2" ? mesDadosDisp.insp2Disponivel !== false
       : true;
     let rows = linhasPendentesNoRound(round, mes);
-    rows = rows.filter((r) => passaFilial(r.filial));
+    rows = rows.filter((r) => passaFilialBase(r.filial));
     if (state.busca) rows = rows.filter((r) => r.veiculo.toLowerCase().includes(state.busca.toLowerCase()));
     rows = scopeRows(rows);
     const denom = registradosTotal(activeScope());
@@ -786,6 +786,9 @@ body.nav-collapsed:has(.inf-root) #main { padding-bottom:24px; }
     if (state.selFiliais.size) { const s = filialSigla(f); return Array.from(state.selFiliais).some((x) => filialSigla(x) === s); }
     return state.filtroFilial === "all" || filialSigla(f) === filialSigla(state.filtroFilial);
   }
+  // Só o filtro de filial do dropdown (SEM a seleção feita nas barras): base das barras dos gráficos, para que as outras
+  // unidades continuem visíveis depois de clicar numa e dê para somar com Ctrl+clique.
+  function passaFilialBase(f) { return state.filtroFilial === "all" || filialSigla(f) === filialSigla(state.filtroFilial); }
   function activeScope() { return state.selFiliais.size ? state.selFiliais : state.filtroFilial; }
   function scopeRows(rows) { return state.selFiliais.size ? rows.filter((r) => state.selFiliais.has(r.filial)) : rows; }
   function scopeLabelText() {
@@ -1362,7 +1365,7 @@ body.nav-collapsed:has(.inf-root) #main { padding-bottom:24px; }
   // ------------------------------------------------------------------
   function computeVazias() {
     let rows = DATA.vazias;
-    rows = rows.filter((r) => passaFilial(r.filial));
+    rows = rows.filter((r) => passaFilialBase(r.filial));
     if (state.busca) rows = rows.filter((r) => r.placa.toLowerCase().includes(state.busca.toLowerCase()));
     const filtered = scopeRows(rows);
     const totalPos = filtered.reduce((s, r) => s + r.posicoes.length, 0);
@@ -1481,7 +1484,7 @@ body.nav-collapsed:has(.inf-root) #main { padding-bottom:24px; }
         return { veiculo, filial: base.filial, classe: base.classe, emQ1: !!r1, emQ2: !!r2, status };
       });
       let rows = unionAll;
-      rows = rows.filter((r) => passaFilial(r.filial));
+      rows = rows.filter((r) => passaFilialBase(r.filial));
       if (state.busca) rows = rows.filter((r) => r.veiculo.toLowerCase().includes(state.busca.toLowerCase()));
       const filtered = scopeRows(rows);
       const scopeFilial = activeScope();
@@ -1524,7 +1527,7 @@ body.nav-collapsed:has(.inf-root) #main { padding-bottom:24px; }
     }
     const source = state.inspRound === "insp1" ? mesDados.insp1 : mesDados.insp2;
     let rows = source;
-    rows = rows.filter((r) => passaFilial(r.filial));
+    rows = rows.filter((r) => passaFilialBase(r.filial));
     if (state.busca) rows = rows.filter((r) => r.veiculo.toLowerCase().includes(state.busca.toLowerCase()));
     const filtered = scopeRows(rows);
     const scopeFilial = activeScope();
@@ -1734,7 +1737,7 @@ body.nav-collapsed:has(.inf-root) #main { padding-bottom:24px; }
     const selM = state.sulcoMedidas;
     const porMedida = (arr) => (selM && selM.size ? arr.filter((t) => selM.has(medidaPneu(t))) : arr);
     let rows = porMedida(DATA.sulcoTires);
-    rows = rows.filter((t) => passaFilial(t.filial));
+    rows = rows.filter((t) => passaFilialBase(t.filial));
     if (state.busca) rows = rows.filter((t) => t.veiculo.toLowerCase().includes(state.busca.toLowerCase()));
     const tires = scopeRows(rows);
 
@@ -1784,7 +1787,7 @@ body.nav-collapsed:has(.inf-root) #main { padding-bottom:24px; }
       const janela = quinzenaAtualJanela();
       const info = DATA.veiculosInfo || {};
       let all = porMedida((DATA.sulcoTires || []).concat(DATA.sulcoOutros || []));
-      all = all.filter((t) => passaFilial(t.filial));
+      all = all.filter((t) => passaFilialBase(t.filial));
       if (state.busca) all = all.filter((t) => t.veiculo.toLowerCase().includes(state.busca.toLowerCase()));
       all = scopeRows(all);
       const por = new Map();
@@ -1805,7 +1808,7 @@ body.nav-collapsed:has(.inf-root) #main { padding-bottom:24px; }
       // veículos registrados que nem aparecem no relatório de sulco (sem pneu cadastrado)
       Object.entries(info).forEach(([placa, i]) => {
         if (por.has(placa) || selM.size) return;
-        if (!passaFilial(i.filial)) return;
+        if (!passaFilialBase(i.filial)) return;
         if (state.busca && !placa.toLowerCase().includes(state.busca.toLowerCase())) return;
         if (state.selFiliais.size && !state.selFiliais.has(i.filial)) return;
         todos.push(monta(placa, [], i));
@@ -2493,7 +2496,7 @@ body.nav-collapsed:has(.inf-root) #main { padding-bottom:24px; }
     // pelo Joao, 2026-09-14 — selecionar uma filial não pode apagar as demais da comparação).
     const filtraFilialBuscaSemEscopo = (list) => {
       let out = list;
-      out = out.filter((t) => passaFilial(t.filial));
+      out = out.filter((t) => passaFilialBase(t.filial));
       if (state.busca) out = out.filter((t) => t.veiculo.toLowerCase().includes(state.busca.toLowerCase()));
       return out;
     };
@@ -2755,7 +2758,7 @@ body.nav-collapsed:has(.inf-root) #main { padding-bottom:24px; }
         const meta = tires[0] || info[placa] || {};
         const filial = tires[0] ? tires[0].filial : (info[placa] && info[placa].filial);
         if (!filial || ehFilialSucata(filial)) return;
-        if (!passaFilial(filial)) return;
+        if (!passaFilialBase(filial)) return;
         if (state.busca && !placa.toLowerCase().includes(state.busca.toLowerCase())) return;
         if (state.selFiliais.size && !state.selFiliais.has(filial)) return;
         const datas = tires.map((x) => x.dataInsp).filter(Boolean).sort();
