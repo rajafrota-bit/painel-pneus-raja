@@ -180,6 +180,7 @@ dialog::backdrop{background:rgba(10,20,25,.45)}
   <section id="view-filiais" hidden>
     <div class="toolbar">
       <div class="field"><label>Mês</label><div class="row" style="flex-wrap:nowrap"><button type="button" class="btn ghost sm" id="btnAnt" aria-label="Mês anterior">◀</button><strong id="semRef" style="min-width:110px;text-align:center"></strong><button type="button" class="btn ghost sm" id="btnProx" aria-label="Próximo mês">▶</button><button type="button" class="btn ghost sm" id="btnAtual">Mês atual</button></div></div>
+      <div class="field"><label for="buscaPlaca">Pesquisar placa</label><input id="buscaPlaca" type="search" maxlength="8" placeholder="Ex: QWY2312" autocomplete="off" style="font-family:ui-monospace,'Roboto Mono',Menlo,Consolas,monospace;text-transform:uppercase;letter-spacing:.08em;max-width:180px"></div>
       <div class="field"><label for="filtroFilial">Filial</label><select id="filtroFilial"><option value="">Todas</option></select></div>
       <div class="field"><label for="filtroStatus">Mostrar</label>
         <select id="filtroStatus"><option value="">Todos os veículos</option><option value="semAtual">Sem calibragem na semana atual</option><option value="pend">Com alguma semana pendente</option></select>
@@ -365,6 +366,7 @@ function renderFiliais(){
   const iAtual = janela.indexOf(semHoje);
   $("legenda").textContent = `${nomeMes(refMes)} tem ${N} semanas (domingo a sábado). A semana que vira o mês conta nos dois meses. "Atrasada" = semana encerrada sem calibragem. Controle iniciado em ${fmt(INICIO_CONTROLE)}.`;
 
+  const qPlaca = normPlaca($("buscaPlaca").value); let achados = 0;
   const fSel = $("filtroFilial").value, soPend = $("filtroStatus").value==="pend";
   const resumo = []; let html = "";
   for(const f of filiais){
@@ -394,11 +396,14 @@ function renderFiliais(){
     if(fSel && fSel!==f) continue;
     const modo = $("filtroStatus").value;
     const vis = linhas.filter(l=>{
+      if(qPlaca && !l.p.includes(qPlaca)) return false;
       if(modo==="pend" && !l.pend) return false;
       if(modo==="semAtual" && (iAtual<0 || l.sts[iAtual]!=="sem")) return false;
       return janela.every((w,i)=> !filtrosCol[w] || l.sts[i]===filtrosCol[w]);
     });
     const filtrado = vis.length !== linhas.length;
+    if(qPlaca && !vis.length) continue;
+    achados += vis.length;
     html += `<article class="panel fil"><header><h3>${esc(f)}</h3>
       <div class="row"><span class="muted" style="font-size:12.5px">${filtrado?`<b style="color:var(--accent)">${vis.length} de ${vs.length} no filtro</b> · `:""}${vs.length} veículos${pctSem!==null?` · ${semFeitos}/${vs.length} na semana atual`:""}${pctMes!==null?` · ${pctMes}% no mês`:""}</span>
       <span class="tag ${cls}">${base===null?"sem semanas cobradas":(pctSem!==null? base+"% na semana" : base+"% no mês")}</span></div></header>
@@ -412,7 +417,12 @@ function renderFiliais(){
       ${vis.length? vis.map(l=>l.html).join("") : `<tr><td colspan="${N+3}" class="empty">${filtrado||modo?"Nenhum veículo desta filial neste filtro.":"Nenhum veículo."}</td></tr>`}
       </tbody></table></div></article>`;
   }
+  if(qPlaca && !achados){
+    const v = byPlaca.get(qPlaca);
+    html = `<div class="panel empty">${v && fSel && v.filial!==fSel ? `A placa <b>${esc(qPlaca)}</b> é da filial <b>${esc(v.filial)}</b>. Troque o filtro de Filial para "Todas".` : v && EXCLUIR_FILIAIS.includes(v.filial) ? `A placa <b>${esc(qPlaca)}</b> está na SUCATA e não entra no controle.` : `Nenhuma placa encontrada com "<b>${esc(qPlaca)}</b>" nos filtros atuais.`}</div>`;
+  }
   $("filiais").innerHTML = html;
+  $("sumgrid").hidden = !!qPlaca; // na pesquisa, o resultado aparece logo abaixo dos filtros
   const ativos = janela.map((w,i)=>filtrosCol[w]?`${i+1}ª semana: ${filtrosCol[w]==="sem"?"sem calibragem":"calibrados"}`:"").filter(Boolean);
   $("filtinfo").hidden = !ativos.length;
   $("filtinfo").innerHTML = ativos.length ? `<span class="muted">Filtro ativo:</span> <b>${ativos.join(" · ")}</b> <button type="button" class="btn ghost sm" id="btnLimparCol">Limpar filtros</button>` : "";
@@ -421,7 +431,7 @@ function renderFiliais(){
     <div class="v">${v===null?"—":v+"%"}</div><div class="muted" style="font-size:12px">${r.pctSem!==null?`${r.semFeitos}/${r.n} na semana`:"no mês"}${r.pctSem!==null&&r.pctMes!==null?` · mês ${r.pctMes}%`:""}</div>
     <div class="bar"><i style="width:${v||0}%"></i></div></button>`; }).join("");
 }
-["filtroFilial","filtroStatus"].forEach(id=>$(id).addEventListener("input",renderFiliais));
+["filtroFilial","filtroStatus","buscaPlaca"].forEach(id=>$(id).addEventListener("input",renderFiliais));
 $("filiais").addEventListener("change", e=>{ const s=e.target.closest(".colf"); if(!s) return;
   if(s.value) filtrosCol[s.dataset.w]=s.value; else delete filtrosCol[s.dataset.w]; renderFiliais(); });
 $("filtinfo").addEventListener("click", e=>{ if(e.target.id!=="btnLimparCol") return; for(const k in filtrosCol) delete filtrosCol[k]; renderFiliais(); });

@@ -561,6 +561,8 @@ body.nav-collapsed:has(.inf-root) #main { padding-bottom:24px; }
   .hist-nota { color: var(--text-faint); font-size: 11.5px; margin-top: 6px; }
   .hist-vazio { color: var(--text-dim); padding: 26px 4px; text-align: center; }
   .hist-card-atual { border-color: var(--accent-border); background: var(--accent-dim); }
+  .tire-novo-chip { position: relative; margin-top: 8px; }
+  .tire-novo { position: absolute; top: -14.6px; left: 50%; transform: translateX(-50%); font-size: 14px; font-weight: 700; line-height: 1; color: #e08a4b; opacity: .65; font-family: 'JetBrains Mono', monospace; pointer-events: none; }
 
 </style>
 </head>
@@ -853,7 +855,10 @@ body.nav-collapsed:has(.inf-root) #main { padding-bottom:24px; }
   ];
 
   const state = {
-    panel: "informativo",
+    panel: (function () {   // aba lembrada ao atualizar a página (só dentro da mesma aba do navegador)
+      try { const p = window.sessionStorage.getItem("raja_painel_aba"); if (p && PANELS.some((x) => x.key === p)) return p; } catch (e) { /* sem storage: Informativo */ }
+      return "informativo";
+    })(),
     filtroFilial: "all",
     busca: "",
     inspRound: "geral",
@@ -972,21 +977,27 @@ body.nav-collapsed:has(.inf-root) #main { padding-bottom:24px; }
         const h = (Math.min(v, niceMax) / niceMax) * innerH;
         const y = yCursor - h;
         const _vis = segments.filter((sg) => (d[sg.key] || 0) > 0), _r = Math.min(4, w / 2, h / 2), _rt = opts.round && seg === _vis[_vis.length - 1] ? _r : 0, _rb = opts.round && seg === _vis[0] ? _r : 0;
+        const _op = opts.segSel && opts.segSel.size && !opts.segSel.has(seg.key) ? 0.3 : 1;
         const _tt = `<title>${escapeHtml(filialFullName(d.filial))} — ${escapeHtml(seg.label)}: ${v}</title>`;
-        if (opts.round) segsHtml += `<path d="M${x + _rt},${y} H${x + w - _rt} Q${x + w},${y} ${x + w},${y + _rt} V${y + h - _rb} Q${x + w},${y + h} ${x + w - _rb},${y + h} H${x + _rb} Q${x},${y + h} ${x},${y + h - _rb} V${y + _rt} Q${x},${y} ${x + _rt},${y} Z" fill="${seg.color}">${_tt}</path>`;
+        if (opts.round) segsHtml += `<path d="M${x + _rt},${y} H${x + w - _rt} Q${x + w},${y} ${x + w},${y + _rt} V${y + h - _rb} Q${x + w},${y + h} ${x + w - _rb},${y + h} H${x + _rb} Q${x},${y + h} ${x},${y + h - _rb} V${y + _rt} Q${x},${y} ${x + _rt},${y} Z" fill="${seg.color}" data-seg="${seg.key}" style="cursor:pointer;opacity:${_op}">${_tt}</path>`;
         else segsHtml += `<rect x="${x}" y="${y}" width="${w}" height="${Math.max(h, 0)}" fill="${seg.color}"><title>${escapeHtml(filialFullName(d.filial))} — ${escapeHtml(seg.label)}: ${v}</title></rect>`;
         if (opts.valores && h >= 15) segsHtml += `<text x="${x + w / 2}" y="${y + h / 2 + 4}" text-anchor="middle" font-size="11" font-weight="700" fill="#10141c" pointer-events="none">${v}</text>`;
         yCursor = y;
       });
       bars += `<g class="bar-rect" data-filial="${escapeHtml(d.filial)}" style="opacity:${dim ? 0.32 : 1}">
         ${segsHtml}
-        <rect x="${x}" y="${padT + innerH - (Math.min(d.total, niceMax) / niceMax) * innerH}" width="${w}" height="${Math.max((Math.min(d.total, niceMax) / niceMax) * innerH, 0)}" rx="${opts.round ? 4 : 0}" fill="transparent" ${isSel ? 'stroke="#fff" stroke-opacity="0.5" stroke-width="1.5"' : ""}><title>${escapeHtml(filialFullName(d.filial))}: ${d.total} ${unid}</title></rect>
-        ${opts.totalTop ? `<text x="${x + w / 2}" y="${padT + innerH - (Math.min(d.total, niceMax) / niceMax) * innerH - 5}" text-anchor="middle" font-size="11.5" font-weight="700" fill="#e6e8ec" pointer-events="none">${d.total}</text>` : ""}
-        <text x="${x + w / 2}" y="${padT + innerH + 17}" text-anchor="middle" font-size="10.5" fill="#9aa0ac" font-family="'JetBrains Mono',monospace">${escapeHtml(filialSigla(d.filial))}</text>
+        <rect x="${x}" y="${padT + innerH - (Math.min(d.total, niceMax) / niceMax) * innerH}" width="${w}" height="${Math.max((Math.min(d.total, niceMax) / niceMax) * innerH, 0)}" ${opts.onSegment ? 'pointer-events="none"' : ""} rx="${opts.round ? 4 : 0}" fill="transparent" ${isSel ? 'stroke="#fff" stroke-opacity="0.5" stroke-width="1.5"' : ""}><title>${escapeHtml(filialFullName(d.filial))}: ${d.total} ${unid}</title></rect>
+        ${opts.totalTop ? `<rect x="${x - 4}" y="${padT + innerH - (Math.min(d.total, niceMax) / niceMax) * innerH - 20}" width="${w + 8}" height="20" fill="transparent" style="cursor:pointer"/><text x="${x + w / 2}" y="${padT + innerH - (Math.min(d.total, niceMax) / niceMax) * innerH - 5}" text-anchor="middle" font-size="11.5" font-weight="700" fill="#e6e8ec" pointer-events="none">${d.total}</text>` : ""}
+                ${opts.onSegment ? `<rect x="${x - 4}" y="${padT + innerH + 3}" width="${w + 8}" height="22" fill="transparent" style="cursor:pointer"/>` : ""}
+        <text x="${x + w / 2}" y="${padT + innerH + 17}" pointer-events="none" text-anchor="middle" font-size="10.5" fill="#9aa0ac" font-family="'JetBrains Mono',monospace">${escapeHtml(filialSigla(d.filial))}</text>
       </g>`;
     });
     el.innerHTML = `<svg width="100%" height="${H}" viewBox="0 0 ${W} ${H}" style="overflow:visible">${grid}${bars}</svg>`;
-    el.querySelectorAll(".bar-rect").forEach((g) => g.addEventListener("click", (ev) => onClickFilial(g.getAttribute("data-filial"), ev.ctrlKey || ev.metaKey)));
+    el.querySelectorAll(".bar-rect").forEach((g) => g.addEventListener("click", (ev) => {
+      const sg = ev.target && ev.target.closest ? ev.target.closest("[data-seg]") : null;
+      if (opts.onSegment && sg) opts.onSegment(g.getAttribute("data-filial"), sg.getAttribute("data-seg"), ev.ctrlKey || ev.metaKey);
+      else onClickFilial(g.getAttribute("data-filial"), ev.ctrlKey || ev.metaKey);
+    }));
   }
 
   // Converte cor hex (#RRGGBB) pra rgba com alpha reduzido, usado só pra "apagar" fatias não
@@ -2188,6 +2199,33 @@ body.nav-collapsed:has(.inf-root) #main { padding-bottom:24px; }
       <div class="tire-chip-pneu" style="white-space:nowrap;">Nº ${escapeHtml(t.pneu || "—")}</div>
     </div>`;
   }
+  // Inspeção imediatamente anterior à data (qualquer mês já carregado, filtrado ou não) -> Map(posição -> evento)
+  function histAnteriorDe(placa, data) {
+    let best = null, bd = "";
+    histInspecoesDaPlaca(placa).forEach((dias) => dias.forEach((pm, d) => { if (d < data && d > bd) { bd = d; best = pm; } }));
+    return best;
+  }
+  // Posições cujo pneu NÃO estava ali na inspeção anterior: outro nº de fogo na mesma posição, ou pneu que estava em outra posição.
+  // (Posição sem leitura na anterior e pneu inédito = não marca: pode ser só leitura que faltou.)
+  function histNovosPneus(tires, prev) {
+    const novos = new Set(); if (!prev) return novos;
+    const antes = new Set(Array.from(prev.values()).map((e) => String(e.pneu || "")));
+    tires.forEach((t) => {
+      if (!t || t.vazio || !t.pneu) return;
+      const e = prev.get(t.posicao);
+      if (e) { if (e.pneu && String(e.pneu) !== String(t.pneu)) novos.add(t.posicao); }
+      else if (antes.has(String(t.pneu))) novos.add(t.posicao);
+    });
+    return novos;
+  }
+  function histChipMarcado(novos) {
+    return (t) => {
+      const h = chipUnificado(t);
+      if (!novos.has(t.posicao)) return h;
+      return h.replace('class="tire-chip', 'class="tire-novo-chip tire-chip')
+        .replace(/^(\s*<div[^>]*>)/, `$1<span class="tire-novo" title="Pneu ${escapeHtml(String(t.pneu))} não estava nesta posição na inspeção anterior">*</span>`);
+    };
+  }
   function histAtualHtml(h) {
     const placa = h.placa;
     const base = (DATA.sulcoTires || []).concat(DATA.sulcoOutros || []).filter((t) => t.veiculo === placa).map((t) => ({ ...t }));
@@ -2206,7 +2244,7 @@ body.nav-collapsed:has(.inf-root) #main { padding-bottom:24px; }
       const e = ult2.get(t.pneu); if (!e) return t;
       return { ...t, semPressao: false, sulco: t.sulco != null ? t.sulco : (e.sulcoInsp != null ? e.sulcoInsp : null), pressaoAtual: e.pressaoAtual, faixa: e.faixa, semLeitura: e.semLeitura, semPadrao: e.semPadrao, pctPadrao: e.pctPadrao, padraoPsi: e.padraoPsi, operador: e.operador };
     });
-    const chip = chipUnificado;
+    const chip = histChipMarcado(histNovosPneus(tires, histAnteriorDe(placa, "9999-99-99")));
     const nota = "Pneus que estão no veículo agora: sulco do relatório de sulco e a última leitura de pressão de cada pneu. Pneu trocado depois da última inspeção aparece sem leitura de pressão (—).";
     return `<div class="hist-card hist-card-atual">
       <div class="hist-card-head"><span class="hist-data">Atual (cadastro)</span><span class="hist-meta">${ult}</span></div>
@@ -2234,7 +2272,7 @@ body.nav-collapsed:has(.inf-root) #main { padding-bottom:24px; }
     return `<div class="hist-card">
       <div class="hist-card-head"><span class="hist-data">${escapeHtml(fmtDate(data))}</span><span class="hist-meta">${escapeHtml(ops.length ? "por " + ops.join(", ") : "")}</span></div>
       <div style="display:flex;gap:6px;flex-wrap:wrap;">${pSul}${pPres}</div>
-      ${renderTireDiagram({ tires }, chipUnificado)}
+      ${renderTireDiagram({ tires }, histChipMarcado(histNovosPneus(tires, histAnteriorDe(h.placa, data))))}
       ${nota}
     </div>`;
   }
@@ -2263,7 +2301,8 @@ body.nav-collapsed:has(.inf-root) #main { padding-bottom:24px; }
       </div>
       <div class="hist-toolbar"><span class="hist-meta">Meses:</span>${chips}
         ${pressaoMesesPendentes().length ? (h.carregando ? `<span class="hist-meta">Carregando meses anteriores…</span>` : `<button class="btn btn-sm" data-hist-carregar="1" title="Carrega ${pressaoMesesPendentes().map(histMesLabel).join(", ")}">+ Meses anteriores (${histMesLabel(pressaoMesesPendentes()[0])} a ${histMesLabel(pressaoMesesPendentes()[pressaoMesesPendentes().length - 1])})</button>`) : ""}
-        ${meses.length > 1 ? `<button class="btn btn-sm" data-hist-todos="1">Todos</button><button class="btn btn-sm" data-hist-nenhum="1">Nenhum</button>` : ""}</div>
+        ${meses.length > 1 ? `<button class="btn btn-sm" data-hist-todos="1">Todos</button><button class="btn btn-sm" data-hist-nenhum="1">Nenhum</button>` : ""}
+        <span class="hist-meta" style="margin-left:auto;"><b style="color:#e08a4b;font-size:15px;">*</b> pneu que não estava nesta posição na inspeção anterior</span></div>
       ${corpo}
     </div>`;
     bd.scrollTop = topo;
@@ -3867,7 +3906,7 @@ body.nav-collapsed:has(.inf-root) #main { padding-bottom:24px; }
         <div class="table-note">Ação concluída: o veículo fica em amarelo (“Ação resolvida - aguardando nova inspeção”) e só sai da lista quando uma nova inspeção deixa de trazer o laudo.</div></div></div>
         <aside class="sug-mapa card detail-card">${planoMapaBloqueadoHtml(selV)}</aside>
         <div class="card blq-chart"><div class="card-title">Bloqueados por unidade${scopeLabelText()}</div>
-          <div class="chart-hint">Clique na coluna para filtrar a aba por unidade (Ctrl+clique soma). Clique na legenda para filtrar pela situação.</div>
+          <div class="chart-hint">Clique no vermelho ou no amarelo para listar só aquela situação na unidade. Clique no nome da unidade (ou no total) para ver a operação inteira. Ctrl+clique soma.</div>
           <div style="margin:6px 0 4px;">${blqLegendaHtml()}</div>
           <div id="chart-blq-bar"></div></div></div>`;
   }
@@ -3876,6 +3915,25 @@ body.nav-collapsed:has(.inf-root) #main { padding-bottom:24px; }
     const st = state.blqStatus || new Set();
     return BLQ_SEGS.map((g) => `<button type="button" class="blq-leg ${st.has(g.key) ? "on" : st.size ? "dim" : ""}" data-blq-st="${g.key}"><i style="background:${g.color}"></i>${escapeHtml(g.key === "bloq" ? "Bloqueados" : "Ação resolvida")}</button>`).join("")
       + (st.size ? `<button type="button" class="blq-leg" data-blq-st="__limpar">limpar</button>` : "");
+  }
+  // Clique no vermelho/amarelo = só aquela situação NAQUELA unidade; clique de novo na mesma = volta à unidade inteira.
+  function blqSegClick(filial, seg, multi) {
+    state.blqStatus = state.blqStatus || new Set();
+    if (multi) {
+      if (state.selFiliais.has(filial) && state.blqStatus.has(seg)) { state.blqStatus.delete(seg); }
+      else { state.selFiliais.add(filial); state.blqStatus.add(seg); }
+    } else if (state.selFiliais.size === 1 && state.selFiliais.has(filial) && state.blqStatus.size === 1 && state.blqStatus.has(seg)) {
+      state.blqStatus.clear();
+    } else { state.selFiliais.clear(); state.selFiliais.add(filial); state.blqStatus.clear(); state.blqStatus.add(seg); }
+    render();
+  }
+  // Clique no nome da unidade (ou no total acima da coluna) = a operação inteira (vermelho + amarelo); de novo = limpa.
+  function blqUnidadeClick(filial, multi) {
+    state.blqStatus = state.blqStatus || new Set();
+    if (multi) { if (state.selFiliais.has(filial)) state.selFiliais.delete(filial); else state.selFiliais.add(filial); }
+    else if (state.selFiliais.size === 1 && state.selFiliais.has(filial) && !state.blqStatus.size) state.selFiliais.clear();
+    else { state.selFiliais.clear(); state.selFiliais.add(filial); state.blqStatus.clear(); }
+    render();
   }
   // Dados do gráfico: TODAS as unidades (sem o filtro de filial, para as outras colunas continuarem visíveis quando uma é selecionada).
   function blqChartData() {
@@ -5049,6 +5107,7 @@ body.nav-collapsed:has(.inf-root) #main { padding-bottom:24px; }
   function bindNav() {
     document.querySelectorAll(".nav-btn").forEach((btn) => btn.addEventListener("click", () => {
       state.panel = btn.getAttribute("data-panel");
+      try { window.sessionStorage.setItem("raja_painel_aba", state.panel); } catch (e) { /* sem storage */ }
       state.filtroFilial = "all"; state.busca = ""; state.selFiliais.clear(); state.inspMes = null;
       state.sortKey = null; state.sortDir = 1; state.selVeiculoSulco = null; state.selVeiculoVazias = null;
       state.selVeiculoPressao = null;
@@ -5156,7 +5215,7 @@ body.nav-collapsed:has(.inf-root) #main { padding-bottom:24px; }
       const d = computeSulco();
       renderBarChart("chart-sulco-bar", d.barData, "pneus", state.selFiliais, toggleFilialSelection, "var(--danger)", { percent: false });
     } else if (state.panel === "bloqueados") {
-      renderStackedBarChart("chart-blq-bar", blqChartData(), BLQ_SEGS, state.selFiliais, toggleFilialSelection, { unit: "veículo(s)", valores: true, totalTop: true, round: true });
+      renderStackedBarChart("chart-blq-bar", blqChartData(), BLQ_SEGS, state.selFiliais, blqUnidadeClick, { unit: "veículo(s)", valores: true, totalTop: true, round: true, onSegment: blqSegClick, segSel: state.blqStatus });
     } else if (state.panel === "pressao") {
       const d = computePressao();
       renderStackedBarChart("chart-pressao-bar", d.barData, FAIXA_PRESSAO_ORDEM.map((k) => ({ key: k, label: FAIXA_PRESSAO_LABEL[k], color: FAIXA_PRESSAO_TONE[k] })), state.selFiliais, toggleFilialSelection);
