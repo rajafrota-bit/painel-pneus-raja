@@ -450,7 +450,15 @@
 /* Aba Veículos Bloqueados */
 .blq-mapas { display:grid; grid-template-columns:1fr 1fr; gap:24px; }
 @media (max-width: 1000px) { .blq-mapas { grid-template-columns:1fr; } }
-.sug-layout.blq-layout { grid-template-columns:240px 360px; justify-content:start; }
+.sug-layout.blq-layout { grid-template-columns:240px 360px minmax(320px,1fr); }
+.blq-chart { position:sticky; top:12px; }
+.blq-layout .sug-lista thead th { background:#e08a4b; color:#1b1209; font-size:11px; font-weight:700; letter-spacing:.12em; border-bottom:0; padding:10px 14px; position:static; }
+.blq-layout .sug-row.sug-sel td { background:rgba(224,138,75,.16); }
+.blq-layout .sug-row.blq-resolvido.sug-sel td { background:rgba(217,173,85,.24); }
+.blq-leg { display:inline-flex; align-items:center; gap:6px; padding:3px 10px; margin-right:8px; border:1px solid var(--border,#2a2f3a); border-radius:999px; font-size:12px; cursor:pointer; background:transparent; color:inherit; }
+.blq-leg i { width:10px; height:10px; border-radius:3px; display:inline-block; }
+.blq-leg.on { border-color:#fff; background:rgba(255,255,255,.08); } .blq-leg.dim { opacity:.45; }
+@media (max-width: 1300px) { .sug-layout.blq-layout { grid-template-columns:240px 360px; justify-content:start; } .blq-chart { grid-column:1 / -1; position:static; grid-row:1; } }
 @media (max-width: 800px) { .sug-layout.blq-layout { grid-template-columns:1fr; } }
 .blq-laudo { padding:4px 0; font-size:13px; }
 .blq-laudo .sug-meta { display:block; }
@@ -928,7 +936,8 @@ body.nav-collapsed:has(.inf-root) #main { padding-bottom:24px; }
   // (colunas desmembradas nas faixas de pressão), mas escrito genérico como os outros charts
   // primitivos. Clique em qualquer parte da barra seleciona a filial — mesmo padrão Ctrl+clique
   // soma já usado em renderBarChart (state.selFiliais).
-  function renderStackedBarChart(containerId, data, segments, selectedFiliais, onClickFilial) {
+  function renderStackedBarChart(containerId, data, segments, selectedFiliais, onClickFilial, opts) {
+    opts = opts || {}; const unid = opts.unit || "pneu(s)";
     const el = document.getElementById(containerId);
     if (!el) return;
     if (!data.length) { el.innerHTML = `<p style="font-size:12px;color:var(--text-faint);text-align:center;padding:40px 0;">Sem dados.</p>`; return; }
@@ -962,12 +971,17 @@ body.nav-collapsed:has(.inf-root) #main { padding-bottom:24px; }
         if (v <= 0) return;
         const h = (Math.min(v, niceMax) / niceMax) * innerH;
         const y = yCursor - h;
-        segsHtml += `<rect x="${x}" y="${y}" width="${w}" height="${Math.max(h, 0)}" fill="${seg.color}"><title>${escapeHtml(filialFullName(d.filial))} — ${escapeHtml(seg.label)}: ${v}</title></rect>`;
+        const _vis = segments.filter((sg) => (d[sg.key] || 0) > 0), _r = Math.min(4, w / 2, h / 2), _rt = opts.round && seg === _vis[_vis.length - 1] ? _r : 0, _rb = opts.round && seg === _vis[0] ? _r : 0;
+        const _tt = `<title>${escapeHtml(filialFullName(d.filial))} — ${escapeHtml(seg.label)}: ${v}</title>`;
+        if (opts.round) segsHtml += `<path d="M${x + _rt},${y} H${x + w - _rt} Q${x + w},${y} ${x + w},${y + _rt} V${y + h - _rb} Q${x + w},${y + h} ${x + w - _rb},${y + h} H${x + _rb} Q${x},${y + h} ${x},${y + h - _rb} V${y + _rt} Q${x},${y} ${x + _rt},${y} Z" fill="${seg.color}">${_tt}</path>`;
+        else segsHtml += `<rect x="${x}" y="${y}" width="${w}" height="${Math.max(h, 0)}" fill="${seg.color}"><title>${escapeHtml(filialFullName(d.filial))} — ${escapeHtml(seg.label)}: ${v}</title></rect>`;
+        if (opts.valores && h >= 15) segsHtml += `<text x="${x + w / 2}" y="${y + h / 2 + 4}" text-anchor="middle" font-size="11" font-weight="700" fill="#10141c" pointer-events="none">${v}</text>`;
         yCursor = y;
       });
       bars += `<g class="bar-rect" data-filial="${escapeHtml(d.filial)}" style="opacity:${dim ? 0.32 : 1}">
         ${segsHtml}
-        <rect x="${x}" y="${padT + innerH - (Math.min(d.total, niceMax) / niceMax) * innerH}" width="${w}" height="${Math.max((Math.min(d.total, niceMax) / niceMax) * innerH, 0)}" fill="transparent" ${isSel ? 'stroke="#fff" stroke-opacity="0.5" stroke-width="1.5"' : ""}><title>${escapeHtml(filialFullName(d.filial))}: ${d.total} pneu(s)</title></rect>
+        <rect x="${x}" y="${padT + innerH - (Math.min(d.total, niceMax) / niceMax) * innerH}" width="${w}" height="${Math.max((Math.min(d.total, niceMax) / niceMax) * innerH, 0)}" rx="${opts.round ? 4 : 0}" fill="transparent" ${isSel ? 'stroke="#fff" stroke-opacity="0.5" stroke-width="1.5"' : ""}><title>${escapeHtml(filialFullName(d.filial))}: ${d.total} ${unid}</title></rect>
+        ${opts.totalTop ? `<text x="${x + w / 2}" y="${padT + innerH - (Math.min(d.total, niceMax) / niceMax) * innerH - 5}" text-anchor="middle" font-size="11.5" font-weight="700" fill="#e6e8ec" pointer-events="none">${d.total}</text>` : ""}
         <text x="${x + w / 2}" y="${padT + innerH + 17}" text-anchor="middle" font-size="10.5" fill="#9aa0ac" font-family="'JetBrains Mono',monospace">${escapeHtml(filialSigla(d.filial))}</text>
       </g>`;
     });
@@ -3488,7 +3502,7 @@ body.nav-collapsed:has(.inf-root) #main { padding-bottom:24px; }
   // Veículos BLOQUEADOS = têm laudo que impede de circular (mp.bloqueia) na última inspeção de algum
   // pneu. Sai da lista quando a ação gerada por aquele laudo é concluída (data >= inspeção) ou quando
   // uma inspeção nova não traz mais o laudo (ele some de DATA.laudosAtuais).
-  function planoBloqueados() {
+  function planoBloqueados(todasFiliais) {
     const concl = {};
     PlanoStore.itens.forEach((i) => {
       const m = LAUDO_RE.exec(i.texto || ""); if (!m || !i.feito) return;
@@ -3504,7 +3518,7 @@ body.nav-collapsed:has(.inf-root) #main { padding-bottom:24px; }
       const resolvido = concl[`${l.veiculo}|${l.pneu}|${l.codigo}`] >= l.data;   // ação concluída, mas o laudo segue na última inspeção
       const info = veics.get(limpaPlaca(l.veiculo));
       const filial = info ? info.filial : l.filial;
-      if (!passaFilial(filial)) return;
+      if (!todasFiliais && !passaFilial(filial)) return;
       if (!out.has(l.veiculo)) out.set(l.veiculo, { placa: l.veiculo, filial, laudos: [] });
       out.get(l.veiculo).laudos.push({ ...l, map: mp, resolvido });
     });
@@ -3831,7 +3845,9 @@ body.nav-collapsed:has(.inf-root) #main { padding-bottom:24px; }
     const veics = planoVeiculos(); const filiais = planoFiliais(veics);
     const bl = planoBloqueados();
     const q = normalizeText(state.busca);
+    state.blqStatus = state.blqStatus || new Set();
     const arr = Array.from(bl.values()).filter((v) => !q || normalizeText(v.placa).indexOf(q) >= 0)
+      .filter((v) => !state.blqStatus.size || state.blqStatus.has(v.resolvido ? "resolv" : "bloq"))
       .sort((a, b) => a.placa.localeCompare(b.placa));
     const semAcao = arr.filter((v) => !v.resolvido && v.laudos.some((l) => bloqueioSituacao(v.placa, l).k === "sem")).length;
     const nPneus = arr.reduce((s, v) => s + new Set(v.laudos.map((l) => l.pneu)).size, 0);
@@ -3849,7 +3865,27 @@ body.nav-collapsed:has(.inf-root) #main { padding-bottom:24px; }
     return `${panelHeader("Veículos Bloqueados", desc, filiais, "")}${planoBanner()}${kpis}
       <div class="sug-layout blq-layout"><div class="sug-lista"><div class="table-wrap"><table><thead><tr><th>Veículo</th></tr></thead><tbody>${linhas}</tbody></table>
         <div class="table-note">Ação concluída: o veículo fica em amarelo (“Ação resolvida - aguardando nova inspeção”) e só sai da lista quando uma nova inspeção deixa de trazer o laudo.</div></div></div>
-        <aside class="sug-mapa card detail-card">${planoMapaBloqueadoHtml(selV)}</aside></div>`;
+        <aside class="sug-mapa card detail-card">${planoMapaBloqueadoHtml(selV)}</aside>
+        <div class="card blq-chart"><div class="card-title">Bloqueados por unidade${scopeLabelText()}</div>
+          <div class="chart-hint">Clique na coluna para filtrar a aba por unidade (Ctrl+clique soma). Clique na legenda para filtrar pela situação.</div>
+          <div style="margin:6px 0 4px;">${blqLegendaHtml()}</div>
+          <div id="chart-blq-bar"></div></div></div>`;
+  }
+  const BLQ_SEGS = [{ key: "bloq", label: "Bloqueados", color: "#E15759" }, { key: "resolv", label: "Ação resolvida (aguardando nova inspeção)", color: "#F1C232" }];
+  function blqLegendaHtml() {
+    const st = state.blqStatus || new Set();
+    return BLQ_SEGS.map((g) => `<button type="button" class="blq-leg ${st.has(g.key) ? "on" : st.size ? "dim" : ""}" data-blq-st="${g.key}"><i style="background:${g.color}"></i>${escapeHtml(g.key === "bloq" ? "Bloqueados" : "Ação resolvida")}</button>`).join("")
+      + (st.size ? `<button type="button" class="blq-leg" data-blq-st="__limpar">limpar</button>` : "");
+  }
+  // Dados do gráfico: TODAS as unidades (sem o filtro de filial, para as outras colunas continuarem visíveis quando uma é selecionada).
+  function blqChartData() {
+    const por = new Map();
+    planoBloqueados(true).forEach((v) => {
+      const k = filialSigla(v.filial);
+      if (!por.has(k)) por.set(k, { filial: v.filial, bloq: 0, resolv: 0, total: 0 });
+      const g = por.get(k); if (v.resolvido) g.resolv++; else g.bloq++; g.total++;
+    });
+    return Array.from(por.values()).sort((a, b) => b.total - a.total || filialSigla(a.filial).localeCompare(filialSigla(b.filial)));
   }
   function bindBloqueados() {
     if (state.panel !== "bloqueados") return;
@@ -3857,6 +3893,14 @@ body.nav-collapsed:has(.inf-root) #main { padding-bottom:24px; }
       const pl = tr.getAttribute("data-blq-placa"); state.blqSel = pl; render();
     }));
     document.querySelectorAll("[data-blq-mapa]").forEach((b) => b.addEventListener("click", () => { state.blqMapa = b.getAttribute("data-blq-mapa"); render(); }));
+    document.querySelectorAll("[data-blq-st]").forEach((b) => b.addEventListener("click", (ev) => {
+      const k = b.getAttribute("data-blq-st"); state.blqStatus = state.blqStatus || new Set();
+      if (k === "__limpar") state.blqStatus.clear();
+      else if (ev.ctrlKey || ev.metaKey) { if (state.blqStatus.has(k)) state.blqStatus.delete(k); else state.blqStatus.add(k); }
+      else if (state.blqStatus.size === 1 && state.blqStatus.has(k)) state.blqStatus.clear();
+      else { state.blqStatus.clear(); state.blqStatus.add(k); }
+      render();
+    }));
   }
 
   // ================= Aba "Informativo" =================
@@ -5111,6 +5155,8 @@ body.nav-collapsed:has(.inf-root) #main { padding-bottom:24px; }
     } else if (state.panel === "sulco") {
       const d = computeSulco();
       renderBarChart("chart-sulco-bar", d.barData, "pneus", state.selFiliais, toggleFilialSelection, "var(--danger)", { percent: false });
+    } else if (state.panel === "bloqueados") {
+      renderStackedBarChart("chart-blq-bar", blqChartData(), BLQ_SEGS, state.selFiliais, toggleFilialSelection, { unit: "veículo(s)", valores: true, totalTop: true, round: true });
     } else if (state.panel === "pressao") {
       const d = computePressao();
       renderStackedBarChart("chart-pressao-bar", d.barData, FAIXA_PRESSAO_ORDEM.map((k) => ({ key: k, label: FAIXA_PRESSAO_LABEL[k], color: FAIXA_PRESSAO_TONE[k] })), state.selFiliais, toggleFilialSelection);
