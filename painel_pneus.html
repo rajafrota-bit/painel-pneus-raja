@@ -331,6 +331,7 @@
   .plano-row { cursor: pointer; }
   .plano-row.selected td { background: rgba(255,255,255,0.06); }
   .plano-detail-row td { background: var(--bg-elev); white-space: normal; padding: 16px 18px; }
+  .plano-detail-row td > .plano-detail { position: sticky; left: 18px; width: var(--plano-w, auto); box-sizing: border-box; }
   .plano-detail { display: grid; grid-template-columns: 1.3fr 1fr; gap: 24px; }
   @media (max-width: 900px) { .plano-detail { grid-template-columns: 1fr; } }
   .timeline { display: flex; flex-direction: column; gap: 10px; border-left: 2px solid var(--border-strong); padding-left: 14px; margin-top: 8px; }
@@ -412,6 +413,7 @@
 .auto-badge { display:inline-block; font-size:11px; padding:1px 8px; border-radius:999px; background:var(--surface-2); border:1px solid var(--accent, #2563eb); color:var(--text); margin-right:4px; }
 .sug-line-btns { display:inline-flex; gap:6px; margin-left:8px; vertical-align:middle; }
 .sug-line-btns .btn { padding:1px 8px; font-size:11px; }
+.item-bloqctl { margin-top:6px; } .edit-badge { display:inline-block; font-size:11px; padding:1px 8px; border-radius:999px; background:var(--warning-bg); border:1px solid var(--warning); color:var(--warning); margin-left:4px; font-weight:600; white-space:nowrap; } .item-bloq-sel { max-width:260px; font-size:12px; }
 .bloq-badge { display:inline-block; font-size:11px; padding:1px 8px; border-radius:999px; background:var(--danger-bg); border:1px solid var(--danger); color:var(--danger); margin-right:4px; font-weight:600; }
 .btn-bloq-on { background:var(--danger-bg); border-color:var(--danger); color:var(--danger); }
 
@@ -3216,6 +3218,7 @@ body.nav-collapsed:has(.inf-root) #main { padding-bottom:24px; }
     const tx = g("pl-acao"); if (tx !== null) d.texto = tx;
     const pn = g("pl-pneus"); if (pn !== null) d.pneus = pn;
     const ip = g("pl-item-prazo-novo"); if (ip !== null) d.itemPrazo = ip;
+    const bq = g("pl-bloq"); if (bq !== null) d.bloq = bq;
   }
 
   function planoBanner() {
@@ -3421,6 +3424,41 @@ body.nav-collapsed:has(.inf-root) #main { padding-bottom:24px; }
   const LAUDO_MAP = {};
   LAUDOS.forEach((l) => { LAUDO_MAP[l[0]] = { cod: l[0], desc: l[1], acao: l[2], prio: l[3], dias: l[4], gera: !!l[5], bloqueia: !!l[6] }; });
   const LAUDO_RE = /^\[Auto · Laudo (\d+)\]\s*/;
+  // Bloqueio MANUAL (criado junto com a ação, pelo usuário): marca no início do texto da ação.
+  const BLOQ_RE = /^\[Bloqueio · Laudo (\d+)(?: · (\d{4}-\d{2}-\d{2}))?\]\s*/;
+  const EDIT_RE = /\s*\{editada (\d{4}-\d{2}-\d{2})\}\s*$/;
+  // Partes do texto de uma ação: prefixo ([Auto · Laudo] / [Bloqueio · Laudo ... · data]), texto limpo e data da edição.
+  function itemPartes(i) {
+    const t = String(i.texto || ""), a = LAUDO_RE.exec(t), b = BLOQ_RE.exec(t);
+    const raw = (a || b) ? (a || b)[0] : "";
+    const pref = b ? `[Bloqueio · Laudo ${b[1]} · ${b[2] || dataLocalIso(i.criadoEm)}] ` : raw;
+    let corpo = t.slice(raw.length); const e = EDIT_RE.exec(corpo); if (e) corpo = corpo.slice(0, e.index);
+    return { pref, corpo: corpo.trim(), editada: e ? e[1] : "" };
+  }
+  function bloqOptionsHtml(sel, ph) {
+    const lista = LAUDOS.filter((l) => laudoBloqueia(l[0], "9999-12-31"));
+    return `<option value="">${ph || "Não bloqueia o veículo"}</option>` + lista.map((l) => `<option value="${l[0]}" ${String(sel) === l[0] ? "selected" : ""}>⛔ Bloquear — laudo ${l[0]} · ${escapeHtml(l[1])}</option>`).join("");
+  }
+  function posicaoDoPneuNoVeiculo(placa, pn) {
+    const t = (DATA.sulcoTires || []).concat(DATA.sulcoOutros || []).find((x) => limpaPlaca(x.veiculo) === placa && String(x.pneu).trim() === String(pn).trim());
+    return t ? t.posicao : "—";
+  }
+  // Laudos "manuais" = ações com a marca [Bloqueio · Laudo NNN]. Valem enquanto a ação existir e o veículo NÃO tiver
+  // inspeção mais nova que a criação da ação (depois disso, só o relatório de inspeção decide se o laudo continua).
+  function laudosManuais() {
+    const out = [];
+    (PlanoStore.itens || []).forEach((i) => {
+      const m = BLOQ_RE.exec(i.texto || ""); if (!m || !LAUDO_MAP[m[1]]) return;
+      const p = PlanoStore.planos.find((x) => x.id === i.planoId); if (!p) return;
+      const placa = limpaPlaca(p.placa), data = m[2] || dataLocalIso(i.criadoEm);
+      const vi = (DATA.veiculosInfo || {})[placa];
+      if (vi && vi.ultimaInsp && String(vi.ultimaInsp).slice(0, 10) > data) return;
+      const toks = pneuTokens(i.pneus);
+      (toks.length ? toks : [""]).forEach((pn) => out.push({ veiculo: placa, posicao: pn ? posicaoDoPneuNoVeiculo(placa, pn) : "—", pneu: pn, codigo: m[1], principal: false, data, desde: data,
+        filial: p.filial, tipoDesc: p.tipo, manual: true, feito: !!i.feito, planoId: p.id, itemId: i.id }));
+    });
+    return out;
+  }
   const LAUDO_SERIES = [["100", "Perigo"], ["200", "Alertas"], ["300", "Ações/estado"], ["350", "Mecânica"], ["400", "Sistema"]];
   // ---- Regras configuráveis (com histórico) ----
   // Base = tabela laudos_mapa (gera/bloqueia). Cada alteração na engrenagem vira uma entrada NOVA no
@@ -3531,7 +3569,7 @@ body.nav-collapsed:has(.inf-root) #main { padding-bottom:24px; }
     h = h.replace('<div class="tire-chip"', '<div class="tire-chip chip-fora"').replace(/title="/, 'title="NÃO ESTÁ MAIS NO VEÍCULO (pneu trocado depois da inspeção) · ');
     return h.replace(/<\/div>\s*$/, '<div class="chip-fora-tag">FORA DO VEÍCULO</div></div>');
   }
-  function laudosAplicados() { return laudosEfetivos().filter(laudoPneuAplicado); }
+  function laudosAplicados() { return laudosEfetivos().filter(laudoPneuAplicado).concat(laudosManuais()); }
   // Dispensados = da base compartilhada (todos veem) + os antigos salvos só neste navegador
   function laudoDispensados() {
     let d = {}; try { d = JSON.parse(lsGet("raja_laudo_dispensados") || "{}"); } catch (e) { d = {}; }
@@ -3556,8 +3594,8 @@ body.nav-collapsed:has(.inf-root) #main { padding-bottom:24px; }
     const veics = planoVeiculos();
     const out = new Map();
     laudosAplicados().forEach((l) => {
-      const mp = LAUDO_MAP[l.codigo]; if (!mp || !laudoBloqueia(l.codigo, l.desde || l.data)) return;
-      const resolvido = concl[`${l.veiculo}|${l.pneu}|${l.codigo}`] >= l.data;   // ação concluída, mas o laudo segue na última inspeção
+      const mp = LAUDO_MAP[l.codigo]; if (!mp || !(l.manual || laudoBloqueia(l.codigo, l.desde || l.data))) return;
+      const resolvido = l.manual ? !!l.feito : concl[`${l.veiculo}|${l.pneu}|${l.codigo}`] >= l.data;   // ação concluída, mas o laudo segue na última inspeção
       const info = veics.get(limpaPlaca(l.veiculo));
       const filial = info ? info.filial : l.filial;
       if (!todasFiliais && !passaFilial(filial)) return;
@@ -3586,7 +3624,7 @@ body.nav-collapsed:has(.inf-root) #main { padding-bottom:24px; }
 
   // Sugestões pendentes, já agrupadas por veículo. `semFiltroSerie` serve para contar nos chips.
   function planoSugestoes(semFiltroSerie) {
-    const lista = laudosAplicados();
+    const lista = laudosAplicados().filter((l) => !l.manual);
     if (!lista.length) return [];
     const disp = laudoDispensados();
     const feitos = {};   // placa|pneu|codigo -> itens já criados
@@ -3674,8 +3712,8 @@ body.nav-collapsed:has(.inf-root) #main { padding-bottom:24px; }
   // (vermelho = laudo que bloqueia o veículo; laranja tracejado = demais).
   function planoMapaSugestaoHtml(v) {
     if (!v) return `<div class="detail-empty">Selecione um veículo na lista para ver o mapa.</div>`;
-    const pref = state.sugMapa || "pressao";
-    const mapa = planoVehicleMap(limpaPlaca(v.placa), pref);
+    const tiresU = mapaUnificadoTires(limpaPlaca(v.placa));
+    const mapa = tiresU.length ? { placa: limpaPlaca(v.placa), tires: tiresU, fonte: "sulco + pressão" } : null;
     const cabec = `<div class="detail-plate-label">Veículo selecionado</div><div class="detail-plate">${escapeHtml(v.placa)}</div>
       <div class="detail-sub">${escapeHtml(filialSigla(v.filial))} — ${escapeHtml(filialFullName(v.filial))}${v.tipo ? ` · ${escapeHtml(v.tipo)}` : ""}</div>`;
     if (!mapa) return `${cabec}<div class="detail-empty">Sem dados de pneus deste veículo nos relatórios atuais.</div>`;
@@ -3691,11 +3729,8 @@ body.nav-collapsed:has(.inf-root) #main { padding-bottom:24px; }
     const selInfo = state.sugPneu ? `<div class="sel-info">Pneu <strong>${escapeHtml(state.sugPneu)}</strong>: ${nSel ? `${nSel} ação(ões) sugerida(s), destacadas na lista` : "nenhuma ação sugerida para este pneu"} <button class="btn btn-sm" data-sug-pneu-limpar>Limpar</button></div>` : "";
     return `${cabec}
       <div class="card-title" style="margin-top:14px;">Esquema do veículo <span style="color:var(--text-faint)">· ${mapa.fonte}</span></div>
-      ${mapa.temSulco && mapa.temPressao ? `<div class="seg-group" style="margin-top:8px;width:fit-content;">
-        <button class="seg-btn ${mapa.atual === "sulco" ? "active" : ""}" data-sug-mapa="sulco">Sulco</button>
-        <button class="seg-btn ${mapa.atual === "pressao" ? "active" : ""}" data-sug-mapa="pressao">Pressão</button></div>` : ""}
       ${selInfo}
-      ${planoOperadorHtml(mapa)}${renderTireDiagram({ tires: mapa.tires }, wrap(mapa.chip))}
+      ${planoOperadorHtml(mapa)}${renderTireDiagram({ tires: mapa.tires }, wrap(chipUnificado))}${mapaUnificadoLegenda()}
       <div class="table-note" style="padding-left:0;">Clique num pneu para destacar as ações dele na lista. Pneus com contorno têm laudo sugerido (código no pneu). <span style="color:var(--danger);">Vermelho</span> = laudo que bloqueia o veículo.</div>`;
   }
 
@@ -3808,7 +3843,8 @@ body.nav-collapsed:has(.inf-root) #main { padding-bottom:24px; }
 
   // Texto sem o marcador técnico; em relatórios (texto) acrescenta "(gerada automaticamente)"
   function planoTxt(i, marcar) {
-    const s = String(i.texto || "");
+    const s = String(i.texto || "").replace(EDIT_RE, "");
+    if (BLOQ_RE.test(s)) return "⛔ " + s.replace(BLOQ_RE, "");
     if (!LAUDO_RE.test(s)) return s;
     return s.replace(LAUDO_RE, "") + (marcar ? " (🤖 gerada automaticamente)" : "");
   }
@@ -3836,6 +3872,7 @@ body.nav-collapsed:has(.inf-root) #main { padding-bottom:24px; }
   // planoBloqueados). Clique na linha: abre os DOIS mapas (sulco e pressão) com os pneus que
   // causam o bloqueio marcados, a situação da ação de cada laudo e se o mapa é mais novo que o laudo.
   function bloqueioSituacao(placa, l) {
+    if (l.manual) return l.feito ? { k: "feita", txt: "ação concluída — aguardando nova inspeção", plano: l.planoId } : { k: "aberta", txt: "ação em aberto no plano", plano: l.planoId };
     const its = PlanoStore.itens.filter((i) => {
       const m = LAUDO_RE.exec(i.texto || ""); if (!m || m[1] !== l.codigo || String(i.pneus || "").trim() !== String(l.pneu)) return false;
       const pl = PlanoStore.planos.find((x) => x.id === i.planoId); return pl && pl.placa === placa;
@@ -3857,15 +3894,15 @@ body.nav-collapsed:has(.inf-root) #main { padding-bottom:24px; }
       <div class="detail-sub">${escapeHtml(filialSigla(v.filial))} — ${escapeHtml(filialFullName(v.filial))}${info && info.tipo ? ` · ${escapeHtml(info.tipo)}` : ""}</div>`;
     // Laudos que geram o bloqueio (um por código; pneus entre parênteses)
     const porCod = new Map();
-    v.laudos.forEach((l) => { if (!porCod.has(l.codigo)) porCod.set(l.codigo, { map: l.map, pneus: [], resolvido: true }); const g = porCod.get(l.codigo); if (!l.resolvido) g.resolvido = false; if (g.pneus.indexOf(String(l.pneu)) < 0) g.pneus.push(String(l.pneu)); });
+    v.laudos.forEach((l) => { if (!porCod.has(l.codigo)) porCod.set(l.codigo, { map: l.map, pneus: [], resolvido: true, manual: !!l.manual }); const g = porCod.get(l.codigo); if (!l.resolvido) g.resolvido = false; if (l.pneu !== "" && g.pneus.indexOf(String(l.pneu)) < 0) g.pneus.push(String(l.pneu)); });
     const listaLaudos = `<div class="blq-laudos"><div class="detail-plate-label" style="margin-top:12px;">Laudos que bloqueiam</div>${Array.from(porCod.entries()).sort((a, b) => a[0].localeCompare(b[0])).map(([cod, g]) =>
-      `<div class="blq-laudo"><span class="sug-cod">${escapeHtml(cod)}</span> – ${escapeHtml(g.map.acao)}<span class="sug-meta">${escapeHtml(g.map.desc)} · pneu${g.pneus.length > 1 ? "s" : ""} ${escapeHtml(g.pneus.join(", "))}${g.resolvido ? " · ✔ ação concluída" : ""}</span></div>`).join("")}</div>`;
+      `<div class="blq-laudo"><span class="sug-cod">${escapeHtml(cod)}</span> – ${escapeHtml(g.map.acao)}<span class="sug-meta">${escapeHtml(g.map.desc)} · ${g.pneus.length ? `pneu${g.pneus.length > 1 ? "s" : ""} ${escapeHtml(g.pneus.join(", "))}` : "veículo todo"}${g.manual ? " · bloqueio manual (plano de ação)" : ""}${g.resolvido ? " · ✔ ação concluída" : ""}</span></div>`).join("")}</div>`;
     const tagRes = v.resolvido ? `<div style="margin-top:8px;"><span class="pill pill-warning">${TAG_RESOLVIDO}</span></div>` : "";
     const cabecL = cabec + tagRes + listaLaudos;
     if (!mapa) return `${cabecL}<div class="detail-empty">Sem dados de pneus deste veículo nos relatórios atuais.</div>`;
     const marca = new Map();
     laudosAplicados().filter((l) => limpaPlaca(l.veiculo) === placa && LAUDO_MAP[l.codigo]).forEach((l) => {
-      const bloq = laudoBloqueia(l.codigo, l.desde || l.data);
+      const bloq = l.manual || laudoBloqueia(l.codigo, l.desde || l.data);
       if (!bloq && !laudoNotifica(l.codigo)) return;
       const k = String(l.pneu);
       if (!marca.has(k)) marca.set(k, { cods: [], bloq: false, tip: "" });
@@ -3892,7 +3929,7 @@ body.nav-collapsed:has(.inf-root) #main { padding-bottom:24px; }
       .filter((v) => !state.blqStatus.size || state.blqStatus.has(v.resolvido ? "resolv" : "bloq"))
       .sort((a, b) => a.placa.localeCompare(b.placa));
     const semAcao = arr.filter((v) => !v.resolvido && v.laudos.some((l) => bloqueioSituacao(v.placa, l).k === "sem")).length;
-    const nPneus = arr.reduce((s, v) => s + new Set(v.laudos.map((l) => l.pneu)).size, 0);
+    const nPneus = arr.reduce((s, v) => s + new Set(v.laudos.map((l) => l.pneu).filter(Boolean)).size, 0);
     const kpis = `<div class="kpi-grid">
       ${kpiCard("Veículos bloqueados", arr.filter((v) => !v.resolvido).length, "impedidos de circular por laudo", ICONS.alert, "var(--danger)")}
       ${kpiCard("Sem ação aprovada", semAcao, "pelo menos um laudo sem ação no plano", ICONS.clipboard, "var(--warning)")}
@@ -4022,7 +4059,7 @@ body.nav-collapsed:has(.inf-root) #main { padding-bottom:24px; }
     const ae = document.activeElement;
     // campo em foco só bloqueia se alguém digitou nele há menos de 90 s (TV com a caixa de busca esquecida em foco não trava o refresh)
     if (ae && /^(INPUT|TEXTAREA|SELECT)$/.test(ae.tagName) && Date.now() - _ultimaDigitacao < 90000) return true;
-    if (state.planoView === "form" || state.cfgAberto || document.querySelector(".ctx-menu")) return true;
+    if (state.planoView === "form" || state.cfgAberto || state.itemEdit || document.querySelector(".ctx-menu")) return true;
     return !!(PlanoStore.ocupado || aprovando || document.body.classList.contains("printing"));
   }
   async function refreshDados() {
@@ -4340,19 +4377,33 @@ body.nav-collapsed:has(.inf-root) #main { padding-bottom:24px; }
   }
 
   function planoItemHtml(i, placa) {
+    if (state.itemEdit === i.id) {
+      const pt = itemPartes(i);
+      return `<div class="item-row editing"><div class="item-body">
+        <div class="item-meta" style="margin-bottom:6px;">Editando a ação — ela ficará marcada como “ação editada”.</div>
+        <input data-ie-texto value="${escapeHtml(pt.corpo)}" style="width:100%;" autocomplete="off" aria-label="Texto da ação">
+        <input data-ie-pneus value="${escapeHtml(i.pneus || "")}" placeholder="Pneus nº (opcional)" style="max-width:220px;margin-top:6px;" autocomplete="off" aria-label="Pneus da ação">
+        <div style="display:flex;gap:8px;margin-top:8px;"><button class="btn btn-primary btn-sm" data-ie-salvar="${escapeHtml(i.id)}">Salvar edição</button><button class="btn btn-sm" data-ie-cancelar="1">Cancelar</button></div>
+      </div></div>`;
+    }
     const meta = [];
     if (i.pneus) meta.push(`pneus: ${escapeHtml(i.pneus)}`);
     if (i.feito) meta.push(`concluída ${escapeHtml(fmtDataHora(i.feitoEm))}${i.feitoPor ? ` por ${escapeHtml(i.feitoPor)}` : ""}${i.prazo && String(i.feitoEm).slice(0, 10) > i.prazo ? " (com atraso)" : ""}`);
     const atrasada = planoItemAtrasado(i);
     const auto = LAUDO_RE.exec(i.texto || "");
-    const textoItem = auto ? String(i.texto).replace(LAUDO_RE, "") : i.texto;
+    const bq = BLOQ_RE.exec(i.texto || "");
+    const bloqCtl = bq ? `<div class="item-bloqctl"><button type="button" class="btn btn-sm" data-item-desbloq="${escapeHtml(i.id)}" title="Remove o bloqueio manual (a ação continua, sem o bloqueio)">Liberar veículo</button></div>`
+      : (!auto && !i.feito) ? `<div class="item-bloqctl"><select class="item-bloq-sel" data-item-bloq="${escapeHtml(i.id)}" title="Bloquear o veículo por esta ação — escolha o laudo que está bloqueando" aria-label="Bloquear o veículo por esta ação">${bloqOptionsHtml("", "⛔ Bloquear veículo… (escolha o laudo)")}</select></div>` : "";
+    const textoItem = auto ? String(i.texto).replace(LAUDO_RE, "") : bq ? String(i.texto).replace(BLOQ_RE, "") : i.texto;
+    const edM = EDIT_RE.exec(textoItem); const textoShow = edM ? textoItem.slice(0, edM.index) : textoItem;
     const bloqItem = auto && LAUDO_MAP[auto[1]] && laudoBloqueia(auto[1], dataLocalIso(i.criadoEm));
     if (auto && LAUDO_MAP[auto[1]]) meta.unshift(`laudo ${auto[1]} – ${escapeHtml(LAUDO_MAP[auto[1]].desc)}`);
+    if (bq && LAUDO_MAP[bq[1]]) meta.unshift(`bloqueio manual · laudo ${bq[1]} – ${escapeHtml(LAUDO_MAP[bq[1]].desc)}`);
     const fr = planoFrescorItem(i, placa); if (fr) meta.push(fr);
     const hl = state.detPneu ? (pneuTokens(i.pneus).indexOf(String(state.detPneu)) >= 0 ? " item-hl" : " item-dim") : "";
     return `<div class="item-row ${i.feito ? "done" : ""}${hl}">
       <button class="item-check ${i.feito ? "on" : ""}" data-item-toggle="${escapeHtml(i.id)}" data-feito="${i.feito ? "0" : "1"}" title="${i.feito ? "Desmarcar" : "Marcar como concluída"}" aria-label="${i.feito ? "Desmarcar ação" : "Marcar ação como concluída"}">${i.feito ? ICONS.check : ""}</button>
-      <div class="item-body"><div class="item-text">${auto ? `<span class="auto-badge" title="Criada a partir de um laudo do relatório de Pressão de Ar">🤖 Ação gerada automaticamente</span> ` : ""}${bloqItem ? `<span class="bloq-badge" title="Este laudo bloqueia o veículo de circular">⛔ bloqueia</span> ` : ""}${escapeHtml(textoItem)}</div>${meta.length ? `<div class="item-meta">${meta.join(" · ")}</div>` : ""}</div>
+      <div class="item-body"><div class="item-text">${auto ? `<span class="auto-badge" title="Criada a partir de um laudo do relatório de Pressão de Ar">🤖 Ação gerada automaticamente</span> ` : ""}${bloqItem ? `<span class="bloq-badge" title="Este laudo bloqueia o veículo de circular">⛔ bloqueia</span> ` : ""}${bq ? `<span class="bloq-badge" title="Bloqueio criado manualmente junto com esta ação. Sai da lista de bloqueados quando houver inspeção nova do veículo ou se esta ação for excluída.">⛔ bloqueio manual · laudo ${escapeHtml(bq[1])}</span> ` : ""}${escapeHtml(textoShow)}${edM ? ` <span class="edit-badge" title="Esta ação foi editada depois de criada">✎ ação editada em ${escapeHtml(fmtDate(edM[1]))}</span>` : ""}</div>${meta.length ? `<div class="item-meta">${meta.join(" · ")}</div>` : ""}${bloqCtl}${i.feito ? "" : `<div class="item-bloqctl"><button type="button" class="btn btn-sm" data-item-edit="${escapeHtml(i.id)}" title="Editar o texto e os pneus desta ação (fica marcada como “ação editada”)">✎ Editar ação</button></div>`}</div>
       <div class="item-prazo"><label for="ip-${escapeHtml(i.id)}">Concluir até${atrasada ? ` <span class="pill pill-danger">atrasada</span>` : ""}</label>
         <input id="ip-${escapeHtml(i.id)}" type="date" data-item-prazo="${escapeHtml(i.id)}" value="${escapeHtml(i.prazo || "")}"></div>
       <button class="item-del" data-item-del="${escapeHtml(i.id)}" title="Excluir esta ação" aria-label="Excluir ação">✕</button>
@@ -4363,13 +4414,14 @@ body.nav-collapsed:has(.inf-root) #main { padding-bottom:24px; }
   // mais novo que a criação das ações (o veículo já passou por outra inspeção).
   function planoMapaPlanoHtml(p, itens) {
     const placa = limpaPlaca(p.placa);
-    const mapa = planoVehicleMap(placa, state.detMapa || "pressao");
+    const tiresU = mapaUnificadoTires(placa);
+    const mapa = tiresU.length ? { placa, tires: tiresU, atual: "pressao", fonte: "sulco + pressão" } : null;
     const abertos = itens.filter((i) => !i.feito);
     const base = abertos.length ? abertos : itens;
     const criada = base.map((i) => dataLocalIso(i.criadoEm)).sort()[0] || dataLocalIso(p.criadoEm);
     const cab = `<div class="card-title">Mapa do veículo ${mapa ? `<span style="color:var(--text-faint)">· ${mapa.fonte}</span>` : ""}</div>`;
     if (!mapa) return `${cab}<div class="detail-empty">Sem dados de pneus deste veículo nos relatórios atuais.</div>`;
-    const dMapa = planoDataMapa(placa, mapa.atual);
+    const dMapa = planoDataMapa(placa, "pressao");
     let aviso = "";
     if (dMapa && criada && dMapa > criada) aviso = `<div class="banner banner-warn" style="margin:8px 0;"><strong>⚠ Mapa atualizado em ${escapeHtml(fmtDate(dMapa))}</strong>, depois da criação ${abertos.length ? "das ações em aberto" : "do plano"} (${escapeHtml(fmtDate(criada))}). O veículo já passou por outra inspeção — confira se as ações ainda valem.</div>`;
     else if (dMapa) aviso = `<div class="chart-hint" style="margin:6px 0;">Mapa atualizado em ${escapeHtml(fmtDate(dMapa))} — sem inspeção nova desde a criação das ações (${escapeHtml(fmtDate(criada))}).</div>`;
@@ -4377,18 +4429,15 @@ body.nav-collapsed:has(.inf-root) #main { padding-bottom:24px; }
     const marca = new Map();
     abertos.forEach((i) => pneuTokens(i.pneus).forEach((pn) => {
       if (!marca.has(pn)) marca.set(pn, { cods: [], bloq: false, tip: "" });
-      const m = marca.get(pn); const a = LAUDO_RE.exec(i.texto || "");
-      if (a) { m.cods.push(a[1]); m.bloq = m.bloq || !!(LAUDO_MAP[a[1]] && laudoBloqueia(a[1], dataLocalIso(i.criadoEm))); m.tip += (m.tip ? " | " : "") + a[1] + (LAUDO_MAP[a[1]] ? " – " + LAUDO_MAP[a[1]].desc : ""); }
+      const m = marca.get(pn); const a = LAUDO_RE.exec(i.texto || "") || BLOQ_RE.exec(i.texto || "");
+      if (a) { m.cods.push(a[1]); m.bloq = m.bloq || BLOQ_RE.test(i.texto || "") || !!(LAUDO_MAP[a[1]] && laudoBloqueia(a[1], dataLocalIso(i.criadoEm))); m.tip += (m.tip ? " | " : "") + a[1] + (LAUDO_MAP[a[1]] ? " – " + LAUDO_MAP[a[1]].desc : ""); }
       else m.tip += (m.tip ? " | " : "") + planoTxt(i);
     }));
     const nSel = state.detPneu ? itens.filter((i) => pneuTokens(i.pneus).indexOf(String(state.detPneu)) >= 0).length : 0;
     const selInfo = state.detPneu ? `<div class="sel-info">Pneu <strong>${escapeHtml(state.detPneu)}</strong>: ${nSel} ação(ões) neste plano, destacadas ao lado <button class="btn btn-sm" data-det-pneu-limpar>Limpar</button></div>` : "";
     return `${cab}${aviso}
-      ${mapa.temSulco && mapa.temPressao ? `<div class="seg-group" style="margin:6px 0;width:fit-content;">
-        <button class="seg-btn ${mapa.atual === "sulco" ? "active" : ""}" data-det-mapa="sulco">Sulco</button>
-        <button class="seg-btn ${mapa.atual === "pressao" ? "active" : ""}" data-det-mapa="pressao">Pressão</button></div>` : ""}
       ${selInfo}
-      ${planoOperadorHtml(mapa)}${renderTireDiagram({ tires: mapa.tires }, mapaChipWrap(mapa.chip, marca, state.detPneu))}
+      ${planoOperadorHtml(mapa)}${renderTireDiagram({ tires: mapa.tires }, mapaChipWrap(chipUnificado, marca, state.detPneu))}${mapaUnificadoLegenda()}
       <div class="table-note" style="padding-left:0;">Clique num pneu para destacar as ações dele. Contorno = pneu com ação em aberto neste plano.</div>`;
   }
 
@@ -4427,6 +4476,7 @@ body.nav-collapsed:has(.inf-root) #main { padding-bottom:24px; }
           <div class="item-add">
             <input id="pl-item-texto" placeholder="Nova ação (ex.: Inverter pneus do eixo de tração)" autocomplete="off">
             <input id="pl-item-pneus" placeholder="Pneus nº (opcional)" style="max-width:150px;" autocomplete="off">
+            <select id="pl-item-bloq" title="Se esta ação bloqueia o veículo, escolha o laudo que está bloqueando" aria-label="Bloquear o veículo (escolha o laudo)" style="max-width:260px;">${bloqOptionsHtml("")}</select>
             <input id="pl-item-prazo" type="date" title="Concluir até (opcional)" aria-label="Concluir até (opcional)" style="max-width:150px;">
             <button class="btn btn-primary btn-sm" data-item-add="${escapeHtml(p.id)}">＋ Adicionar ação</button>
           </div>
@@ -4493,7 +4543,7 @@ body.nav-collapsed:has(.inf-root) #main { padding-bottom:24px; }
           : `<div class="detail-empty">Sem dados de pneus deste veículo nos relatórios atuais. Digite os nº de fogo manualmente.</div>`}
       </div>`;
     const lista = (d.itens || []).map((i, n) => `<div class="item-row"><span class="item-bullet">${n + 1}</span>
-        <div class="item-body"><div class="item-text">${escapeHtml(i.texto)}</div>${i.pneus ? `<div class="item-meta">pneus: ${escapeHtml(i.pneus)}</div>` : ""}</div>
+        <div class="item-body"><div class="item-text">${escapeHtml(i.texto)}</div>${(i.pneus || i.bloq) ? `<div class="item-meta">${i.bloq ? `⛔ bloqueia o veículo · laudo ${escapeHtml(i.bloq)}` : ""}${i.bloq && i.pneus ? " · " : ""}${i.pneus ? `pneus: ${escapeHtml(i.pneus)}` : ""}</div>` : ""}</div>
         <div class="item-prazo"><label for="dp-${n}">Concluir até</label><input id="dp-${n}" type="date" data-draft-prazo="${n}" value="${escapeHtml(i.prazo || "")}"></div>
         <button class="item-del" data-draft-del="${n}" title="Tirar da lista" aria-label="Tirar da lista">✕</button></div>`).join("");
     const construtor = editando ? `<div class="field span2"><div class="field-hint">As ações deste plano (marcar concluída, adicionar, excluir) são feitas no checklist, ao clicar na linha do plano na lista.</div></div>` : `
@@ -4506,7 +4556,10 @@ body.nav-collapsed:has(.inf-root) #main { padding-bottom:24px; }
             <input id="pl-item-prazo-novo" type="date" value="${escapeHtml(d.itemPrazo || "")}" style="max-width:200px;">
             <div class="field-hint">Cada ação tem a sua própria data — escolha a data, clique em “Adicionar à lista” e repita para a próxima ação.</div></div>
           <div class="field span2"><label for="pl-pneus">Pneus desta ação (nº de fogo)</label>
-            <div style="display:flex;gap:8px;"><input id="pl-pneus" value="${escapeHtml(d.pneus || "")}" placeholder="Ex.: 1146, 0004 (ou clique no mapa)"><button class="btn btn-primary" id="pl-add-item" style="flex-shrink:0;">＋ Adicionar à lista</button></div></div>`;
+            <div style="display:flex;gap:8px;"><input id="pl-pneus" value="${escapeHtml(d.pneus || "")}" placeholder="Ex.: 1146, 0004 (ou clique no mapa)"><button class="btn btn-primary" id="pl-add-item" style="flex-shrink:0;">＋ Adicionar à lista</button></div></div>
+          <div class="field span2"><label for="pl-bloq">Esta ação bloqueia o veículo? (opcional)</label>
+            <select id="pl-bloq">${bloqOptionsHtml(d.bloq || "")}</select>
+            <div class="field-hint">Escolha o laudo que está bloqueando o veículo. Ele entra em “Veículos Bloqueados” (vermelho) e fica amarelo quando a ação for concluída.</div></div>`;
     return `<div class="sulco-layout">
       <div class="card">
         <div class="card-title">${editando ? "Editar dados do plano" : "Novo plano de ação"}</div>
@@ -4564,8 +4617,8 @@ body.nav-collapsed:has(.inf-root) #main { padding-bottom:24px; }
     const d = state.planoDraft;
     const texto = String(d.texto || "").trim();
     if (!texto) return false;
-    d.itens.push({ texto, pneus: String(d.pneus || "").trim(), prazo: d.itemPrazo || "" });
-    d.texto = ""; d.pneus = ""; d.itemPrazo = "";
+    d.itens.push({ texto, pneus: String(d.pneus || "").trim(), prazo: d.itemPrazo || "", bloq: d.bloq || "" });
+    d.texto = ""; d.pneus = ""; d.itemPrazo = ""; d.bloq = "";
     return true;
   }
 
@@ -4584,7 +4637,7 @@ body.nav-collapsed:has(.inf-root) #main { padding-bottom:24px; }
       prioridade: d.prioridade, responsavel: String(d.responsavel || "").trim(), prazo: d.prazo || "", status: d.status || "Aberto",
       origem: d.origem, criadoPor: state.planoAutor };
     state.planoSkipSync = true; render(); // mostra "Salvando…"
-    const ok = await PlanoStore.exec("plano_save", { plano, itens: d.id ? undefined : d.itens });
+    const ok = await PlanoStore.exec("plano_save", { plano, itens: d.id ? undefined : d.itens.map((i) => i.bloq ? { ...i, texto: `[Bloqueio · Laudo ${i.bloq}] ${i.texto}` } : i) });
     if (ok) {
       state.planoView = "lista"; state.planoDraft = null;
       const novo = PlanoStore.planos.find((p) => p.placa === placa && (d.id ? p.id === d.id : true) && p.criadoPor === (d.id ? p.criadoPor : state.planoAutor));
@@ -4608,7 +4661,9 @@ body.nav-collapsed:has(.inf-root) #main { padding-bottom:24px; }
     const texto = (document.getElementById("pl-item-texto") || {}).value || "";
     const pneus = (document.getElementById("pl-item-pneus") || {}).value || "";
     const prazo = (document.getElementById("pl-item-prazo") || {}).value || "";
-    const ok = await PlanoStore.exec("item_add", { planoId, texto, pneus: pneus.trim(), prazo });
+    const bloq = (document.getElementById("pl-item-bloq") || {}).value || "";
+    if (bloq && !String(texto).trim()) { toast("Escreva a ação antes de bloquear o veículo."); return; }
+    const ok = await PlanoStore.exec("item_add", { planoId, texto: bloq ? `[Bloqueio · Laudo ${bloq}] ${String(texto).trim()}` : texto, pneus: pneus.trim(), prazo });
     if (ok) toast("Ação adicionada.");
     render();
     if (ok) { const el = document.getElementById("pl-item-texto"); if (el) el.focus(); }
@@ -4654,6 +4709,40 @@ body.nav-collapsed:has(.inf-root) #main { padding-bottom:24px; }
     if (!window.confirm(`Remover ${dups.length} ação(ões) automática(s) repetida(s) deste plano? Fica uma de cada.`)) return;
     for (const d of dups) { if (!(await PlanoStore.exec("item_del", { id: d.id }))) break; }
     render();
+  }
+
+  // Recria a ação com outro texto (mesmos pneus/prazo). Só apaga a antiga se a nova foi gravada.
+  async function planoItemRetexto(itemId, novoTexto, pneusNovo) {
+    const it = PlanoStore.itens.find((i) => i.id === itemId); if (!it) return false;
+    const ok = await PlanoStore.exec("item_add", { planoId: it.planoId, texto: novoTexto, pneus: pneusNovo != null ? pneusNovo : (it.pneus || ""), prazo: it.prazo || "" });
+    if (!ok) { toast("Não consegui gravar: " + PlanoStore.erro); render(); return false; }
+    const ok2 = await PlanoStore.exec("item_del", { id: itemId });
+    if (!ok2) toast("A ação nova foi criada, mas não consegui apagar a antiga. Exclua a antiga manualmente (✕).");
+    render();
+    return true;
+  }
+  async function planoItemBloquear(itemId, cod) {
+    const it = PlanoStore.itens.find((i) => i.id === itemId); if (!it || !cod) return;
+    const pl = PlanoStore.planos.find((x) => x.id === it.planoId);
+    if (!window.confirm(`Bloquear o veículo ${pl ? pl.placa : ""} pelo laudo ${cod}${LAUDO_MAP[cod] ? " – " + LAUDO_MAP[cod].desc : ""}?\n\nA ação "${it.texto}" será recriada com o bloqueio (mesmos pneus e prazo).`)) { render(); return; }
+    if (await planoItemRetexto(itemId, `[Bloqueio · Laudo ${cod}] ${String(it.texto).trim()}`)) toast("Veículo bloqueado.");
+  }
+  async function planoItemDesbloquear(itemId) {
+    const it = PlanoStore.itens.find((i) => i.id === itemId); if (!it) return;
+    const pl = PlanoStore.planos.find((x) => x.id === it.planoId);
+    if (!window.confirm(`Liberar o veículo ${pl ? pl.placa : ""}?\n\nA ação continua no plano, sem o bloqueio manual.`)) return;
+    if (await planoItemRetexto(itemId, String(it.texto).replace(BLOQ_RE, ""))) toast("Veículo liberado (bloqueio manual removido).");
+  }
+
+  async function planoItemEditarSalvar(itemId) {
+    const it = PlanoStore.itens.find((i) => i.id === itemId); if (!it) { state.itemEdit = null; render(); return; }
+    const novo = String((document.querySelector("[data-ie-texto]") || {}).value || "").trim();
+    const pneus = String((document.querySelector("[data-ie-pneus]") || {}).value || "").trim();
+    if (!novo) { toast("Escreva o texto da ação."); return; }
+    const pt = itemPartes(it);
+    if (novo === pt.corpo && pneus === String(it.pneus || "").trim()) { state.itemEdit = null; render(); return; }   // nada mudou
+    state.itemEdit = null;
+    if (await planoItemRetexto(itemId, `${pt.pref}${novo} {editada ${hojeIso()}}`, pneus)) toast("Ação editada.");
   }
 
   async function planoItemDel(itemId) {
@@ -4782,6 +4871,11 @@ body.nav-collapsed:has(.inf-root) #main { padding-bottom:24px; }
     on("[data-item-toggle]", "click", (ev) => planoItemToggle(ev.currentTarget.getAttribute("data-item-toggle"), ev.currentTarget.getAttribute("data-feito") === "1"));
     on("[data-plano-dedup]", "click", (ev) => planoRemoverDuplicadas(ev.currentTarget.getAttribute("data-plano-dedup")));
     on("[data-item-del]", "click", (ev) => planoItemDel(ev.currentTarget.getAttribute("data-item-del")));
+    on("[data-item-bloq]", "change", (ev) => planoItemBloquear(ev.currentTarget.getAttribute("data-item-bloq"), ev.currentTarget.value));
+    on("[data-item-desbloq]", "click", (ev) => planoItemDesbloquear(ev.currentTarget.getAttribute("data-item-desbloq")));
+    on("[data-item-edit]", "click", (ev) => { state.itemEdit = ev.currentTarget.getAttribute("data-item-edit"); render(); const el = document.querySelector("[data-ie-texto]"); if (el) { el.focus(); el.select(); } });
+    on("[data-ie-cancelar]", "click", () => { state.itemEdit = null; render(); });
+    on("[data-ie-salvar]", "click", (ev) => planoItemEditarSalvar(ev.currentTarget.getAttribute("data-ie-salvar")));
     on("[data-item-prazo]", "change", (ev) => planoItemPrazo(ev.currentTarget.getAttribute("data-item-prazo"), ev.currentTarget.value));
     on("[data-item-prazo]", "click", (ev) => ev.stopPropagation());
     on("[data-item-add]", "click", (ev) => planoItemAdd(ev.currentTarget.getAttribute("data-item-add")));
@@ -5205,7 +5299,16 @@ body.nav-collapsed:has(.inf-root) #main { padding-bottom:24px; }
     render();
   }
 
+  // Detalhe do plano: largura = parte VISÍVEL da tabela (a tabela é mais larga que a tela e rola na horizontal)
+  function planoAjustaDetalhe() {
+    document.querySelectorAll(".table-wrap").forEach((w) => {
+      if (!w.querySelector(".plano-detail")) return;
+      w.style.setProperty("--plano-w", Math.max(320, w.clientWidth - 40) + "px");
+    });
+  }
+  window.addEventListener("resize", () => planoAjustaDetalhe());
   function drawCharts() {
+    planoAjustaDetalhe();
     if (state.panel === "vazias") {
       const d = computeVazias();
       renderBarChart("chart-vazias-bar", d.barData, "veiculos", state.selFiliais, toggleFilialSelection, "var(--chart1)", { percent: false });
