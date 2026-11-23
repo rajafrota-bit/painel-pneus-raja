@@ -575,6 +575,26 @@ body.nav-collapsed:has(.inf-root) #main { padding-bottom:24px; }
   .tire-novo-chip { position: relative; margin-top: 8px; }
   .tire-novo { position: absolute; top: -14.6px; left: 50%; transform: translateX(-50%); font-size: 14px; font-weight: 700; line-height: 1; color: #e08a4b; opacity: .65; font-family: 'JetBrains Mono', monospace; pointer-events: none; }
 
+  /* Pneus em estoque */
+  .est-grid { display:grid; grid-template-columns:1fr 1fr; gap:16px; margin-top:16px; }
+  @media (max-width:1100px) { .est-grid { grid-template-columns:1fr; } }
+  .est-wrap { margin-top:16px; }
+  .est-tbl td, .est-tbl th { white-space:nowrap; }
+  .est-tbl th.c, .est-tbl td.c { text-align:center; }
+  .est-n { font-weight:700; font-variant-numeric:tabular-nums; }
+  .est-min { color:var(--text-faint); font-size:.85em; margin-left:2px; }
+  .est-ok { color:var(--success); } .est-low { color:var(--danger); } .est-nodef { color:var(--text); }
+  .est-low-cell { background:var(--danger-bg); }
+  .est-scroll { max-height:360px; overflow:auto; }
+  .est-scroll thead th { position:sticky; top:0; background:var(--surface-2, var(--bg-elev)); z-index:1; }
+  .est-grp { vertical-align:top; padding-top:10px; white-space:normal !important; min-width:150px; }
+  .est-grp-sub { color:var(--text-faint); font-size:.8em; margin-top:2px; }
+  .est-tbl tr.est-grp-ini td { border-top:2px solid var(--border-strong); }
+  .est-aviso { margin-top:12px; padding:10px 14px; border-radius:var(--radius-sm); border:1px solid var(--warning); background:var(--warning-bg); color:var(--text); font-size:13px; }
+  .est-demo { border-color:var(--accent); }
+  .est-details > summary { cursor:pointer; font-weight:600; padding:6px 0; }
+  .est-leg { display:flex; gap:14px; flex-wrap:wrap; font-size:12px; color:var(--text-dim); margin:4px 0 8px; }
+  .est-leg i { display:inline-block; width:10px; height:10px; border-radius:2px; margin-right:5px; vertical-align:-1px; }
 </style>
 </head>
 <body>
@@ -866,6 +886,7 @@ body.nav-collapsed:has(.inf-root) #main { padding-bottom:24px; }
     { key: "pressao", label: "Pressão de Ar", icon: "ring" },
     { key: "plano", label: "Plano de Ação", icon: "plan" },
     { key: "bloqueados", label: "Veículos Bloqueados", icon: "alert" },
+    { key: "estoque", label: "Pneus em estoque", icon: "building" },
   ];
 
   const state = {
@@ -5099,6 +5120,198 @@ body.nav-collapsed:has(.inf-root) #main { padding-bottom:24px; }
       ${state.filialMenuAberto ? `<div class="fm-menu"><label class="fm-item fm-all"><input type="checkbox" data-filial-all ${sel.size === 0 ? "checked" : ""}><span>Todas as filiais (${filiais.length})</span></label>${lista}</div>` : ""}
     </div>`;
   }
+  // ------------------------------------------------------------------
+  // Painel: Pneus em estoque (relatório R325A -> DATA.estoque, ver build_estoque em generate_data.py)
+  // local: E = estoque da unidade, R = reformadora, A = aplicado em veículo parado, S = sucata (fora das contas)
+  // ------------------------------------------------------------------
+  const EST_POS = ["Direcional", "Tração", "Livre"];
+  const EST_DEST = { D1: "Conserto", D2: "Em condição de uso", D3: "Sucata", D5: "Garantia", D6: "Reforma" };
+  const EST_SEGS = [
+    { key: "pronto", label: "Pronto p/ uso", color: "#59A14F" },
+    { key: "indisp", label: "Indisponível no estoque", color: "#9AA3AE" },
+    { key: "ref", label: "Na reformadora", color: "#F28E2B" },
+    { key: "apl", label: "Aplicado em veículo parado", color: "#B07AA1" },
+  ];
+  function estDias(ua) {
+    if (!ua) return null;
+    const a = Date.parse(String(DATA.generatedAt).slice(0, 10) + "T00:00:00"), b = Date.parse(String(ua).slice(0, 10) + "T00:00:00");
+    return isNaN(a) || isNaN(b) ? null : Math.round((a - b) / 86400000);
+  }
+  function estLimite() { return (DATA.estoque && DATA.estoque.alertaReformadoraDias) || 15; }
+  function estFullBySigla() {
+    const m = new Map();
+    Object.values(DATA.veiculosInfo || {}).forEach((v) => { if (v.filial) m.set(filialSigla(v.filial), v.filial); });
+    (DATA.estoque.tires || []).forEach((t) => { if (!m.has(filialSigla(t.filial))) m.set(filialSigla(t.filial), t.filial); });
+    return m;
+  }
+  // base: true = só o filtro do dropdown (para o gráfico manter todas as unidades visíveis); false = também a seleção nas barras
+  function estUnidades(base) {
+    const E = DATA.estoque, full = estFullBySigla(), pass = base ? passaFilialBase : passaFilial;
+    const U = new Map();
+    const get = (sig) => {
+      if (!U.has(sig)) U.set(sig, { sig, filial: full.get(sig) || sig, pos: { Direcional: 0, "Tração": 0, Livre: 0, sem: 0 }, pronto: 0, indisp: 0, ref: 0, apl: 0, dest: {} });
+      return U.get(sig);
+    };
+    full.forEach((f, sig) => { if (sig !== "SUC" && pass(f)) get(sig); });
+    E.tires.forEach((t) => {
+      if (t.local === "S" || !pass(t.filial)) return;
+      const u = get(filialSigla(t.filial));
+      if (t.local === "E") {
+        if (t.pronto) { u.pronto++; u.pos[t.posicao || "sem"]++; }
+        else { u.indisp++; u.dest[t.dest || "?"] = (u.dest[t.dest || "?"] || 0) + 1; }
+      } else if (t.local === "R") u.ref++;
+      else if (t.local === "A") u.apl++;
+    });
+    return Array.from(U.values()).sort((a, b) => a.sig.localeCompare(b.sig));
+  }
+  // O mínimo vale por GRUPO de unidades que dividem o mesmo estoque (aba Minimo de ESTOQUE_CONFIG.xlsx), por tamanho e posição.
+  function estGrupos() {
+    const E = DATA.estoque, full = estFullBySigla();
+    const gs = (E.minimo || []).map((g) => ({ sigs: g.unidades.slice(), min: g.min || {} }));
+    const cob = new Set(); gs.forEach((g) => g.sigs.forEach((x) => cob.add(x)));
+    full.forEach((f, sig) => { if (sig !== "SUC" && !cob.has(sig)) gs.push({ sigs: [sig], min: {} }); });
+    return gs.sort((a, b) => a.sigs[0].localeCompare(b.sigs[0]));
+  }
+  function estTamLabel(k) { return ((DATA.estoque.tamanhos || {})[k]) || k; }
+  function estTamOrd(k) { const i = ["275", "295"].indexOf(k); return i >= 0 ? i : 10 + (parseFloat(k) || 999); }
+  // Linhas de um grupo, uma por tamanho: contagens por posição somando TODAS as unidades do grupo
+  function estGrupoLinhas(g, todas) {
+    const E = DATA.estoque, sigs = new Set(g.sigs), Rm = new Map();
+    const get = (k, mostra) => { if (!Rm.has(k)) Rm.set(k, { tam: k, mostra: false, label: estTamLabel(k), pos: { Direcional: 0, "Tração": 0, Livre: 0, sem: 0 }, pronto: 0, indisp: 0, ref: 0, apl: 0 }); return Rm.get(k); };
+    const comMin = Object.keys(g.min).filter((k) => Object.keys(g.min[k]).length);
+    // só aparecem os tamanhos COM mínimo definido (o resto = a operação não usa essa medida); grupo sem nenhum mínimo mostra 275 e 295
+    (comMin.length ? comMin : ["275", "295"]).forEach((k) => { get(k).mostra = true; });
+    E.tires.forEach((t) => {
+      if (t.local === "S" || !sigs.has(filialSigla(t.filial))) return;
+      const r = get(t.tam || "?");
+      if (t.local === "E") { if (t.pronto) { r.pronto++; r.pos[t.posicao || "sem"]++; } else r.indisp++; }
+      else if (t.local === "R") r.ref++; else r.apl++;
+    });
+    const todos = Array.from(Rm.values()).sort((a, b) => estTamOrd(a.tam) - estTamOrd(b.tam));
+    if (!todas) return todos.filter((r) => r.mostra);
+    return todos;
+  }
+  function estMinDe(g, tam, pos) { const m = (g.min[tam] || {})[pos]; return m == null ? null : m; }
+  function estAlertasTotal() {
+    const E = DATA.estoque; let n = 0;
+    estGrupos().forEach((g) => estGrupoLinhas(g).forEach((r) => EST_POS.forEach((p) => { const m = estMinDe(g, r.tam, p); if (m != null && r.pos[p] < m) n++; })));
+    E.tires.forEach((t) => { if (t.local === "R" && (estDias(t.ultimaAcao) || 0) > estLimite()) n++; });
+    return n;
+  }
+  function estBusca(t) { const q = normalizeText(state.busca || ""); return !q || normalizeText(String(t.pneu)).includes(q); }
+  function estDiasPill(d, lim) {
+    if (d == null) return `<span style="color:var(--text-faint)">—</span>`;
+    return severityPill(lim != null && d > lim ? "danger" : "neutral", `${d} dia${d === 1 ? "" : "s"}`);
+  }
+  function drawEstoqueChart() {
+    if (!DATA.estoque) return;
+    const data = estUnidades(true).map((u) => ({ filial: u.filial, pronto: u.pronto, indisp: u.indisp, ref: u.ref, apl: u.apl, total: u.pronto + u.indisp + u.ref + u.apl }))
+      .filter((d) => d.total > 0).sort((a, b) => b.total - a.total);
+    renderStackedBarChart("chart-est-bar", data, EST_SEGS, state.selFiliais, toggleFilialSelection, { unit: "pneu(s)", valores: true, totalTop: true });
+  }
+  function renderEstoquePanel() {
+    const E = DATA.estoque;
+    const filiaisAll = Array.from(new Set(Object.values(DATA.veiculosInfo || {}).map((v) => v.filial).concat(E ? E.tires.map((t) => t.filial) : []))).filter((f) => f && !/SUCATA/i.test(f)).sort();
+    const head = panelHeader("Pneus em estoque", "Onde estão os pneus: estoque da unidade, reformadora ou ainda aplicados em veículo parado.", filiaisAll).replace('placeholder="Buscar placa"', 'placeholder="Buscar nº de fogo"');
+    if (!E) {
+      return head + `<div class="est-aviso">Ainda não há dados de estoque. Salve o relatório R325A como <strong>PNEUS EM ESTOQUE.xlsx</strong> na pasta Dashboard e rode o <strong>Atualizar Painel.bat</strong>.</div>`;
+    }
+    const lim = estLimite();
+    const U = estUnidades(false);
+    const tot = U.reduce((a, u) => { a.pronto += u.pronto; a.indisp += u.indisp; a.ref += u.ref; a.apl += u.apl; a.sem += u.pos.sem; EST_POS.forEach((p) => { a[p] += u.pos[p]; }); return a; }, { pronto: 0, indisp: 0, ref: 0, apl: 0, sem: 0, Direcional: 0, "Tração": 0, Livre: 0 });
+    // mínimos
+    const fullBy = estFullBySigla();
+    const GL = estGrupos().filter((g) => g.sigs.some((sg) => passaFilial(fullBy.get(sg) || sg))).map((g) => ({ g, linhas: estGrupoLinhas(g) }));
+    const oc = { pronto: 0, outros: 0 };
+    GL.forEach(({ g }) => estGrupoLinhas(g, true).filter((r) => !r.mostra).forEach((r) => { oc.pronto += r.pronto; oc.outros += r.indisp + r.ref + r.apl; }));
+    let abaixo = 0, falta = 0, defin = 0;
+    GL.forEach(({ g, linhas }) => linhas.forEach((r) => EST_POS.forEach((p) => { const m = estMinDe(g, r.tam, p); if (m == null) return; defin++; if (r.pos[p] < m) { abaixo++; falta += m - r.pos[p]; } })));
+    const passaU = (t) => passaFilial(t.filial) && t.local !== "S";
+    const refT = E.tires.filter((t) => t.local === "R" && passaU(t)).map((t) => ({ ...t, dias: estDias(t.ultimaAcao) }));
+    const refAlerta = refT.filter((t) => t.dias != null && t.dias > lim).length;
+    const aplT = E.tires.filter((t) => t.local === "A" && passaU(t)).map((t) => ({ ...t, dias: estDias(t.ultimaAcao) }));
+    const aplMax = aplT.reduce((m, t) => Math.max(m, t.dias || 0), 0);
+    const indT = E.tires.filter((t) => t.local === "E" && !t.pronto && passaU(t)).map((t) => ({ ...t, dias: estDias(t.ultimaAcao) }));
+    const kpis = `<div class="kpi-grid">
+      ${kpiCard("Prontos para uso", fmtInt(tot.pronto), `${fmtInt(tot.indisp)} indisponíveis no estoque (conserto, sucata, reforma)${scopeLabelText()}`, ICONS.building, "var(--success)")}
+      ${kpiCard("Abaixo do mínimo", defin ? fmtInt(abaixo) : "—", defin ? `${abaixo ? `faltam ${fmtInt(falta)} pneu(s) · ` : ""}${fmtInt(defin)} mínimos definidos (grupo × tamanho × posição)` : "defina o mínimo em ESTOQUE_CONFIG.xlsx", ICONS.alert, abaixo ? "var(--danger)" : "var(--success)")}
+      ${kpiCard("Na reformadora", fmtInt(tot.ref), refAlerta ? `${fmtInt(refAlerta)} há mais de ${lim} dias` : `nenhum há mais de ${lim} dias`, ICONS.gauge, refAlerta ? "var(--danger)" : "var(--warning)")}
+      ${kpiCard("Aplicados em veículo parado", fmtInt(tot.apl), tot.apl ? `o mais antigo há ${fmtInt(aplMax)} dias` : "nenhum", ICONS.truck, tot.apl ? "var(--warning)" : "var(--success)")}
+    </div>`;
+    const demo = E.demo ? `<div class="est-aviso est-demo"><strong>VERSÃO DE TESTE:</strong> a classificação dos desenhos e o estoque mínimo desta tela são <strong>exemplos</strong> (não são os seus). Os números de pneus, unidades, reformadoras e dias são reais, do relatório de ${escapeHtml(E.arquivoEm || "")}.</div>` : "";
+    const semClassN = E.tires.filter((t) => t.pronto && !t.posicao && passaU(t)).length;
+    const semCl = (E.semClassificacao || []).length
+      ? `<div class="est-aviso"><strong>${fmtInt(E.semClassificacao.length)} desenho(s) sem classificação</strong> (${fmtInt(semClassN)} pneus prontos ficam na coluna "Sem class." e não entram no mínimo). Classifique na aba <em>Desenhos</em> de ESTOQUE_CONFIG.xlsx: ${E.semClassificacao.slice(0, 8).map((d) => `${escapeHtml(d.desenho)} (${d.qtd})`).join(", ")}${E.semClassificacao.length > 8 ? "…" : ""}.</div>` : "";
+    // tabela por grupo de unidades × tamanho
+    const celula = (g, r, p) => {
+      const n = r.pos[p], m = estMinDe(g, r.tam, p);
+      if (m == null) return `<td class="c"><span class="est-n est-nodef">${n}</span></td>`;
+      const baixo = n < m;
+      return `<td class="c ${baixo ? "est-low-cell" : ""}" title="${r.label} ${p}: ${n} pronto(s), mínimo ${m}${baixo ? ` (faltam ${m - n})` : ""}"><span class="est-n ${baixo ? "est-low" : "est-ok"}">${n}</span><span class="est-min">/ ${m}</span></td>`;
+    };
+    const somaT = { Direcional: 0, "Tração": 0, Livre: 0, sem: 0, pronto: 0, indisp: 0, ref: 0, apl: 0 };
+    const linhasU = GL.map(({ g, linhas }) => linhas.map((r, i) => {
+      Object.keys(somaT).forEach((k) => { somaT[k] += (k in r.pos ? r.pos[k] : r[k]); });
+      const mins = EST_POS.map((p) => estMinDe(g, r.tam, p)), temMin = mins.some((m) => m != null), minTot = mins.reduce((a, m) => a + (m || 0), 0);
+      return `<tr class="${i === 0 ? "est-grp-ini" : ""}">
+        ${i === 0 ? `<td rowspan="${linhas.length}" class="est-grp"><strong>${escapeHtml(g.sigs.join(" + "))}</strong><div class="est-grp-sub">${escapeHtml(g.sigs.map((sg) => filialFullName(fullBy.get(sg) || sg)).join(" · "))}</div></td>` : ""}
+        <td class="c"><strong>${escapeHtml(r.label)}</strong></td>
+        ${EST_POS.map((p) => celula(g, r, p)).join("")}
+        <td class="c" style="color:var(--text-dim)">${r.pos.sem}</td>
+        <td class="c"><span class="est-n ${temMin && r.pronto < minTot ? "est-low" : ""}">${r.pronto}</span>${temMin ? `<span class="est-min">/ ${minTot}</span>` : ""}</td>
+        <td class="c">${r.indisp}</td><td class="c">${r.ref ? `<span class="est-n">${r.ref}</span>` : 0}</td><td class="c">${r.apl ? `<span class="est-n">${r.apl}</span>` : 0}</td></tr>`;
+    }).join("")).join("");
+    const tabU = `<div class="card est-wrap"><div class="card-title">Estoque por unidade e tamanho — pronto / mínimo por posição</div>
+      <div class="table-wrap" style="margin:0;"><table class="est-tbl"><thead><tr><th>Unidade(s)</th><th class="c">Tam.</th><th class="c">Direcional</th><th class="c">Tração</th><th class="c">Livre</th><th class="c" title="Prontos cujo desenho ainda não foi classificado">Sem class.</th><th class="c">Total pronto</th><th class="c" title="No estoque, mas conserto/sucata/reforma">Indisponível</th><th class="c">Reformadora</th><th class="c" title="Ainda aplicado em veículo parado">Aplicado</th></tr></thead>
+        <tbody>${GL.length ? linhasU : emptyRow(10, "Nenhuma unidade no filtro.")}</tbody>
+        ${GL.length ? `<tfoot><tr style="font-weight:700;border-top:2px solid var(--border-strong);"><td>Total</td><td></td>${EST_POS.map((p) => `<td class="c">${somaT[p]}</td>`).join("")}<td class="c">${somaT.sem}</td><td class="c">${somaT.pronto}</td><td class="c">${somaT.indisp}</td><td class="c">${somaT.ref}</td><td class="c">${somaT.apl}</td></tr></tfoot>` : ""}</table></div>
+      <div class="table-note">Vermelho = abaixo do mínimo. O mínimo vale para o grupo de unidades que divide o mesmo estoque, então o painel soma as unidades do grupo (ao filtrar uma unidade, o grupo dela aparece inteiro). "Pronto" = no estoque, em condição de uso (D2). Para mudar o mínimo: ESTOQUE_CONFIG.xlsx (aba Minimo) e rodar o Atualizar Painel.bat.</div>
+      ${oc.pronto + oc.outros ? `<div class="table-note">Tamanhos sem mínimo definido (a operação não usa) não aparecem aqui: ${fmtInt(oc.pronto)} pneu(s) pronto(s) e ${fmtInt(oc.outros)} em outras situações. Eles continuam nos cartões e no gráfico; para mostrar um tamanho, preencha o mínimo dele.</div>` : ""}</div>`;
+    // gráfico
+    const graf = `<div class="card est-wrap"><div class="card-title">Onde estão os pneus, por unidade</div>${chartHint()}
+      <div class="est-leg">${EST_SEGS.map((g) => `<span><i style="background:${g.color}"></i>${escapeHtml(g.label)}</span>`).join("")}</div><div id="chart-est-bar"></div></div>`;
+    // reformadora
+    const porRef = new Map();
+    refT.forEach((t) => { const k = t.reformadora || "?"; if (!porRef.has(k)) porRef.set(k, { sig: k, nome: t.reformadoraNome || "", n: 0, max: 0, alerta: 0 }); const g = porRef.get(k); g.n++; g.max = Math.max(g.max, t.dias || 0); if (t.dias != null && t.dias > lim) g.alerta++; });
+    const tabRef = Array.from(porRef.values()).sort((a, b) => b.alerta - a.alerta || b.n - a.n);
+    const refRes = `<div class="card"><div class="card-title">Reformadoras (alerta: mais de ${lim} dias desde a última ação)</div>
+      <div class="table-wrap" style="margin:0;"><table class="est-tbl"><thead><tr><th>Reformadora</th><th class="c">Pneus</th><th class="c">Mais antigo</th><th class="c">Acima de ${lim} dias</th></tr></thead><tbody>
+      ${tabRef.length ? tabRef.map((g) => `<tr><td><strong>${escapeHtml(g.sig)}</strong> <span style="color:var(--text-faint)">${escapeHtml(g.nome)}</span></td><td class="c est-n">${g.n}</td><td class="c">${estDiasPill(g.max, lim)}</td><td class="c">${g.alerta ? `<span class="est-n est-low">${g.alerta}</span>` : 0}</td></tr>`).join("") : emptyRow(4, "Nenhum pneu em reformadora no filtro.")}
+      </tbody></table></div></div>`;
+    const refLista = refT.filter(estBusca).sort((a, b) => (b.dias || 0) - (a.dias || 0));
+    const refTab = `<div class="card"><div class="card-title">Pneus na reformadora — do mais antigo para o mais novo</div>
+      <div class="table-wrap est-scroll" style="margin:0;"><table class="est-tbl"><thead><tr><th>Nº de fogo</th><th>Unidade</th><th>Reformadora</th><th>Medida</th><th>Desenho</th><th>Sulco</th><th class="c">Há</th><th>Última ação</th></tr></thead><tbody>
+      ${refLista.length ? refLista.map((t) => `<tr><td class="mono" style="font-weight:600;">${escapeHtml(t.pneu)}</td><td>${escapeHtml(filialSigla(t.filial))}</td><td>${escapeHtml(t.reformadora || "")}</td><td>${escapeHtml(t.medida || "")}</td><td>${escapeHtml(t.desenho || "")}</td><td class="mono">${t.sulco != null ? t.sulco.toFixed(1) + " mm" : "—"}</td><td class="c">${estDiasPill(t.dias, lim)}</td><td class="mono">${fmtDate(t.ultimaAcao)}</td></tr>`).join("") : emptyRow(8, "Nenhum pneu encontrado.")}
+      </tbody></table></div></div>`;
+    // aplicados em veículo parado
+    const aplLista = aplT.filter(estBusca).sort((a, b) => (b.dias || 0) - (a.dias || 0));
+    const aplTab = `<div class="card"><div class="card-title">Aplicados em veículo parado (${aplT.length})</div>
+      <div class="table-wrap est-scroll" style="margin:0;"><table class="est-tbl"><thead><tr><th>Nº de fogo</th><th>Unidade</th><th>Medida</th><th>Desenho</th><th>Sulco</th><th class="c">Há</th></tr></thead><tbody>
+      ${aplLista.length ? aplLista.map((t) => `<tr><td class="mono" style="font-weight:600;">${escapeHtml(t.pneu)}</td><td>${escapeHtml(filialSigla(t.filial))}</td><td>${escapeHtml(t.medida || "")}</td><td>${escapeHtml(t.desenho || "")}</td><td class="mono">${t.sulco != null ? t.sulco.toFixed(1) + " mm" : "—"}</td><td class="c">${estDiasPill(t.dias, null)}</td></tr>`).join("") : emptyRow(6, "Nenhum pneu encontrado.")}
+      </tbody></table></div></div>`;
+    // indisponíveis no estoque
+    const porDest = {}; indT.forEach((t) => { const k = t.dest || "?"; porDest[k] = (porDest[k] || 0) + 1; });
+    const indLista = indT.filter(estBusca).sort((a, b) => (a.dest || "").localeCompare(b.dest || "") || (b.dias || 0) - (a.dias || 0));
+    const indTab = `<div class="card"><div class="card-title">No estoque, mas indisponíveis (${indT.length})</div>
+      <div class="est-leg">${Object.keys(porDest).sort().map((k) => `<span><strong>${porDest[k]}</strong> ${escapeHtml(EST_DEST[k] || k)} (${escapeHtml(k)})</span>`).join("")}</div>
+      <div class="table-wrap est-scroll" style="margin:0;"><table class="est-tbl"><thead><tr><th>Nº de fogo</th><th>Unidade</th><th>Condição</th><th>Medida</th><th>Desenho</th><th>Sulco</th><th class="c">Parado há</th></tr></thead><tbody>
+      ${indLista.length ? indLista.map((t) => `<tr><td class="mono" style="font-weight:600;">${escapeHtml(t.pneu)}</td><td>${escapeHtml(filialSigla(t.filial))}</td><td>${escapeHtml(EST_DEST[t.dest] || t.dest || "—")}</td><td>${escapeHtml(t.medida || "")}</td><td>${escapeHtml(t.desenho || "")}</td><td class="mono">${t.sulco != null ? t.sulco.toFixed(1) + " mm" : "—"}</td><td class="c">${estDiasPill(t.dias, null)}</td></tr>`).join("") : emptyRow(7, "Nenhum pneu encontrado.")}
+      </tbody></table></div></div>`;
+    // evolução (fotos diárias)
+    const datas = Object.keys(E.historico || {}).sort().slice(-10).reverse();
+    const somaFoto = (d) => { const f = E.historico[d]; const r = { pronto: 0, indisp: 0, reformadora: 0, aplicado: 0 }; Object.keys(f).forEach((sg) => { if (sg === "SUC") return; if (!passaFilial(fullBy.get(sg) || sg)) return; Object.keys(r).forEach((k) => { r[k] += f[sg][k] || 0; }); }); return r; };
+    const evo = `<div class="card"><div class="card-title">Evolução (uma foto por atualização)</div>
+      <div class="table-wrap" style="margin:0;"><table class="est-tbl"><thead><tr><th>Data</th><th class="c">Prontos</th><th class="c">Indisponíveis</th><th class="c">Reformadora</th><th class="c">Aplicados</th></tr></thead><tbody>
+      ${datas.map((d) => { const r = somaFoto(d); return `<tr><td class="mono">${fmtDate(d)}</td><td class="c est-n">${r.pronto}</td><td class="c">${r.indisp}</td><td class="c">${r.reformadora}</td><td class="c">${r.aplicado}</td></tr>`; }).join("")}
+      </tbody></table></div>
+      <div class="table-note">${datas.length < 2 ? "O histórico começa na primeira atualização com este relatório; a comparação aparece a partir da segunda." : "Cada linha é o estado no dia em que o painel foi atualizado."}</div></div>`;
+    return `${head}${demo}${semCl}${kpis}${graf}${tabU}
+      <div class="est-grid">${refRes}${refTab}</div>
+      <div class="est-grid">${aplTab}${indTab}</div>
+      <div class="est-grid">${evo}<div></div></div>
+      <div class="table-note" style="margin-top:12px;">Relatório de ${escapeHtml(E.arquivoEm || "")} (PNEUS EM ESTOQUE.xlsx). "Última ação" = data da última movimentação do pneu no sistema; os dias na reformadora contam a partir dela.</div>`;
+  }
+
   function panelHeader(title, desc, filiais, extraControl) {
     const showFilial = true;
     return `
@@ -5125,6 +5338,7 @@ body.nav-collapsed:has(.inf-root) #main { padding-bottom:24px; }
       plano: planoAbertosCount(),
       bloqueados: planoBloqCount(planoBloqueados()),
       informativo: planoBloqCount(planoBloqueados()),
+      estoque: DATA.estoque ? estAlertasTotal() : null,
     };
     return `
       <div class="brand">
@@ -5168,6 +5382,7 @@ body.nav-collapsed:has(.inf-root) #main { padding-bottom:24px; }
     else if (state.panel === "informativo") main.innerHTML = renderInformativoPanel();
     else if (state.panel === "resumo") main.innerHTML = renderResumoPanel();
     else if (state.panel === "evolucao") main.innerHTML = renderEvolucaoPanel();
+    else if (state.panel === "estoque") main.innerHTML = renderEstoquePanel();
     else main.innerHTML = renderPressaoPanel();
 
     bindNav();
@@ -5329,6 +5544,8 @@ body.nav-collapsed:has(.inf-root) #main { padding-bottom:24px; }
     } else if (state.panel === "sulco") {
       const d = computeSulco();
       renderBarChart("chart-sulco-bar", d.barData, "pneus", state.selFiliais, toggleFilialSelection, "var(--danger)", { percent: false });
+    } else if (state.panel === "estoque") {
+      drawEstoqueChart();
     } else if (state.panel === "bloqueados") {
       renderStackedBarChart("chart-blq-bar", blqChartData(), BLQ_SEGS, state.selFiliais, blqUnidadeClick, { unit: "veículo(s)", valores: true, totalTop: true, round: true, onSegment: blqSegClick, segSel: state.blqStatus });
     } else if (state.panel === "pressao") {
