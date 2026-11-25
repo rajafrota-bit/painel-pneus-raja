@@ -586,6 +586,20 @@ body.nav-collapsed:has(.inf-root) #main { padding-bottom:24px; }
   .est-ok { color:var(--success); } .est-low { color:var(--danger); } .est-nodef { color:var(--text); }
   .est-low-cell { background:var(--danger-bg); }
   .est-scroll { max-height:360px; overflow:auto; }
+  .est-scroll-g { max-height:560px; }
+  .est-filtros { display:flex; flex-direction:row; flex-wrap:wrap; align-items:center; gap:8px 16px; margin:6px 0 12px; }
+  .est-fg { display:flex; align-items:center; gap:6px; }
+  .est-fg > span { font-size:11px; font-weight:600; color:var(--text-dim); text-transform:uppercase; letter-spacing:.03em; }
+  .est-fg .seg-group { flex-wrap:wrap; }
+  .est-fg select { width:auto; max-width:190px; }
+  .est-tit { cursor:pointer; user-select:none; }
+  .est-seta { display:inline-block; width:14px; color:var(--text-dim); }
+  .est-resumo { text-transform:none; letter-spacing:0; font-weight:400; color:var(--text-dim); }
+  .est-recolhido > :not(.card-title) { display:none; }
+  .est-recolhido .card-title { margin-bottom:0; }
+  .pgraf-lin:hover td { background: var(--accent-dim); }
+  .pgraf-sel td { background: var(--accent-dim); font-weight:700; box-shadow: inset 0 1px var(--accent-border), inset 0 -1px var(--accent-border); }
+  .est-chipn { opacity:.65; font-size:11px; margin-left:3px; }
   .est-scroll thead th { position:sticky; top:0; background:var(--surface-2, var(--bg-elev)); z-index:1; }
   .est-grp { vertical-align:top; padding-top:10px; white-space:normal !important; min-width:150px; }
   .est-grp-sub { color:var(--text-faint); font-size:.8em; margin-top:2px; }
@@ -2370,7 +2384,222 @@ body.nav-collapsed:has(.inf-root) #main { padding-bottom:24px; }
   });
   document.addEventListener("keydown", (ev) => { if (ev.key === "Escape" && state.histVeic) histFechar(); });
 
-  function renderSulcoPanel() {
+
+  // ------------------------------------------------------------------
+  // Sulco: pneus a acompanhar (oscilação / queda brusca) — DATA.acompanhar vem do gerador (build_acompanhar)
+  // ------------------------------------------------------------------
+  const acQ = { verDisp: false, vAberta: true, motivo: new Set(), saude: new Set(), op: "", key: "sev", dir: -1, aberta: true, todos: false };
+  const AC_MOT = { oscila: "Oscila", queda: "Queda brusca" };
+  const AC_SAUDE = { bom: "Bom (≥ 8mm)", medio: "Médio (5–8mm)", baixo: "Baixo (< 5mm)" };
+  const acSaude = (x) => (x.atual >= 8 ? "bom" : x.atual >= 5 ? "medio" : "baixo");
+  const acSev = (x) => Math.max(x.amp || 0, x.queda || 0);
+  const acN = (v) => String(v).replace(".", ",");
+  function acSpark(l) {
+    const w = 96, h = 26, pad = 3, vs = l.map((x) => x.s), mx = Math.max(18, ...vs);
+    const px = (i) => pad + (l.length > 1 ? (i * (w - 2 * pad)) / (l.length - 1) : 0), py = (v) => h - pad - (v / mx) * (h - 2 * pad);
+    const pts = vs.map((v, i) => `${px(i).toFixed(1)},${py(v).toFixed(1)}`).join(" ");
+    const last = vs.length - 1, cor = vs[last] <= 3 ? "var(--danger)" : vs[last] <= 5 ? "var(--warning)" : "var(--accent, #4E79A7)";
+    return `<svg width="${w}" height="${h}" viewBox="0 0 ${w} ${h}" role="img" aria-label="Últimas leituras: ${escapeHtml(vs.map(acN).join(", "))} mm"><polyline points="${pts}" fill="none" stroke="var(--text-faint)" stroke-width="1.5"/><circle cx="${px(last).toFixed(1)}" cy="${py(vs[last]).toFixed(1)}" r="3" fill="${cor}"/></svg>`;
+  }
+
+  // Pneus dispensados da lista "a acompanhar": guardado em localStorage DESTE navegador (não é compartilhado entre computadores).
+  // Volta sozinho se, numa inspeção NOVA, surgir um tipo de alerta que ele não tinha ou a gravidade subir 2mm ou mais.
+  const AC_DISP_KEY = "raja_acomp_dispensados";
+  function acDispCompart() { return PlanoStore.modo === "api" && PlanoStore.baseSemAcomp === false; }
+  function acDispLer() {
+    if (acDispCompart()) return PlanoStore.acompDisp || {};
+    try { return JSON.parse(lsGet(AC_DISP_KEY) || "{}") || {}; } catch (e) { return {}; }
+  }
+  // rec = registro (dispensar) ou null (restaurar). Compartilhado: grava na base do Plano de Ação (pede a senha de lançamento
+  // e o nome uma vez). Sem o Code.gs novo na base: guarda só neste navegador.
+  async function acDispSet(pneu, rec) {
+    if (!acDispCompart()) { const o = acDispLer(); if (rec) o[pneu] = rec; else delete o[pneu]; lsSet(AC_DISP_KEY, JSON.stringify(o)); return true; }
+    if (!PlanoStore.pin) { const p = window.prompt("Senha de lançamento (a mesma do Plano de Ação):", ""); if (p === null) return false; PlanoStore.pin = p.trim(); lsSet("raja_plano_pin", PlanoStore.pin); }
+    if (!state.planoAutor) { const n = window.prompt("Seu nome (os outros usuários veem quem dispensou):", ""); if (n === null || !n.trim()) return false; state.planoAutor = n.trim(); lsSet("raja_plano_autor", state.planoAutor); }
+    const ok = await PlanoStore.exec("acomp_disp", { pneu, ate: rec ? rec.ate : "", mot: rec ? rec.mot : [], sev: rec ? rec.sev : 0, nota: rec ? rec.nota : "", por: state.planoAutor, ativo: !!rec });
+    if (!ok) { if (PlanoStore.precisaPin) { PlanoStore.pin = ""; lsSet("raja_plano_pin", ""); } toast(PlanoStore.erro || "Não consegui gravar."); }
+    return ok;
+  }
+  function acDispensado(x) {
+    const d = acDispLer()[String(x.pneu)];
+    if (!d) return false;
+    const novo = x.ultima > d.ate && (x.motivos.some((m) => !(d.mot || []).includes(m)) || acSev(x) >= (d.sev || 0) + 2);
+    return !novo;
+  }
+
+  function acompanharHtml() {
+    const A = DATA.acompanhar;
+    if (!A) return "";
+    const q = normalizeText(state.busca || "");
+    const baseAll = A.filter((x) => passaFilial(x.filial) && (!q || normalizeText(x.veiculo + " " + x.pneu).includes(q)));
+    const nDisp = baseAll.filter(acDispensado).length, DISP = acDispLer();
+    const base = baseAll.filter((x) => (acQ.verDisp ? acDispensado(x) : !acDispensado(x)));
+    const passa = (x, ign) => (ign === "motivo" || !acQ.motivo.size || x.motivos.some((m) => acQ.motivo.has(m))) && (ign === "saude" || !acQ.saude.size || acQ.saude.has(acSaude(x))) && (ign === "op" || !acQ.op || (x.operador || "—") === acQ.op);
+    const lista = base.filter((x) => passa(x));
+    const chip = (grp, val, label, n) => `<button type="button" class="seg-btn ${acQ[grp].has(val) ? "active" : ""}" data-acq="${grp}|${escapeHtml(val)}">${escapeHtml(label)} <span class="est-chipn">${n}</span></button>`;
+    const motCh = Object.keys(AC_MOT).map((k) => chip("motivo", k, AC_MOT[k], base.filter((x) => passa(x, "motivo") && x.motivos.includes(k)).length)).join("");
+    const saCh = Object.keys(AC_SAUDE).map((k) => chip("saude", k, AC_SAUDE[k], base.filter((x) => passa(x, "saude") && acSaude(x) === k).length)).join("");
+    const ops = Array.from(new Set(base.map((x) => x.operador || "—"))).sort();
+    const opSel = `<select data-acq-op aria-label="Operador"><option value="">Todos os operadores</option>${ops.map((o) => `<option value="${escapeHtml(o)}" ${acQ.op === o ? "selected" : ""}>${escapeHtml(o)}</option>`).join("")}</select>`;
+    const acc = { sev: acSev, pneu: (x) => parseFloat(x.pneu) || 0, veiculo: (x) => x.veiculo, filial: (x) => filialSigla(x.filial), atual: (x) => x.atual, base: (x) => (x.base == null ? -1 : x.base), ultima: (x) => x.ultima, operador: (x) => x.operador || "" };
+    const fn = acc[acQ.key] || acSev;
+    const ord = lista.slice().sort((a, b) => { const va = fn(a), vb = fn(b); const c = typeof va === "number" ? va - vb : String(va).localeCompare(String(vb), "pt-BR", { numeric: true }); return (c || acSev(a) - acSev(b)) * acQ.dir; });
+    const LIM = 60, vis = acQ.todos ? ord : ord.slice(0, LIM);
+    const th = (k, label, cls) => `<th class="${cls || ""}" data-acsort="${k}" style="cursor:pointer;user-select:none;">${escapeHtml(label)}<span class="sort-arrow${acQ.key === k ? " active" : ""}">${acQ.key === k ? (acQ.dir === 1 ? "▲" : "▼") : ""}</span></th>`;
+    const nOsc = base.filter((x) => x.motivos.includes("oscila")).length, nQ = base.filter((x) => x.motivos.includes("queda")).length;
+    const algum = acQ.motivo.size || acQ.saude.size || acQ.op;
+    const linha = (x) => {
+      const mot = x.motivos.map((m) => severityPill(m === "queda" ? "danger" : "warning", AC_MOT[m])).join(" ");
+      const det = [x.motivos.includes("queda") ? `caiu ${acN(x.queda)}mm (base ${acN(x.base)}mm)` : "", x.motivos.includes("oscila") ? `oscilou ${acN(x.amp)}mm nas 3 últimas` : ""].filter(Boolean).join(" · ");
+      return `<tr><td class="mono" style="font-weight:600;">${escapeHtml(x.pneu)}</td><td class="mono">${escapeHtml(x.veiculo)}</td><td class="mono">${escapeHtml(x.posicao || "")}</td><td>${escapeHtml(filialSigla(x.filial))}</td>
+        <td>${mot}<div class="est-grp-sub">${escapeHtml(det)}</div>${acQ.verDisp && DISP[String(x.pneu)] ? `<div class="est-grp-sub" style="color:var(--success);">Dispensado em ${escapeHtml(fmtDate(String(DISP[String(x.pneu)].em).slice(0, 10)))}${DISP[String(x.pneu)].por ? " por " + escapeHtml(DISP[String(x.pneu)].por) : ""}${DISP[String(x.pneu)].nota ? " — " + escapeHtml(DISP[String(x.pneu)].nota) : ""}</div>` : ""}</td><td class="mono" style="font-weight:700;color:${x.atual <= 3 ? "var(--danger)" : x.atual <= 5 ? "var(--warning)" : "inherit"};">${acN(x.atual)}</td>
+        <td class="mono">${x.base == null ? "—" : acN(x.base)}</td><td>${acSpark(x.leituras)}<div class="est-grp-sub mono">${escapeHtml(x.leituras.map((y) => acN(y.s)).join(" · "))}</div></td>
+        <td>${escapeHtml(x.operador || "—")}<div class="est-grp-sub">${escapeHtml(fmtDate(x.ultima))}</div></td>
+        <td style="white-space:nowrap;"><button type="button" class="btn btn-sm" data-ac-hist="${escapeHtml(x.veiculo)}">Inspeções</button> <button type="button" class="btn btn-sm" data-pgraf-abrir="${escapeHtml(x.pneu)}" title="Gráfico da evolução do sulco deste pneu">Gráfico</button> <button type="button" class="btn btn-sm" data-ac-foto="${escapeHtml(x.pneu)}" title="Abre uma ação no Plano de Ação pedindo a foto do pneu e a remedição">Pedir foto</button> ${acQ.verDisp ? `<button type="button" class="btn btn-sm" data-ac-rest="${escapeHtml(x.pneu)}" title="Colocar de volta na lista">Restaurar</button>` : `<button type="button" class="btn btn-sm" data-ac-disp="${escapeHtml(x.pneu)}" title="Já entendi ou corrigi: tirar este pneu da lista">Dispensar</button>`}</td></tr>`;
+    };
+    return `<div class="card est-wrap ${acQ.aberta ? "" : "est-recolhido"}" id="card-acomp" style="margin-top:18px;">
+      <div class="card-title est-tit" data-ac-tog role="button" tabindex="0" aria-expanded="${acQ.aberta}"><span class="est-seta">${acQ.aberta ? "▼" : "▶"}</span> Pneus a acompanhar — oscilação e queda brusca do sulco (${fmtInt(lista.length)}${lista.length !== base.length ? ` de ${fmtInt(base.length)}` : ""})${acQ.aberta ? "" : ` <span class="est-resumo">· ${fmtInt(nQ)} queda brusca · ${fmtInt(nOsc)} oscilando · clique para expandir</span>`}</div>
+      <div class="est-filtros"><div class="est-fg"><span>Motivo</span><div class="seg-group">${motCh}</div></div>
+        <div class="est-fg"><span>Sulco atual</span><div class="seg-group">${saCh}</div></div>
+        <div class="est-fg"><span>Operador</span>${opSel} <button type="button" class="btn btn-sm" data-ac-limpar ${algum ? "" : "disabled"}>Limpar filtros</button> <button type="button" class="btn btn-sm ${acQ.verDisp ? "btn-primary" : ""}" data-ac-verdisp title="Pneus que você já entendeu ou corrigiu e tirou da lista">${acQ.verDisp ? "← Voltar à lista" : `Dispensados (${nDisp})`}</button></div></div>
+      <div class="table-wrap est-scroll est-scroll-g" style="margin:0;"><table class="est-tbl"><thead><tr>${th("pneu", "Pneu")}${th("veiculo", "Veículo")}<th>Pos.</th>${th("filial", "Unidade")}${th("sev", "Motivo")}${th("atual", "Sulco atual")}${th("base", "Base")}<th>Últimas leituras (mm)</th>${th("operador", "Última inspeção")}<th></th></tr></thead>
+      <tbody>${vis.length ? vis.map(linha).join("") : emptyRow(10, acQ.verDisp ? "Nenhum pneu dispensado." : "Nenhum pneu com esses filtros.")}</tbody></table></div>
+      ${ord.length > LIM ? `<div class="table-note">Mostrando ${acQ.todos ? "todos os" : "os primeiros"} ${fmtInt(vis.length)} de ${fmtInt(ord.length)}. <button type="button" class="btn btn-sm" data-ac-todos>${acQ.todos ? "Mostrar menos" : "Mostrar todos"}</button></div>` : ""}
+      <div class="table-note"><strong>Oscila:</strong> nas 3 últimas inspeções do pneu a leitura subiu e desceu (ou o contrário) e a diferença entre a maior e a menor é de 2mm ou mais — pode ser desgaste irregular ou inspeção que não pegou o ponto de <em>menor</em> sulco. <strong>Queda brusca:</strong> a última leitura está 3mm ou mais abaixo da média das leituras anteriores do pneu e bem além da oscilação normal dele. Só entram pneus lidos nos últimos 45 dias e que ainda estão no mesmo veículo; subida de 5mm ou mais entre leituras é tratada como reforma/troca e reinicia a série. Ordenado do mais grave. <strong>Pedir foto</strong> abre uma ação no Plano de Ação já preenchida. <strong>Dispensar</strong> tira o pneu da lista (você pode anotar o que entendeu ou corrigiu); ele volta sozinho se uma inspeção nova trouxer um alerta diferente ou 2mm mais grave, e dá para restaurar em "Dispensados". ${acDispCompart() ? "Os dispensados são compartilhados com quem usa o painel (aparece quem dispensou); a senha de lançamento é pedida na primeira vez." : "<strong>Atenção:</strong> a base compartilhada ainda está com o Code.gs antigo, então os dispensados ficam guardados só neste navegador."} Dica: clique com o botão direito num pneu de qualquer mapa para ver o gráfico da evolução do sulco dele.</div></div>`;
+  }
+
+  // ------------------------------------------------------------------
+  // Gráficos da evolução de UM pneu (sulco e pressão, todas as inspeções do ano). Abre pelo botão direito no pneu.
+  // Clicar numa linha da tabela destaca a inspeção nos dois gráficos. Reforma = nº de reformas subiu (ou banda mudou).
+  // ------------------------------------------------------------------
+  const pgraf = { pneu: null, sel: null };
+  function pneuSerie(pneu) {
+    const H = DATA.pressaoHistoricoMensal || {}, por = new Map();
+    Object.keys(H).sort().forEach((mes) => ((H[mes] && H[mes].geral && H[mes].geral.eventos) || []).forEach((e) => {
+      if (String(e.pneu) === String(pneu) && e.dataInsp) por.set(e.dataInsp, e);
+    }));
+    return Array.from(por.keys()).sort().map((d) => por.get(d));
+  }
+  function pneuReformou(a, b) {
+    if (Number.isInteger(a.reformas) && Number.isInteger(b.reformas)) return b.reformas > a.reformas;
+    return (a.banda || "") !== (b.banda || "");
+  }
+  // Base comum dos dois gráficos: eixo X por data, destaque da inspeção selecionada, marcas de reforma.
+  function pneuGrafBase(ev, pts, W, H, L, R, T, B, sel) {
+    const t0 = Date.parse(pts[0].dataInsp + "T00:00:00"), t1 = Date.parse(pts[pts.length - 1].dataInsp + "T00:00:00"), span = Math.max(t1 - t0, 86400000);
+    const X = (d) => L + ((Date.parse(d + "T00:00:00") - t0) / span) * (W - L - R);
+    let g = "", mes = "";
+    pts.forEach((e) => { const m = e.dataInsp.slice(0, 7); if (m !== mes) { mes = m; g += `<text x="${X(e.dataInsp)}" y="${H - 12}" font-size="11" fill="var(--text-faint)">${histMesLabel(m)}</text>`; } });
+    ev.forEach((e, i) => { if (i && pneuReformou(ev[i - 1], e)) g += `<line x1="${X(e.dataInsp)}" x2="${X(e.dataInsp)}" y1="${T}" y2="${H - B}" stroke="#B07AA1" stroke-dasharray="3 3"/><text x="${X(e.dataInsp) + 4}" y="${T + 10}" font-size="10.5" fill="#B07AA1">reforma</text>`; });
+    const guia = sel ? `<line x1="${X(sel)}" x2="${X(sel)}" y1="${T}" y2="${H - B}" stroke="var(--accent, #4E79A7)" stroke-width="1.5" opacity=".55"/>` : "";
+    return { X, g, guia };
+  }
+  // pontos já com cor; a inspeção selecionada ganha anel grande + rótulo
+  function pneuGrafPontos(pts, X, Y, cor, fmt, sel, W, T) {
+    let s = "";
+    pts.forEach((e) => { const x = X(e.dataInsp).toFixed(1), y = Y(e.v).toFixed(1), on = e.dataInsp === sel;
+      s += `<circle cx="${x}" cy="${y}" r="${on ? 8 : 4.5}" fill="${cor(e)}" stroke="${on ? "var(--text)" : "var(--bg-elev)"}" stroke-width="${on ? 2.5 : 1.5}"><title>${escapeHtml(fmtDate(e.dataInsp))} — ${escapeHtml(fmt(e.v))}${e.operador ? " — " + escapeHtml(e.operador) : ""}</title></circle>`;
+      if (on) { const tx = Math.min(Math.max(Number(x), 90), W - 90); s += `<text x="${tx}" y="${Math.max(Number(y) - 14, T + 10)}" text-anchor="middle" font-size="12" font-weight="700" fill="var(--text)" paint-order="stroke" stroke="var(--bg-elev)" stroke-width="3">${escapeHtml(fmtDate(e.dataInsp))} · ${escapeHtml(fmt(e.v))}</text>`; } });
+    return s;
+  }
+  function pneuLinha(pts, ev, X, Y) {
+    let seg = [], out = "";
+    pts.forEach((e, i) => { if (i && pneuReformou(pts[i - 1], e)) { out += `<polyline points="${seg.join(" ")}" fill="none" stroke="var(--accent, #4E79A7)" stroke-width="2"/>`; seg = []; } seg.push(`${X(e.dataInsp).toFixed(1)},${Y(e.v).toFixed(1)}`); });
+    return out + `<polyline points="${seg.join(" ")}" fill="none" stroke="var(--accent, #4E79A7)" stroke-width="2"/>`;
+  }
+  function pneuGrafSvg(ev, sel) {
+    const pts = ev.filter((e) => e.sulcoInsp != null).map((e) => ({ ...e, v: e.sulcoInsp }));
+    if (pts.length < 1) return `<div class="detail-empty">Este pneu não tem leituras de sulco no histórico.</div>`;
+    const W = 780, H = 280, L = 40, R = 16, T = 14, B = 34;
+    const ymax = Math.max(16, Math.ceil(Math.max(...pts.map((e) => e.v)) + 1));
+    const base = pneuGrafBase(ev, pts, W, H, L, R, T, B, sel), X = base.X, Y = (v) => T + (1 - v / ymax) * (H - T - B);
+    let g = "";
+    for (let v = 0; v <= ymax; v += 2) g += `<line x1="${L}" x2="${W - R}" y1="${Y(v)}" y2="${Y(v)}" stroke="var(--border)" stroke-width="1"/><text x="${L - 6}" y="${Y(v) + 4}" text-anchor="end" font-size="11" fill="var(--text-faint)">${v}</text>`;
+    g += `<line x1="${L}" x2="${W - R}" y1="${Y(5)}" y2="${Y(5)}" stroke="var(--warning)" stroke-dasharray="5 4"/><text x="${W - R}" y="${Y(5) - 4}" text-anchor="end" font-size="10.5" fill="var(--warning)">5mm</text>`;
+    g += `<line x1="${L}" x2="${W - R}" y1="${Y(3)}" y2="${Y(3)}" stroke="var(--danger)" stroke-dasharray="5 4"/><text x="${W - R}" y="${Y(3) - 4}" text-anchor="end" font-size="10.5" fill="var(--danger)">3mm</text>`;
+    const dots = pneuGrafPontos(pts, X, Y, (e) => (e.v <= 3 ? "var(--danger)" : e.v <= 5 ? "var(--warning)" : "var(--success, #59A14F)"), (v) => String(v).replace(".", ",") + " mm", sel, W, T);
+    return `<svg viewBox="0 0 ${W} ${H}" style="width:100%;height:auto;max-height:320px;" role="img" aria-label="Evolução do sulco do pneu">${g}${base.g}${base.guia}${pneuLinha(pts, ev, X, Y)}${dots}</svg>`;
+  }
+  function pneuPressaoSvg(ev, sel) {
+    const pts = ev.filter((e) => e.pressaoAtual).map((e) => ({ ...e, v: e.pressaoAtual }));
+    if (pts.length < 1) return `<div class="detail-empty">Este pneu não tem leituras de pressão no histórico.</div>`;
+    const W = 780, H = 280, L = 44, R = 16, T = 14, B = 34;
+    const padroes = pts.map((e) => e.padraoPsi).filter(Boolean), padrao = padroes.length ? padroes[padroes.length - 1] : null;
+    const todos = pts.map((e) => e.v).concat(padrao ? [padrao * 0.89, padrao * 1.11] : []);
+    const lo = Math.floor((Math.min(...todos) - 4) / 5) * 5, hi = Math.ceil((Math.max(...todos) + 4) / 5) * 5;
+    const base = pneuGrafBase(ev, pts, W, H, L, R, T, B, sel), X = base.X, Y = (v) => T + (1 - (v - lo) / (hi - lo)) * (H - T - B);
+    let g = "";
+    if (padrao) g += `<rect x="${L}" y="${Y(padrao * 1.03)}" width="${W - L - R}" height="${Y(padrao * 0.98) - Y(padrao * 1.03)}" fill="#3C9F40" opacity=".16"/><line x1="${L}" x2="${W - R}" y1="${Y(padrao)}" y2="${Y(padrao)}" stroke="#3C9F40" stroke-dasharray="5 4"/><text x="${W - R}" y="${Y(padrao) - 4}" text-anchor="end" font-size="10.5" fill="#3C9F40">padrão ${padrao} psi (faixa correta 98–103%)</text>`;
+    for (let v = lo; v <= hi; v += 10) g += `<line x1="${L}" x2="${W - R}" y1="${Y(v)}" y2="${Y(v)}" stroke="var(--border)" stroke-width="1"/><text x="${L - 6}" y="${Y(v) + 4}" text-anchor="end" font-size="11" fill="var(--text-faint)">${v}</text>`;
+    const tone = typeof FAIXA_PRESSAO_TONE !== "undefined" ? FAIXA_PRESSAO_TONE : {};
+    const dots = pneuGrafPontos(pts, X, Y, (e) => tone[e.faixa] || "var(--text-dim)", (v) => v + " psi", sel, W, T);
+    return `<svg viewBox="0 0 ${W} ${H}" style="width:100%;height:auto;max-height:300px;" role="img" aria-label="Pressão encontrada no pneu em cada inspeção">${g}${base.g}${base.guia}${pneuLinha(pts, ev, X, Y)}${dots}</svg>`;
+  }
+  function pneuGrafHtml() {
+    const pneu = pgraf.pneu, sel = pgraf.sel;
+    const ev = pneuSerie(pneu);
+    const ult = ev[ev.length - 1] || {};
+    const ac = (DATA.acompanhar || []).find((r) => String(r.pneu) === String(pneu));
+    const aviso = ac ? `<div class="est-aviso" style="margin:8px 0;">${ac.motivos.map((m) => AC_MOT[m]).join(" + ")}: ${ac.motivos.includes("queda") ? `caiu ${acN(ac.queda)}mm (base ${acN(ac.base)}mm). ` : ""}${ac.motivos.includes("oscila") ? `oscilou ${acN(ac.amp)}mm nas 3 últimas leituras.` : ""}</div>` : "";
+    const lin = ev.slice().reverse().map((e, i, arr) => { const ant = arr[i + 1]; const ref = ant && pneuReformou(ant, e);
+      return `<tr class="pgraf-lin ${e.dataInsp === sel ? "pgraf-sel" : ""}" data-pgraf-sel="${escapeHtml(e.dataInsp)}" style="cursor:pointer;"><td class="mono">${escapeHtml(fmtDate(e.dataInsp))}</td><td class="mono">${escapeHtml(e.veiculo || "")}</td><td class="mono">${escapeHtml(e.posicao || "")}</td><td class="mono" style="font-weight:600;">${e.sulcoInsp == null ? "—" : String(e.sulcoInsp).replace(".", ",")}</td><td class="mono">${e.pressaoAtual ? e.pressaoAtual : "—"}</td><td>${escapeHtml(e.operador || "—")}</td><td>${ref ? '<span style="color:#B07AA1">reforma</span>' : ""}</td></tr>`; }).join("");
+    return `<div style="display:flex;justify-content:space-between;gap:12px;align-items:flex-start;"><div><h3 style="margin:0;font-size:20px;">Evolução do pneu ${escapeHtml(String(pneu))}</h3><div class="est-grp-sub">${escapeHtml(ult.veiculo || "")} ${ult.posicao ? "· posição " + escapeHtml(ult.posicao) : ""} ${ult.filial ? "· " + escapeHtml(filialSigla(ult.filial)) : ""} · ${ev.length} leitura(s)</div></div><button type="button" class="btn btn-sm" data-pgraf-fechar>Fechar ✕</button></div>
+      ${aviso}
+      <div class="card" style="margin:10px 0 8px;padding:10px 12px;"><div class="card-title" style="margin-bottom:4px;">Sulco (mm)</div>${pneuGrafSvg(ev, sel)}</div>
+      <div class="card" style="margin:0 0 10px;padding:10px 12px;"><div class="card-title" style="margin-bottom:4px;">Pressão encontrada (psi)</div>${pneuPressaoSvg(ev, sel)}</div>
+      <div class="table-wrap est-scroll" style="margin:0;"><table class="est-tbl"><thead><tr><th>Data</th><th>Veículo</th><th>Pos.</th><th>Sulco (mm)</th><th>Pressão (psi)</th><th>Operador</th><th></th></tr></thead><tbody>${lin}</tbody></table></div>
+      <div class="table-note">Clique numa linha da tabela para destacar aquela inspeção nos dois gráficos (clique de novo para soltar). Sulco: vermelho ≤ 3mm, amarelo ≤ 5mm. Pressão: a cor do ponto é a faixa (muito baixa, baixa, correta, alta, muito alta) e a faixa verde é 98–103% do padrão. A linha roxa tracejada marca reforma (o nº de reformas aumentou ou a banda mudou). Sulco que sobe e desce sem reforma indica desgaste irregular ou inspeção que não pegou o ponto de menor sulco.</div>`;
+  }
+  function pneuGrafPintar() {
+    const bd = document.getElementById("pgraf-modal"); if (!bd) return;
+    const tb = bd.querySelector(".est-scroll"), y = tb ? tb.scrollTop : 0;
+    bd.innerHTML = `<div class="hist-card" style="max-width:900px;width:100%;margin:auto;">${pneuGrafHtml()}</div>`;
+    const t2 = bd.querySelector(".est-scroll"); if (t2) t2.scrollTop = y;
+  }
+  async function pneuGrafAbrir(pneu) {
+    pgraf.pneu = pneu; pgraf.sel = null;
+    let bd = document.getElementById("pgraf-modal");
+    if (!bd) { bd = document.createElement("div"); bd.id = "pgraf-modal"; bd.className = "hist-backdrop"; bd.style.zIndex = 60; document.body.appendChild(bd); }
+    const pend = pressaoMesesPendentes();
+    if (pend.length) { bd.innerHTML = `<div class="hist-card" style="max-width:900px;width:100%;margin:auto;"><div class="detail-empty">Carregando o histórico do pneu ${escapeHtml(String(pneu))}…</div></div>`; try { await Promise.all(pend.map(carregaMesPressao)); } catch (e) { /* mostra o que carregou */ } }
+    pneuGrafPintar();
+  }
+  function pneuGrafFechar() { const b = document.getElementById("pgraf-modal"); if (b) b.remove(); }
+  document.addEventListener("click", (ev) => { const t = ev.target; if (!t.closest) return;
+    const g = t.closest("[data-pgraf-abrir]"); if (g) { pneuGrafAbrir(g.getAttribute("data-pgraf-abrir")); return; }
+    const l = t.closest("[data-pgraf-sel]"); if (l) { const d = l.getAttribute("data-pgraf-sel"); pgraf.sel = pgraf.sel === d ? null : d; pneuGrafPintar(); return; }
+    if (t.closest("[data-pgraf-fechar]") || t.id === "pgraf-modal") pneuGrafFechar(); });
+  document.addEventListener("keydown", (ev) => { if (ev.key === "Escape" && document.getElementById("pgraf-modal")) pneuGrafFechar(); });
+
+  function acBind() {
+    const re = () => { const y = window.scrollY; render(); window.scrollTo(0, y); };
+    document.querySelectorAll("[data-acq]").forEach((b) => b.addEventListener("click", () => { const [g, v] = b.getAttribute("data-acq").split("|"); if (acQ[g].has(v)) acQ[g].delete(v); else acQ[g].add(v); acQ.todos = false; re(); }));
+    document.querySelectorAll("[data-acsort]").forEach((h) => h.addEventListener("click", () => { const k = h.getAttribute("data-acsort"); if (acQ.key === k) acQ.dir = -acQ.dir; else { acQ.key = k; acQ.dir = k === "sev" || k === "ultima" ? -1 : 1; } re(); }));
+    const o = document.querySelector("[data-acq-op]"); if (o) o.addEventListener("change", () => { acQ.op = o.value; acQ.todos = false; re(); });
+    const l = document.querySelector("[data-ac-limpar]"); if (l) l.addEventListener("click", () => { acQ.motivo.clear(); acQ.saude.clear(); acQ.op = ""; acQ.todos = false; re(); });
+    const vd = document.querySelector("[data-ac-verdisp]"); if (vd) vd.addEventListener("click", () => { acQ.verDisp = !acQ.verDisp; acQ.todos = false; re(); });
+    document.querySelectorAll("[data-ac-disp]").forEach((b) => b.addEventListener("click", async () => {
+      const p = b.getAttribute("data-ac-disp"), x = (DATA.acompanhar || []).find((r) => String(r.pneu) === p); if (!x) return;
+      const nota = window.prompt(`Pneu ${p}: o que você entendeu ou corrigiu? (opcional — fica registrado)`, "");
+      if (nota === null) return;
+      if (await acDispSet(p, { ate: x.ultima, mot: x.motivos.slice(), sev: acSev(x), nota: String(nota).trim(), em: hojeIso(), por: state.planoAutor || "" })) toast(`Pneu ${p} saiu da lista.`);
+      re();
+    }));
+    document.querySelectorAll("[data-ac-rest]").forEach((b) => b.addEventListener("click", async () => { if (await acDispSet(b.getAttribute("data-ac-rest"), null)) toast("Pneu de volta na lista."); re(); }));
+    const t = document.querySelector("[data-ac-todos]"); if (t) t.addEventListener("click", () => { acQ.todos = !acQ.todos; re(); });
+    const sv = document.querySelector("[data-sv-tog]"); if (sv) { const f = () => { acQ.vAberta = !acQ.vAberta; re(); }; sv.addEventListener("click", f); sv.addEventListener("keydown", (e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); f(); } }); }
+    const tg = document.querySelector("[data-ac-tog]"); if (tg) { const f = () => { acQ.aberta = !acQ.aberta; re(); }; tg.addEventListener("click", f); tg.addEventListener("keydown", (e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); f(); } }); }
+    document.querySelectorAll("[data-ac-hist]").forEach((b) => b.addEventListener("click", () => histAbrir("sulco", b.getAttribute("data-ac-hist"))));
+    document.querySelectorAll("[data-ac-foto]").forEach((b) => b.addEventListener("click", () => {
+      const x = (DATA.acompanhar || []).find((r) => String(r.pneu) === b.getAttribute("data-ac-foto")); if (!x) return;
+      const why = [x.motivos.includes("queda") ? `o sulco caiu ${acN(x.queda)}mm (de ${acN(x.base)}mm para ${acN(x.atual)}mm)` : "", x.motivos.includes("oscila") ? `o sulco oscilou ${acN(x.amp)}mm nas últimas 3 inspeções (${x.leituras.slice(-3).map((y) => acN(y.s)).join(" → ")}mm)` : ""].filter(Boolean).join("; ");
+      abrirNovoPlano({ placa: x.veiculo, pneus: x.pneu, prioridade: x.atual <= 5 || x.queda >= 5 ? "Alta" : "Média", origem: "Inspeção física",
+        acao: `Tirar foto do pneu ${x.pneu} (posição ${x.posicao || "—"}) e remedir o sulco no ponto de MENOR profundidade: ${why}. Verificar desgaste irregular, dano ou erro de medição.` });
+    }));
+  }
+
+  function renderSulcoPanel() { return renderSulcoPanelBase() + acompanharHtml(); }
+  function renderSulcoPanelBase() {
     const d = computeSulco();
     const listaSulco = state.sulcoTodos && d.todos ? d.todos : d.filtered;
     const filiais = Array.from(new Set(DATA.sulcoTires.concat(DATA.sulcoOutros || []).map((r) => r.filial))).sort();
@@ -2403,7 +2632,8 @@ body.nav-collapsed:has(.inf-root) #main { padding-bottom:24px; }
         ${chartHint()}
         <div id="chart-sulco-bar"></div>
       </div>
-      <div class="sulco-layout">
+      <div class="card-title est-tit sv-tit" data-sv-tog role="button" tabindex="0" aria-expanded="${acQ.vAberta}" title="Clique para ${acQ.vAberta ? "recolher" : "expandir"}" style="margin:14px 0 8px;"><span class="est-seta">${acQ.vAberta ? "▼" : "▶"}</span> ${state.sulcoTodos ? "Todos os veículos" : "Veículos com pneu em sulco baixo"} (${fmtInt(listaSulco.length)})${acQ.vAberta ? "" : ` <span class="est-resumo">· clique para expandir</span>`}</div>
+      <div class="sulco-layout" style="${acQ.vAberta ? "" : "display:none;"}">
         <div class="table-wrap" style="margin:0;">
           <table>
             <thead><tr>${sortTh("filial", "Filial")}${sortTh("placa", "Placa")}${sortTh("tipo", "Tipo")}${sortTh("odometro", "Odômetro")}${sortTh("qtd", "Qtd")}<th>Posições</th>${state.sulcoTodos ? sortTh("ult", "Última inspeção") : ""}</tr></thead>
@@ -2969,7 +3199,7 @@ body.nav-collapsed:has(.inf-root) #main { padding-bottom:24px; }
   // ---------- Armazenamento ----------
   const PlanoStore = {
     modo: PLANO_API_URL ? "api" : "local",
-    planos: [], itens: [], andamento: [], config: [], dispensados: [], carregando: false, ocupado: false, erro: "",
+    planos: [], itens: [], andamento: [], config: [], dispensados: [], acompDisp: {}, carregando: false, ocupado: false, erro: "",
     pin: lsGet("raja_plano_pin") || "",
     precisaPin: false,
 
@@ -2977,6 +3207,9 @@ body.nav-collapsed:has(.inf-root) #main { padding-bottom:24px; }
     // ações) — nesse caso o prazo por ação NÃO é gravado, e o painel avisa em vez de perder em silêncio.
     _receber(o) {
       this.planos = o.planos || []; this.itens = o.itens || []; this.andamento = o.andamento || []; this.config = o.config || []; this.dispensados = o.dispensados || [];
+      this.acompDisp = o.acompDisp || {};
+      // base do Google ainda na versão antiga do Code.gs (não devolve "acompDisp"): dispensados ficam só neste navegador
+      this.baseSemAcomp = this.modo === "api" && !Object.prototype.hasOwnProperty.call(o, "acompDisp");
       // base do Google ainda na versão antiga do Code.gs (não devolve "config"): configuração dos laudos não seria gravada
       this.baseSemConfig = this.modo === "api" && !Object.prototype.hasOwnProperty.call(o, "config");
       this.baseSemPrazoItem = this.modo === "api" && this.itens.length > 0 && !this.itens.some((i) => Object.prototype.hasOwnProperty.call(i, "prazo"));
@@ -5070,14 +5303,15 @@ body.nav-collapsed:has(.inf-root) #main { padding-bottom:24px; }
   function setupPlanoContextMenu() {
     document.addEventListener("contextmenu", (ev) => {
       const host = ev.target.closest ? ev.target.closest("[data-plano-placa]") : null;
-      if (!host) { fecharMenuPlano(); return; }
+      const chip = ev.target.closest ? ev.target.closest(".tire-chip[data-pneu]") : null;
+      if (!host && !chip) { fecharMenuPlano(); return; }
       ev.preventDefault();
       fecharMenuPlano();
-      const placa = host.getAttribute("data-plano-placa");
-      const origem = host.getAttribute("data-plano-origem") || "Outro";
-      const chip = ev.target.closest(".tire-chip[data-pneu]");
+      const placa = host ? host.getAttribute("data-plano-placa") : "";
+      const origem = host ? (host.getAttribute("data-plano-origem") || "Outro") : "Outro";
       const itens = [];
-      if (chip) {
+      if (chip) itens.push({ txt: `Ver evolução do sulco do pneu nº ${chip.getAttribute("data-pneu")}`, fn: () => pneuGrafAbrir(chip.getAttribute("data-pneu")) });
+      if (chip && host) {
         const pneu = chip.getAttribute("data-pneu"), pos = chip.getAttribute("data-posicao") || "";
         const sulco = chip.getAttribute("data-sulco"), psi = chip.getAttribute("data-psi");
         let acao = `Pneu nº ${pneu} (posição ${pos}): `;
@@ -5085,7 +5319,7 @@ body.nav-collapsed:has(.inf-root) #main { padding-bottom:24px; }
         else if (psi) acao = `Calibrar pneu nº ${pneu} (posição ${pos}) — pressão atual ${psi} psi`;
         itens.push({ txt: `Criar plano para o pneu nº ${pneu} (${pos})`, fn: () => abrirNovoPlano({ placa, origem, pneus: pneu, acao, prioridade: sulco && Number(sulco) <= 3 ? "Alta" : "Média" }) });
       }
-      itens.push({ txt: `Criar plano de ação para o veículo ${placa}`, fn: () => abrirNovoPlano({ placa, origem }) });
+      if (host) itens.push({ txt: `Criar plano de ação para o veículo ${placa}`, fn: () => abrirNovoPlano({ placa, origem }) });
       const menu = document.createElement("div");
       menu.id = "ctx-menu"; menu.className = "ctx-menu";
       itens.forEach((it) => {
@@ -5127,6 +5361,7 @@ body.nav-collapsed:has(.inf-root) #main { padding-bottom:24px; }
   // local: E = estoque da unidade, R = reformadora, A = aplicado em veículo parado, S = sucata (fora das contas)
   // ------------------------------------------------------------------
   const EST_POS = ["Direcional", "Tração", "Livre"];
+  const estQ = { sit: new Set(), pos: new Set(), tam: new Set(), dest: new Set(), des: "", key: "dias", dir: -1, todos: false, tabAberta: false, fogo: "", consAberta: true };
   const EST_DEST = { D1: "Conserto", D2: "Em condição de uso", D3: "Sucata", D5: "Garantia", D6: "Reforma" };
   const EST_SEGS = [
     { key: "pronto", label: "Pronto p/ uso", color: "#59A14F" },
@@ -5205,6 +5440,87 @@ body.nav-collapsed:has(.inf-root) #main { padding-bottom:24px; }
     if (d == null) return `<span style="color:var(--text-faint)">—</span>`;
     return severityPill(lim != null && d > lim ? "danger" : "neutral", `${d} dia${d === 1 ? "" : "s"}`);
   }
+
+  // ---- Consulta de pneus (lista completa filtrável) ----
+  const EST_SIT = { pronto: "Pronto p/ uso", indisp: "Indisponível", ref: "Na reformadora", apl: "Aplicado (veículo parado)" };
+  function estSitDe(t) { return t.local === "R" ? "ref" : t.local === "A" ? "apl" : t.pronto ? "pronto" : "indisp"; }
+  function estPosDe(t) { return t.posicao || "Sem class."; }
+  const EST_QG = { sit: estSitDe, pos: estPosDe, tam: (t) => t.tam, dest: (t) => t.dest || "?" };
+  function estQPassa(t, ign) {
+    for (const g of Object.keys(EST_QG)) { if (g === ign) continue; if (estQ[g].size && !estQ[g].has(EST_QG[g](t))) return false; }
+    if (ign !== "des" && estQ.des && (t.desenho || "") !== estQ.des) return false;
+    const fg = estFogoTokens(); if (fg.length && !fg.some((x) => String(t.pneu).includes(x))) return false;
+    return true;
+  }
+  function estFogoTokens() { return String(estQ.fogo || "").split(/[\s,;]+/).map((x) => x.trim()).filter(Boolean); }
+  function estConsultaHtml(E) {
+    const base = E.tires.filter((t) => passaFilial(t.filial) && t.local !== "S" && estBusca(t)).map((t) => ({ ...t, dias: estDias(t.ultimaAcao), sit: estSitDe(t) }));
+    const lista = base.filter((t) => estQPassa(t));
+    const chip = (g, val, label, ordem) => {
+      const n = base.filter((t) => estQPassa(t, g) && EST_QG[g](t) === val).length;
+      return `<button type="button" class="seg-btn ${estQ[g].has(val) ? "active" : ""}" data-estq="${g}|${escapeHtml(val)}">${escapeHtml(label)} <span class="est-chipn">${n}</span></button>`;
+    };
+    const uniq = (g, f) => Array.from(new Set(base.map((t) => EST_QG[g](t)))).sort(f || ((a, b) => String(a).localeCompare(String(b), "pt-BR", { numeric: true })));
+    const sitCh = ["pronto", "indisp", "ref", "apl"].map((k) => chip("sit", k, k === "apl" ? "Aplicado" : EST_SIT[k])).join("");
+    const posCh = EST_POS.concat(["Sem class."]).map((k) => chip("pos", k, k)).join("");
+    const tamCh = uniq("tam", (a, b) => estTamOrd(a) - estTamOrd(b)).map((k) => chip("tam", k, estTamLabel(k))).join("");
+    const destCh = uniq("dest").map((k) => chip("dest", k, `${k} ${EST_DEST[k] || ""}`.trim())).join("");
+    const desenhos = Array.from(new Set(base.filter((t) => estQPassa(t, "des")).map((t) => t.desenho).filter(Boolean))).sort((a, b) => a.localeCompare(b, "pt-BR", { numeric: true }));
+    const desSel = `<select data-est-des aria-label="Desenho"><option value="">Todos os desenhos</option>${desenhos.map((d) => `<option value="${escapeHtml(d)}" ${estQ.des === d ? "selected" : ""}>${escapeHtml(d)}</option>`).join("")}</select>`;
+    const acc = {
+      pneu: (t) => parseFloat(t.pneu) || 0, filial: (t) => filialSigla(t.filial), sit: (t) => EST_SIT[t.sit], dest: (t) => t.dest || "", pos: (t) => estPosDe(t),
+      medida: (t) => t.medida || "", marca: (t) => t.marca || "", desenho: (t) => t.desenho || "", reformas: (t) => t.reformas || 0,
+      sulco: (t) => (t.sulco == null ? -1 : t.sulco), dias: (t) => (t.dias == null ? -1 : t.dias),
+    };
+    const fn = acc[estQ.key] || acc.dias;
+    const ord = lista.slice().sort((a, b) => { const va = fn(a), vb = fn(b); const c = typeof va === "number" ? va - vb : String(va).localeCompare(String(vb), "pt-BR", { numeric: true }); return (c || (parseFloat(a.pneu) || 0) - (parseFloat(b.pneu) || 0)) * estQ.dir; });
+    const LIM = 150, vis = estQ.todos ? ord : ord.slice(0, LIM);
+    const th = (k, label, cls) => `<th class="${cls || ""}" data-estsort="${k}" style="cursor:pointer;user-select:none;">${escapeHtml(label)}<span class="sort-arrow${estQ.key === k ? " active" : ""}">${estQ.key === k ? (estQ.dir === 1 ? "▲" : "▼") : ""}</span></th>`;
+    const algum = Object.keys(EST_QG).some((g) => estQ[g].size) || estQ.des || estQ.fogo;
+    const linha = (t) => `<tr><td class="mono" style="font-weight:600;">${escapeHtml(t.pneu)}</td><td>${escapeHtml(filialSigla(t.filial))}</td>
+      <td>${escapeHtml(EST_SIT[t.sit])}${t.local === "R" && t.reformadora ? ` <span style="color:var(--text-faint)">${escapeHtml(t.reformadora)}</span>` : ""}</td>
+      <td>${escapeHtml(t.dest || "—")}</td><td>${escapeHtml(estPosDe(t))}</td><td>${escapeHtml(t.medida || "")}</td><td>${escapeHtml(t.marca || "")}</td>
+      <td>${escapeHtml(t.desenho || "")}${t.tipoDesenho === "banda" ? ' <span style="color:var(--text-faint)" title="Pneu reformado: desenho = banda">(banda)</span>' : ""}</td>
+      <td class="c">${t.reformas || 0}</td><td class="mono">${t.sulco == null ? "—" : String(t.sulco).replace(".", ",")}</td>
+      <td class="c">${estDiasPill(t.dias, t.local === "R" ? estLimite() : null)}</td><td>${t.ultimaAcao ? escapeHtml(fmtDate(String(t.ultimaAcao).slice(0, 10))) : "—"}</td></tr>`;
+    return `<div class="card est-wrap ${estQ.consAberta ? "" : "est-recolhido"}"><div class="card-title est-tit" data-est-cons role="button" tabindex="0" aria-expanded="${estQ.consAberta}" title="Clique para ${estQ.consAberta ? "recolher" : "expandir"}"><span class="est-seta">${estQ.consAberta ? "▼" : "▶"}</span> Consulta de pneus — filtre e ordene (${fmtInt(lista.length)} de ${fmtInt(base.length)})${estQ.consAberta ? "" : ` <span class="est-resumo">· clique para expandir</span>`}</div>
+      <div class="est-filtros">
+        <div class="est-fg"><span>Nº de fogo</span><input data-est-fogo value="${escapeHtml(estQ.fogo)}" placeholder="ex.: 2555 ou 2555 2556" autocomplete="off" style="width:170px;" aria-label="Nº de fogo"></div>
+        <div class="est-fg"><span>Situação</span><div class="seg-group">${sitCh}</div></div>
+        <div class="est-fg"><span>Posição</span><div class="seg-group">${posCh}</div></div>
+        <div class="est-fg"><span>Tamanho</span><div class="seg-group">${tamCh}</div></div>
+        <div class="est-fg"><span>Condição</span><div class="seg-group">${destCh}</div></div>
+        <div class="est-fg"><span>Desenho</span>${desSel}
+          <button type="button" class="btn btn-sm" data-est-limpar ${algum ? "" : "disabled"}>Limpar filtros</button>
+          <button type="button" class="btn btn-sm" data-est-csv ${lista.length ? "" : "disabled"}>Baixar CSV</button></div>
+      </div>
+      ${(() => { const nf = estFogoTokens().filter((x) => !E.tires.some((t) => String(t.pneu).includes(x))); return nf.length ? `<div class="table-note" style="margin:0 0 8px;color:var(--warning);">Não está no relatório de estoque: ${nf.map(escapeHtml).join(", ")} (pode estar aplicado em veículo rodando ou o número está incorreto).</div>` : ""; })()}
+      <div class="table-wrap est-scroll est-scroll-g" style="margin:0;"><table class="est-tbl"><thead><tr>${th("pneu", "Nº de fogo")}${th("filial", "Unidade")}${th("sit", "Situação")}${th("dest", "Cond.")}${th("pos", "Posição")}${th("medida", "Medida")}${th("marca", "Marca")}${th("desenho", "Desenho")}${th("reformas", "Reformas", "c")}${th("sulco", "Sulco")}${th("dias", "Parado há", "c")}<th>Última ação</th></tr></thead>
+      <tbody>${vis.length ? vis.map(linha).join("") : emptyRow(12, "Nenhum pneu com esses filtros.")}</tbody></table></div>
+      ${ord.length > LIM ? `<div class="table-note">Mostrando ${estQ.todos ? "todos os" : "os primeiros"} ${fmtInt(vis.length)} de ${fmtInt(ord.length)}. <button type="button" class="btn btn-sm" data-est-todos>${estQ.todos ? "Mostrar menos" : "Mostrar todos"}</button></div>` : ""}
+      <div class="table-note">Os números nos botões mostram quantos pneus restam se você marcar aquele filtro. Dentro de um grupo vale "ou" (Direcional ou Tração); entre grupos vale "e". Condição: D1 conserto · D2 em uso · D3 sucata · D5 garantia · D6 reforma. Unidade, busca por nº de fogo e a seleção do gráfico também filtram esta lista.</div></div>`;
+  }
+  function estConsultaCsv() {
+    const E = DATA.estoque; if (!E) return;
+    const l = E.tires.filter((t) => passaFilial(t.filial) && t.local !== "S" && estBusca(t) && estQPassa(t));
+    const q = (v) => `"${String(v == null ? "" : v).replace(/"/g, '""')}"`;
+    const cab = ["Nº de fogo", "Unidade", "Situação", "Reformadora", "Condição", "Posição", "Medida", "Marca", "Modelo", "Desenho", "Reformas", "Sulco", "Última ação"];
+    const rows = l.map((t) => [t.pneu, filialSigla(t.filial), EST_SIT[estSitDe(t)], t.reformadora || "", t.dest || "", estPosDe(t), t.medida || "", t.marca || "", t.modelo || "", t.desenho || "", t.reformas || 0, t.sulco == null ? "" : String(t.sulco).replace(".", ","), t.ultimaAcao || ""].map(q).join(";"));
+    const blob = new Blob(["﻿" + [cab.map(q).join(";")].concat(rows).join("\r\n")], { type: "text/csv;charset=utf-8" });
+    const a = document.createElement("a"); a.href = URL.createObjectURL(blob); a.download = "pneus_em_estoque.csv"; document.body.appendChild(a); a.click(); setTimeout(() => { URL.revokeObjectURL(a.href); a.remove(); }, 500);
+  }
+  function estConsultaBind() {
+    const re = () => { const y = window.scrollY; render(); window.scrollTo(0, y); };
+    document.querySelectorAll("[data-estq]").forEach((b) => b.addEventListener("click", () => { const [g, v] = b.getAttribute("data-estq").split("|"); if (estQ[g].has(v)) estQ[g].delete(v); else estQ[g].add(v); estQ.todos = false; re(); }));
+    document.querySelectorAll("[data-estsort]").forEach((h) => h.addEventListener("click", () => { const k = h.getAttribute("data-estsort"); if (estQ.key === k) estQ.dir = -estQ.dir; else { estQ.key = k; estQ.dir = 1; } re(); }));
+    const d = document.querySelector("[data-est-des]"); if (d) d.addEventListener("change", () => { estQ.des = d.value; estQ.todos = false; re(); });
+    const l = document.querySelector("[data-est-limpar]"); if (l) l.addEventListener("click", () => { Object.keys(EST_QG).forEach((g) => estQ[g].clear()); estQ.des = ""; estQ.fogo = ""; estQ.todos = false; re(); });
+    const t = document.querySelector("[data-est-todos]"); if (t) t.addEventListener("click", () => { estQ.todos = !estQ.todos; re(); });
+    const cb = document.querySelector("[data-est-cons]"); if (cb) { const tg = () => { estQ.consAberta = !estQ.consAberta; re(); }; cb.addEventListener("click", tg); cb.addEventListener("keydown", (e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); tg(); } }); }
+    const tb = document.querySelector("[data-est-tab]"); if (tb) { const tg = () => { estQ.tabAberta = !estQ.tabAberta; re(); }; tb.addEventListener("click", tg); tb.addEventListener("keydown", (e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); tg(); } }); }
+    const fo = document.querySelector("[data-est-fogo]"); if (fo) { fo.addEventListener("input", () => { estQ.fogo = fo.value; estQ.todos = false; const cr = fo.selectionStart, y = window.scrollY; render(); window.scrollTo(0, y); const n = document.querySelector("[data-est-fogo]"); if (n) { n.focus(); n.setSelectionRange(cr, cr); } }); }
+    const c = document.querySelector("[data-est-csv]"); if (c) c.addEventListener("click", estConsultaCsv);
+  }
   function drawEstoqueChart() {
     if (!DATA.estoque) return;
     const data = estUnidades(true).map((u) => ({ filial: u.filial, pronto: u.pronto, indisp: u.indisp, ref: u.ref, apl: u.apl, total: u.pronto + u.indisp + u.ref + u.apl }))
@@ -5263,7 +5579,7 @@ body.nav-collapsed:has(.inf-root) #main { padding-bottom:24px; }
         <td class="c"><span class="est-n ${temMin && r.pronto < minTot ? "est-low" : ""}">${r.pronto}</span>${temMin ? `<span class="est-min">/ ${minTot}</span>` : ""}</td>
         <td class="c">${r.indisp}</td><td class="c">${r.ref ? `<span class="est-n">${r.ref}</span>` : 0}</td><td class="c">${r.apl ? `<span class="est-n">${r.apl}</span>` : 0}</td></tr>`;
     }).join("")).join("");
-    const tabU = `<div class="card est-wrap"><div class="card-title">Estoque por unidade e tamanho — pronto / mínimo por posição</div>
+    const tabU = `<div class="card est-wrap ${estQ.tabAberta ? "" : "est-recolhido"}"><div class="card-title est-tit" data-est-tab role="button" tabindex="0" aria-expanded="${estQ.tabAberta}" title="Clique para ${estQ.tabAberta ? "recolher" : "expandir"}"><span class="est-seta">${estQ.tabAberta ? "▼" : "▶"}</span> Estoque por unidade e tamanho — pronto / mínimo por posição${estQ.tabAberta ? "" : ` <span class="est-resumo">· ${defin ? (abaixo ? `${fmtInt(abaixo)} combinação(ões) abaixo do mínimo, faltam ${fmtInt(falta)} pneu(s)` : "nenhuma abaixo do mínimo") : "sem mínimo definido"} · clique para expandir</span>`}</div>
       <div class="table-wrap" style="margin:0;"><table class="est-tbl"><thead><tr><th>Unidade(s)</th><th class="c">Tam.</th><th class="c">Direcional</th><th class="c">Tração</th><th class="c">Livre</th><th class="c" title="Prontos cujo desenho ainda não foi classificado">Sem class.</th><th class="c">Total pronto</th><th class="c" title="No estoque, mas conserto/sucata/reforma">Indisponível</th><th class="c">Reformadora</th><th class="c" title="Ainda aplicado em veículo parado">Aplicado</th></tr></thead>
         <tbody>${GL.length ? linhasU : emptyRow(10, "Nenhuma unidade no filtro.")}</tbody>
         ${GL.length ? `<tfoot><tr style="font-weight:700;border-top:2px solid var(--border-strong);"><td>Total</td><td></td>${EST_POS.map((p) => `<td class="c">${somaT[p]}</td>`).join("")}<td class="c">${somaT.sem}</td><td class="c">${somaT.pronto}</td><td class="c">${somaT.indisp}</td><td class="c">${somaT.ref}</td><td class="c">${somaT.apl}</td></tr></tfoot>` : ""}</table></div>
@@ -5307,7 +5623,7 @@ body.nav-collapsed:has(.inf-root) #main { padding-bottom:24px; }
       ${datas.map((d) => { const r = somaFoto(d); return `<tr><td class="mono">${fmtDate(d)}</td><td class="c est-n">${r.pronto}</td><td class="c">${r.indisp}</td><td class="c">${r.reformadora}</td><td class="c">${r.aplicado}</td></tr>`; }).join("")}
       </tbody></table></div>
       <div class="table-note">${datas.length < 2 ? "O histórico começa na primeira atualização com este relatório; a comparação aparece a partir da segunda." : "Cada linha é o estado no dia em que o painel foi atualizado."}</div></div>`;
-    return `${head}${demo}${semCl}${kpis}${graf}${tabU}
+    return `${head}${demo}${semCl}${kpis}${graf}${tabU}${estConsultaHtml(E)}
       <div class="est-grid">${refRes}${refTab}</div>
       <div class="est-grid">${aplTab}${indTab}</div>
       <div class="est-grid">${evo}<div></div></div>
@@ -5546,8 +5862,9 @@ body.nav-collapsed:has(.inf-root) #main { padding-bottom:24px; }
     } else if (state.panel === "sulco") {
       const d = computeSulco();
       renderBarChart("chart-sulco-bar", d.barData, "pneus", state.selFiliais, toggleFilialSelection, "var(--danger)", { percent: false });
+      acBind();
     } else if (state.panel === "estoque") {
-      drawEstoqueChart();
+      drawEstoqueChart(); estConsultaBind();
     } else if (state.panel === "bloqueados") {
       renderStackedBarChart("chart-blq-bar", blqChartData(), BLQ_SEGS, state.selFiliais, blqUnidadeClick, { unit: "veículo(s)", valores: true, totalTop: true, round: true, onSegment: blqSegClick, segSel: state.blqStatus });
     } else if (state.panel === "pressao") {
