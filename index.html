@@ -3947,6 +3947,7 @@ body.nav-collapsed:has(.inf-root) #main { padding-bottom:24px; }
       <div class="card-title" style="margin-top:14px;">Esquema do veículo</div>
       ${aviso}
       ${planoOperadorHtml(mapa)}${renderTireDiagram({ tires: mapa.tires }, mapaChipWrap(chipUnificado, marca, null))}
+      <div style="margin:10px 0 2px;"><button class="btn btn-sm" data-hist-abrir="pressao" data-hist-placa="${escapeHtml(placa)}">Ver inspeções anteriores</button></div>
       <div class="table-note" style="padding-left:0;">Código no canto do pneu = laudo: contorno <span style="color:var(--danger);">vermelho</span> = laudo que bloqueia o veículo; tracejado = outros laudos ativos.</div>${mapaUnificadoLegenda()}`;
   }
 
@@ -4468,6 +4469,7 @@ body.nav-collapsed:has(.inf-root) #main { padding-bottom:24px; }
     return `${cab}${aviso}
       ${selInfo}
       ${planoOperadorHtml(mapa)}${renderTireDiagram({ tires: mapa.tires }, mapaChipWrap(chipUnificado, marca, state.detPneu))}${mapaUnificadoLegenda()}
+      <div style="margin:10px 0 2px;"><button class="btn btn-sm" data-hist-abrir="pressao" data-hist-placa="${escapeHtml(placa)}">Ver inspeções anteriores</button></div>
       <div class="table-note" style="padding-left:0;">Clique num pneu para destacar as ações dele. Contorno = pneu com ação em aberto neste plano.</div>`;
   }
 
