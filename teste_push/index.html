@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Auditoria de Pneus RAJA (TESTE do app)</title>
+<title>Auditoria de Pneus RAJA</title>
 <link rel="manifest" href="manifest.webmanifest">
 <meta name="theme-color" content="#14161b">
 <link rel="apple-touch-icon" href="apple-touch-icon.png">
@@ -496,6 +496,7 @@
 @media (max-width: 1000px) { .inf-grid { grid-template-columns:1fr; } .inf-grid > .inf-col2 { height:auto; min-height:0; max-height:70vh; } }
 
 /* Informativo: fonte maior (TV) */
+html { -webkit-text-size-adjust:100%; text-size-adjust:100%; }
 .inf-root { zoom:1.22; /* refinado por JS (infAjustaTela) para caber na tela */ display:flex; flex-direction:column; gap:22px; }
 
 /* Menu lateral recolhível (desktop): começa oculto; botão ☰ expande/recolhe */
@@ -4363,6 +4364,8 @@ body.nav-collapsed:has(.inf-root) #main { padding-bottom:24px; }
   // memória e redesenha SÓ o conteúdo (aba, filtros, seleções e rolagem continuam como estavam). Não redesenha
   // enquanto você digita/edita (formulário, engrenagem, campo em foco) — fica pendente para o próximo ciclo.
   const REFRESH_MS = 60000;
+  const DADOS_BASE = "../";   // o gerador do app (gerar_app.py) troca por "../" na copia instalavel
+  let _refreshInicio = 0;
   let _refreshPendente = false, _refreshRodando = false, _proxRefresh = Date.now() + REFRESH_MS;
   let _ultimaDigitacao = 0;
   document.addEventListener("input", () => { _ultimaDigitacao = Date.now(); }, true);
@@ -4373,9 +4376,22 @@ body.nav-collapsed:has(.inf-root) #main { padding-bottom:24px; }
     if (state.planoView === "form" || state.cfgAberto || state.itemEdit || document.querySelector(".ctx-menu")) return true;
     return !!(PlanoStore.ocupado || aprovando || document.body.classList.contains("printing"));
   }
+  // fetch com tempo limite (celular com sinal ruim nao pode travar a atualizacao para sempre)
+  function fetchTL(url, ms) {
+    const c = new AbortController(), t = setTimeout(() => c.abort(), ms);
+    return fetch(url, { cache: "no-store", signal: c.signal }).finally(() => clearTimeout(t));
+  }
   async function refreshDados() {
     try {
-      const r = await fetch("dados.js?t=" + Date.now(), { cache: "no-store" }); if (!r.ok) return false;
+      // 1) olha o versao.json (poucos bytes) e so baixa o dados.js (~17 MB) se a versao mudou
+      try {
+        const rv = await fetchTL(DADOS_BASE + "versao.json?t=" + Date.now(), 10000);
+        if (rv.ok) {
+          const v = await rv.json();
+          if (v && v.versao && v.versao === `${DATA.generatedAt} ${DATA.generatedHora}`) return false;
+        }
+      } catch (e) { /* sem versao.json: cai no caminho completo */ }
+      const r = await fetchTL(DADOS_BASE + "dados.js?t=" + Date.now(), 90000); if (!r.ok) return false;
       const t = await r.text();
       const j = JSON.parse(t.slice(t.indexOf("{"), t.lastIndexOf("}") + 1));
       if (!j || !j.generatedAt) return false;
@@ -4400,8 +4416,9 @@ body.nav-collapsed:has(.inf-root) #main { padding-bottom:24px; }
   }
   async function atualizarAutomatico() {
     _proxRefresh = Date.now() + REFRESH_MS;
+    if (_refreshRodando && Date.now() - _refreshInicio > 120000) _refreshRodando = false;   // travou? libera
     if (_refreshRodando || document.hidden) return;
-    _refreshRodando = true;
+    _refreshRodando = true; _refreshInicio = Date.now();
     try {
       const [d, p] = await Promise.all([refreshDados(), refreshPlano()]);
       if (d || p) _refreshPendente = true;
@@ -4418,7 +4435,9 @@ body.nav-collapsed:has(.inf-root) #main { padding-bottom:24px; }
     el.innerHTML = `🕒 <strong>${p2(d.getHours())}:${p2(d.getMinutes())}:${p2(d.getSeconds())}</strong> · ${estado} · dados de <strong>${escapeHtml(DATA.generatedHora || "—")}</strong>`;
   }
   setInterval(infRelogioTick, 1000);
-  document.addEventListener("visibilitychange", () => { if (!document.hidden) atualizarAutomatico(); });   // voltou para a aba: atualiza já
+  document.addEventListener("visibilitychange", () => { if (!document.hidden) atualizarAutomatico(); });
+  window.addEventListener("pageshow", () => atualizarAutomatico());
+  window.addEventListener("focus", () => atualizarAutomatico());   // voltou para a aba: atualiza já
   window.addEventListener("resize", () => infAjustaTela());
 
   // ===== Resumo da Unidade (relatório semanal pro encarregado) =====
