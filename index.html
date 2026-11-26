@@ -3995,7 +3995,15 @@ body.nav-collapsed:has(.inf-root) #main { padding-bottom:24px; }
       return h;
     };
   }
-  function pneuTokens(s) { return String(s || "").split(/[\s,;\/]+/).filter(Boolean); }
+  // Lista de pneus de uma ação -> nomes. Separa por espaço/vírgula/ponto e vírgula. O "/" só separa quando NÃO faz parte do nome:
+  // pneu sem número de fogo se chama "IMP/129" (letras + "/" + número) e precisa ficar inteiro, senão a sugestão nunca "sai" da fila.
+  function pneuTokens(s) {
+    const out = [];
+    String(s || "").split(/[\s,;]+/).filter(Boolean).forEach((t) => {
+      if (/^[A-Za-z]+\/\w+$/.test(t)) out.push(t); else t.split("/").filter(Boolean).forEach((x) => out.push(x));
+    });
+    return out;
+  }
   // Data de atualização do mapa: pressão = última leitura (dataInsp) dos pneus do veículo;
   // sulco = última inspeção do veículo (relatório de veículos registrados — o de sulco não traz data).
   function planoDataMapa(placa, tipo) {
