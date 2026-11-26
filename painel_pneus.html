@@ -2222,6 +2222,32 @@ body.nav-collapsed:has(.inf-root) #main { padding-bottom:24px; }
     });
     return out;
   }
+  // KM de cada inspeção do veículo (data -> maior odômetro lido naquele dia, R343A coluna Odôm)
+  function histKmSerie(placa) {
+    const m = new Map(), H = DATA.pressaoHistoricoMensal || {};
+    Object.keys(H).sort().forEach((mes) => (((H[mes] || {}).geral || {}).eventos || []).forEach((e) => {
+      if (e.veiculo !== placa || !e.dataInsp || !e.odometro) return;
+      if (!m.has(e.dataInsp) || e.odometro > m.get(e.dataInsp)) m.set(e.dataInsp, e.odometro);
+    }));
+    return m;
+  }
+  // KM da inspeção `data` + KM rodado desde a anterior COM km (se a anterior imediata não tem km, diz "desde dd/mm")
+  function histKmInfo(placa, data) {
+    const ks = histKmSerie(placa), km = ks.get(data);
+    if (!km) return null;
+    let pd = "";
+    ks.forEach((v, d) => { if (d < data && d > pd) pd = d; });
+    let imediata = "";
+    histInspecoesDaPlaca(placa).forEach((dias) => dias.forEach((_pm, d) => { if (d < data && d > imediata) imediata = d; }));
+    const rod = pd && km >= ks.get(pd) ? km - ks.get(pd) : null;
+    return { km, rodado: rod, desde: pd, imediata: !pd || pd === imediata };
+  }
+  function histKmHtml(placa, data) {
+    const k = histKmInfo(placa, data);
+    if (!k) return `<div class="hist-km" style="font-size:12px;color:var(--text-faint);margin-top:6px;">KM da inspeção: sem registro</div>`;
+    const rod = k.rodado == null ? (k.desde ? " · KM rodado: —" : "") : ` · rodou <b style="color:var(--text);">+${fmtInt(k.rodado)} km</b>${k.imediata ? "" : ` <span style="color:var(--text-faint);">(desde ${escapeHtml(fmtDate(k.desde))})</span>`}`;
+    return `<div class="hist-km" style="font-size:12px;color:var(--text-dim);margin-top:6px;" title="Odômetro do veículo na inspeção (R343A). KM rodado = KM desta inspeção menos o da inspeção anterior.">KM <b style="color:var(--text);">${fmtInt(k.km)}</b>${rod}</div>`;
+  }
   function histAbrir(aba, placa) {
     state.histVeic = { aba, placa, meses: new Set(histInspecoesDaPlaca(placa).keys()) };
     let bd = document.getElementById("hist-modal");
@@ -2298,6 +2324,7 @@ body.nav-collapsed:has(.inf-root) #main { padding-bottom:24px; }
     return `<div class="hist-card hist-card-atual">
       <div class="hist-card-head"><span class="hist-data">Atual (cadastro)</span><span class="hist-meta">${ult}</span></div>
       ${severityPill("neutral", "Composição de hoje")}
+      ${info.odometro ? `<div class="hist-km" style="font-size:12px;color:var(--text-dim);margin-top:6px;">KM atual (cadastro): <b style="color:var(--text);">${fmtInt(info.odometro)}</b></div>` : ""}
       ${renderTireDiagram({ tires }, chip)}
       <div class="hist-nota">${nota}</div>
     </div>`;
@@ -2306,7 +2333,8 @@ body.nav-collapsed:has(.inf-root) #main { padding-bottom:24px; }
     const evs = Array.from(posMap.values());
     const ops = Array.from(new Set(evs.map((e) => e.operador).filter(Boolean)));
     const tires = evs.map((e) => ({ veiculo: e.veiculo, posicao: e.posicao, pneu: e.pneu || "", produto: e.produto, banda: e.banda, sulco: e.sulcoInsp != null ? e.sulcoInsp : null,
-      pressaoAtual: e.pressaoAtual, faixa: e.faixa, semLeitura: e.semLeitura, semPadrao: e.semPadrao, pctPadrao: e.pctPadrao, padraoPsi: e.padraoPsi, operador: e.operador }));
+      pressaoAtual: e.pressaoAtual, faixa: e.faixa, semLeitura: e.semLeitura, semPadrao: e.semPadrao, pctPadrao: e.pctPadrao, padraoPsi: e.padraoPsi, operador: e.operador,
+      reformas: Number.isInteger(e.reformas) ? e.reformas : undefined, reparos: Number.isInteger(e.reparos) ? e.reparos : undefined }));
     const com = tires.filter((t) => t.sulco != null);
     let pSul, nota = "";
     if (!com.length) { pSul = severityPill("neutral", "Sulco não registrado"); nota = `<div class="hist-nota">Sulco desta inspeção não foi guardado (período sem exportação do R343A).</div>`; }
@@ -2321,6 +2349,7 @@ body.nav-collapsed:has(.inf-root) #main { padding-bottom:24px; }
     return `<div class="hist-card">
       <div class="hist-card-head"><span class="hist-data">${escapeHtml(fmtDate(data))}</span><span class="hist-meta">${escapeHtml(ops.length ? "por " + ops.join(", ") : "")}</span></div>
       <div style="display:flex;gap:6px;flex-wrap:wrap;">${pSul}${pPres}</div>
+      ${histKmHtml(h.placa, data)}
       ${renderTireDiagram({ tires }, histChipMarcado(histNovosPneus(tires, histAnteriorDe(h.placa, data))))}
       ${nota}
     </div>`;
@@ -2340,7 +2369,7 @@ body.nav-collapsed:has(.inf-root) #main { padding-bottom:24px; }
       : !sel.length ? `<div class="hist-vazio">Marque ao menos um mês acima para ver as inspeções anteriores.</div>` : "";
     const cards = [histAtualHtml(h)];
     sel.forEach((m) => Array.from(dados.get(m).keys()).sort().reverse().forEach((d) => cards.push(histCardHtml(h, d, dados.get(m).get(d)))));
-    const corpo = `<div class="hist-grid">${cards.join("")}</div>${aviso}`;
+    const corpo = `<div class="hist-grid">${cards.join("")}</div>${aviso}<div class="table-note" style="margin-top:10px;"><sup style="font-weight:700;">R</sup> = nº de reformas e <sup style="font-weight:700;">C</sup> = nº de reparos do pneu <em>naquela inspeção</em> (foto do dia: se subiu de uma inspeção para a outra, o pneu foi reformado/reparado no intervalo). Reformas e KM vêm do R343A e estão guardados de agosto/2026 em diante, com falhas onde não há relatório salvo; reparos só são guardados desde 26/11/2026 (e só para pneus inspecionados nos 7 dias anteriores a cada atualização) (o R343A não informa reparos). KM rodado = KM da inspeção menos o da anterior.</div>`;
     const seg = (k, t) => `<button class="seg-btn ${h.aba === k ? "active" : ""}" data-hist-metrica="${k}">${t}</button>`;
     const topo = bd.scrollTop;
     bd.innerHTML = `<div class="hist-box" role="dialog" aria-label="Inspeções anteriores">
@@ -2488,8 +2517,18 @@ body.nav-collapsed:has(.inf-root) #main { padding-bottom:24px; }
   function pneuGrafBase(ev, pts, W, H, L, R, T, B, sel) {
     const t0 = Date.parse(pts[0].dataInsp + "T00:00:00"), t1 = Date.parse(pts[pts.length - 1].dataInsp + "T00:00:00"), span = Math.max(t1 - t0, 86400000);
     const X = (d) => L + ((Date.parse(d + "T00:00:00") - t0) / span) * (W - L - R);
-    let g = "", mes = "";
-    pts.forEach((e) => { const m = e.dataInsp.slice(0, 7); if (m !== mes) { mes = m; g += `<text x="${X(e.dataInsp)}" y="${H - 12}" font-size="11" fill="var(--text-faint)">${histMesLabel(m)}</text>`; } });
+    let g = "", mes = "", ultMes = -1e9;
+    pts.forEach((e) => { const m = e.dataInsp.slice(0, 7); if (m !== mes) { mes = m; const x = X(e.dataInsp); if (x - ultMes < 52) return; ultMes = x; g += `<text x="${x}" y="${H - 26}" font-size="11" fill="var(--text-faint)">${histMesLabel(m)}</text>`; } });
+    // KM do veículo em cada inspeção (em mil km), embaixo do eixo; pula rótulo colado no anterior ou na inspeção selecionada
+    if (pts.some((e) => e.odometro)) {
+      g += `<text x="${L - 6}" y="${H - 6}" text-anchor="end" font-size="9.5" fill="var(--text-faint)">KM</text>`;
+      const xs = sel ? (pts.find((e) => e.dataInsp === sel && e.odometro) ? X(sel) : null) : null;
+      let ult = -1e9;
+      pts.forEach((e) => { if (!e.odometro) return; const x = X(e.dataInsp), eh = e.dataInsp === sel;
+        if (!eh && ((xs != null && Math.abs(x - xs) < 46) || x - ult < 44)) return;
+        ult = x;
+        g += `<text x="${x.toFixed(1)}" y="${H - 6}" text-anchor="middle" font-size="9.5" fill="${eh ? "var(--text)" : "var(--text-dim)"}" ${eh ? 'font-weight="700"' : ""}>${(e.odometro / 1000).toFixed(1).replace(".", ",")}k</text>`; });
+    }
     ev.forEach((e, i) => { if (i && pneuReformou(ev[i - 1], e)) g += `<line x1="${X(e.dataInsp)}" x2="${X(e.dataInsp)}" y1="${T}" y2="${H - B}" stroke="#B07AA1" stroke-dasharray="3 3"/><text x="${X(e.dataInsp) + 4}" y="${T + 10}" font-size="10.5" fill="#B07AA1">reforma</text>`; });
     const guia = sel ? `<line x1="${X(sel)}" x2="${X(sel)}" y1="${T}" y2="${H - B}" stroke="var(--accent, #4E79A7)" stroke-width="1.5" opacity=".55"/>` : "";
     return { X, g, guia };
@@ -2498,8 +2537,8 @@ body.nav-collapsed:has(.inf-root) #main { padding-bottom:24px; }
   function pneuGrafPontos(pts, X, Y, cor, fmt, sel, W, T) {
     let s = "";
     pts.forEach((e) => { const x = X(e.dataInsp).toFixed(1), y = Y(e.v).toFixed(1), on = e.dataInsp === sel;
-      s += `<circle cx="${x}" cy="${y}" r="${on ? 8 : 4.5}" fill="${cor(e)}" stroke="${on ? "var(--text)" : "var(--bg-elev)"}" stroke-width="${on ? 2.5 : 1.5}"><title>${escapeHtml(fmtDate(e.dataInsp))} — ${escapeHtml(fmt(e.v))}${e.operador ? " — " + escapeHtml(e.operador) : ""}</title></circle>`;
-      if (on) { const tx = Math.min(Math.max(Number(x), 90), W - 90); s += `<text x="${tx}" y="${Math.max(Number(y) - 14, T + 10)}" text-anchor="middle" font-size="12" font-weight="700" fill="var(--text)" paint-order="stroke" stroke="var(--bg-elev)" stroke-width="3">${escapeHtml(fmtDate(e.dataInsp))} · ${escapeHtml(fmt(e.v))}</text>`; } });
+      s += `<circle cx="${x}" cy="${y}" r="${on ? 8 : 4.5}" fill="${cor(e)}" stroke="${on ? "var(--text)" : "var(--bg-elev)"}" stroke-width="${on ? 2.5 : 1.5}"><title>${escapeHtml(fmtDate(e.dataInsp))} — ${escapeHtml(fmt(e.v))}${e.odometro ? " — " + fmtInt(e.odometro) + " km" : ""}${e.operador ? " — " + escapeHtml(e.operador) : ""}</title></circle>`;
+      if (on) { const tx = Math.min(Math.max(Number(x), 112), W - 112); s += `<text x="${tx}" y="${Math.max(Number(y) - 14, T + 10)}" text-anchor="middle" font-size="12" font-weight="700" fill="var(--text)" paint-order="stroke" stroke="var(--bg-elev)" stroke-width="3">${escapeHtml(fmtDate(e.dataInsp))} · ${escapeHtml(fmt(e.v))}${e.odometro ? " · " + fmtInt(e.odometro) + " km" : ""}</text>`; } });
     return s;
   }
   function pneuLinha(pts, ev, X, Y) {
@@ -2510,7 +2549,7 @@ body.nav-collapsed:has(.inf-root) #main { padding-bottom:24px; }
   function pneuGrafSvg(ev, sel) {
     const pts = ev.filter((e) => e.sulcoInsp != null).map((e) => ({ ...e, v: e.sulcoInsp }));
     if (pts.length < 1) return `<div class="detail-empty">Este pneu não tem leituras de sulco no histórico.</div>`;
-    const W = 780, H = 280, L = 40, R = 16, T = 14, B = 34;
+    const W = 780, H = 296, L = 40, R = 16, T = 14, B = 50;
     const ymax = Math.max(16, Math.ceil(Math.max(...pts.map((e) => e.v)) + 1));
     const base = pneuGrafBase(ev, pts, W, H, L, R, T, B, sel), X = base.X, Y = (v) => T + (1 - v / ymax) * (H - T - B);
     let g = "";
@@ -2523,7 +2562,7 @@ body.nav-collapsed:has(.inf-root) #main { padding-bottom:24px; }
   function pneuPressaoSvg(ev, sel) {
     const pts = ev.filter((e) => e.pressaoAtual).map((e) => ({ ...e, v: e.pressaoAtual }));
     if (pts.length < 1) return `<div class="detail-empty">Este pneu não tem leituras de pressão no histórico.</div>`;
-    const W = 780, H = 280, L = 44, R = 16, T = 14, B = 34;
+    const W = 780, H = 296, L = 44, R = 16, T = 14, B = 50;
     const padroes = pts.map((e) => e.padraoPsi).filter(Boolean), padrao = padroes.length ? padroes[padroes.length - 1] : null;
     const todos = pts.map((e) => e.v).concat(padrao ? [padrao * 0.89, padrao * 1.11] : []);
     const lo = Math.floor((Math.min(...todos) - 4) / 5) * 5, hi = Math.ceil((Math.max(...todos) + 4) / 5) * 5;
@@ -2542,13 +2581,14 @@ body.nav-collapsed:has(.inf-root) #main { padding-bottom:24px; }
     const ac = (DATA.acompanhar || []).find((r) => String(r.pneu) === String(pneu));
     const aviso = ac ? `<div class="est-aviso" style="margin:8px 0;">${ac.motivos.map((m) => AC_MOT[m]).join(" + ")}: ${ac.motivos.includes("queda") ? `caiu ${acN(ac.queda)}mm (base ${acN(ac.base)}mm). ` : ""}${ac.motivos.includes("oscila") ? `oscilou ${acN(ac.amp)}mm nas 3 últimas leituras.` : ""}</div>` : "";
     const lin = ev.slice().reverse().map((e, i, arr) => { const ant = arr[i + 1]; const ref = ant && pneuReformou(ant, e);
-      return `<tr class="pgraf-lin ${e.dataInsp === sel ? "pgraf-sel" : ""}" data-pgraf-sel="${escapeHtml(e.dataInsp)}" style="cursor:pointer;"><td class="mono">${escapeHtml(fmtDate(e.dataInsp))}</td><td class="mono">${escapeHtml(e.veiculo || "")}</td><td class="mono">${escapeHtml(e.posicao || "")}</td><td class="mono" style="font-weight:600;">${e.sulcoInsp == null ? "—" : String(e.sulcoInsp).replace(".", ",")}</td><td class="mono">${e.pressaoAtual ? e.pressaoAtual : "—"}</td><td>${escapeHtml(e.operador || "—")}</td><td>${ref ? '<span style="color:#B07AA1">reforma</span>' : ""}</td></tr>`; }).join("");
+      const rod = e.odometro && ant && ant.odometro && ant.veiculo === e.veiculo && e.odometro >= ant.odometro ? e.odometro - ant.odometro : null;
+      return `<tr class="pgraf-lin ${e.dataInsp === sel ? "pgraf-sel" : ""}" data-pgraf-sel="${escapeHtml(e.dataInsp)}" style="cursor:pointer;"><td class="mono">${escapeHtml(fmtDate(e.dataInsp))}</td><td class="mono">${escapeHtml(e.veiculo || "")}</td><td class="mono">${escapeHtml(e.posicao || "")}</td><td class="mono" style="font-weight:600;">${e.sulcoInsp == null ? "—" : String(e.sulcoInsp).replace(".", ",")}</td><td class="mono">${e.pressaoAtual ? e.pressaoAtual : "—"}</td><td class="mono">${e.odometro ? fmtInt(e.odometro) : "—"}</td><td class="mono">${rod == null ? "—" : "+" + fmtInt(rod)}</td><td class="c mono">${Number.isInteger(e.reformas) ? e.reformas : "—"}</td><td class="c mono">${Number.isInteger(e.reparos) ? e.reparos : "—"}</td><td>${escapeHtml(e.operador || "—")}</td><td>${ref ? '<span style="color:#B07AA1">reforma</span>' : ""}</td></tr>`; }).join("");
     return `<div style="display:flex;justify-content:space-between;gap:12px;align-items:flex-start;"><div><h3 style="margin:0;font-size:20px;">Evolução do pneu ${escapeHtml(String(pneu))}</h3><div class="est-grp-sub">${escapeHtml(ult.veiculo || "")} ${ult.posicao ? "· posição " + escapeHtml(ult.posicao) : ""} ${ult.filial ? "· " + escapeHtml(filialSigla(ult.filial)) : ""} · ${ev.length} leitura(s)</div></div><button type="button" class="btn btn-sm" data-pgraf-fechar>Fechar ✕</button></div>
       ${aviso}
       <div class="card" style="margin:10px 0 8px;padding:10px 12px;"><div class="card-title" style="margin-bottom:4px;">Sulco (mm)</div>${pneuGrafSvg(ev, sel)}</div>
       <div class="card" style="margin:0 0 10px;padding:10px 12px;"><div class="card-title" style="margin-bottom:4px;">Pressão encontrada (psi)</div>${pneuPressaoSvg(ev, sel)}</div>
-      <div class="table-wrap est-scroll" style="margin:0;"><table class="est-tbl"><thead><tr><th>Data</th><th>Veículo</th><th>Pos.</th><th>Sulco (mm)</th><th>Pressão (psi)</th><th>Operador</th><th></th></tr></thead><tbody>${lin}</tbody></table></div>
-      <div class="table-note">Clique numa linha da tabela para destacar aquela inspeção nos dois gráficos (clique de novo para soltar). Sulco: vermelho ≤ 3mm, amarelo ≤ 5mm. Pressão: a cor do ponto é a faixa (muito baixa, baixa, correta, alta, muito alta) e a faixa verde é 98–103% do padrão. A linha roxa tracejada marca reforma (o nº de reformas aumentou ou a banda mudou). Sulco que sobe e desce sem reforma indica desgaste irregular ou inspeção que não pegou o ponto de menor sulco.</div>`;
+      <div class="table-wrap est-scroll" style="margin:0;"><table class="est-tbl"><thead><tr><th>Data</th><th>Veículo</th><th>Pos.</th><th>Sulco (mm)</th><th>Pressão (psi)</th><th>KM</th><th>Rodou</th><th class="c">Reformas</th><th class="c">Reparos</th><th>Operador</th><th></th></tr></thead><tbody>${lin}</tbody></table></div>
+      <div class="table-note">Clique numa linha da tabela para destacar aquela inspeção nos dois gráficos (clique de novo para soltar). Sulco: vermelho ≤ 3mm, amarelo ≤ 5mm. Pressão: a cor do ponto é a faixa (muito baixa, baixa, correta, alta, muito alta) e a faixa verde é 98–103% do padrão. A linha roxa tracejada marca reforma (o nº de reformas aumentou ou a banda mudou). Sulco que sobe e desce sem reforma indica desgaste irregular ou inspeção que não pegou o ponto de menor sulco. <strong>KM</strong> = odômetro do veículo na inspeção (no gráfico, em mil km, embaixo de cada data); <strong>Rodou</strong> = KM desta leitura menos o da leitura anterior do pneu (só quando o pneu estava no mesmo veículo). <strong>Reformas</strong> e <strong>Reparos</strong> = a "foto" do pneu naquela inspeção; "—" = não guardado (reformas e KM só de agosto/2026 em diante; reparos só desde 26/11/2026).</div>`;
   }
   function pneuGrafPintar() {
     const bd = document.getElementById("pgraf-modal"); if (!bd) return;
