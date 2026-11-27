@@ -453,14 +453,23 @@
 .blq-mapas { display:grid; grid-template-columns:1fr 1fr; gap:24px; }
 @media (max-width: 1000px) { .blq-mapas { grid-template-columns:1fr; } }
 .sug-layout.blq-layout { grid-template-columns:240px 360px minmax(320px,1fr); }
-.blq-chart { position:sticky; top:12px; }
+.blq-dir { position:sticky; top:12px; display:flex; flex-direction:column; gap:16px; align-self:start; min-width:0; }
+.blq-obs textarea { width:100%; min-height:92px; resize:vertical; box-sizing:border-box; font:inherit; font-size:14px; line-height:1.45; padding:10px 12px; border-radius:8px; border:1px solid var(--border,#2a2f3a); background:var(--bg-elev, rgba(255,255,255,.03)); color:inherit; }
+.blq-obs textarea:focus { outline:2px solid rgba(224,138,75,.55); outline-offset:1px; }
+.blq-obs .obs-meta { font-size:12px; color:var(--text-faint); margin:6px 0 0; }
+.blq-obs .obs-btns { display:flex; gap:8px; align-items:center; margin-top:10px; flex-wrap:wrap; }
+.blq-obs details { margin-top:12px; font-size:13px; } .blq-obs summary { cursor:pointer; color:var(--text-faint); }
+.blq-obs .obs-h { padding:6px 0; border-top:1px solid var(--border,#2a2f3a); white-space:pre-wrap; } .blq-obs .obs-h small { display:block; color:var(--text-faint); }
+.blq-obs .obs-lista { margin-top:14px; border-top:1px solid var(--border,#2a2f3a); padding-top:8px; }
+.blq-obs .obs-item { display:block; width:100%; text-align:left; background:transparent; border:0; color:inherit; font:inherit; font-size:13px; padding:6px 4px; cursor:pointer; border-radius:6px; }
+.blq-obs .obs-item:hover { background:rgba(255,255,255,.05); } .blq-obs .obs-item b { margin-right:8px; } .blq-obs .obs-item span { color:var(--text-faint); }
 .blq-layout .sug-lista thead th { background:#e08a4b; color:#1b1209; font-size:11px; font-weight:700; letter-spacing:.12em; border-bottom:0; padding:10px 14px; position:static; }
 .blq-layout .sug-row.sug-sel td { background:rgba(224,138,75,.16); }
 .blq-layout .sug-row.blq-resolvido.sug-sel td { background:rgba(217,173,85,.24); }
 .blq-leg { display:inline-flex; align-items:center; gap:6px; padding:3px 10px; margin-right:8px; border:1px solid var(--border,#2a2f3a); border-radius:999px; font-size:12px; cursor:pointer; background:transparent; color:inherit; }
 .blq-leg i { width:10px; height:10px; border-radius:3px; display:inline-block; }
 .blq-leg.on { border-color:#fff; background:rgba(255,255,255,.08); } .blq-leg.dim { opacity:.45; }
-@media (max-width: 1300px) { .sug-layout.blq-layout { grid-template-columns:240px 360px; justify-content:start; } .blq-chart { grid-column:1 / -1; position:static; grid-row:1; } }
+@media (max-width: 1300px) { .sug-layout.blq-layout { grid-template-columns:240px 360px; justify-content:start; } .blq-dir { grid-column:1 / -1; position:static; grid-row:1; } }
 @media (max-width: 800px) { .sug-layout.blq-layout { grid-template-columns:1fr; } }
 .blq-laudo { padding:4px 0; font-size:13px; }
 .blq-laudo .sug-meta { display:block; }
@@ -3240,7 +3249,7 @@ body.nav-collapsed:has(.inf-root) #main { padding-bottom:24px; }
   // ---------- Armazenamento ----------
   const PlanoStore = {
     modo: PLANO_API_URL ? "api" : "local",
-    planos: [], itens: [], andamento: [], config: [], dispensados: [], acompDisp: {}, carregando: false, ocupado: false, erro: "",
+    planos: [], itens: [], andamento: [], config: [], dispensados: [], acompDisp: {}, obsBloq: {}, baseSemObs: false, carregando: false, ocupado: false, erro: "",
     pin: lsGet("raja_plano_pin") || "",
     precisaPin: false,
 
@@ -3249,6 +3258,9 @@ body.nav-collapsed:has(.inf-root) #main { padding-bottom:24px; }
     _receber(o) {
       this.planos = o.planos || []; this.itens = o.itens || []; this.andamento = o.andamento || []; this.config = o.config || []; this.dispensados = o.dispensados || [];
       this.acompDisp = o.acompDisp || {};
+      this.obsBloq = o.obsBloq || {};
+      // base do Google ainda na versão antiga do Code.gs (não devolve "obsBloq"): observações não seriam gravadas
+      this.baseSemObs = this.modo === "api" && !Object.prototype.hasOwnProperty.call(o, "obsBloq");
       // base do Google ainda na versão antiga do Code.gs (não devolve "acompDisp"): dispensados ficam só neste navegador
       this.baseSemAcomp = this.modo === "api" && !Object.prototype.hasOwnProperty.call(o, "acompDisp");
       // base do Google ainda na versão antiga do Code.gs (não devolve "config"): configuração dos laudos não seria gravada
@@ -3277,7 +3289,7 @@ body.nav-collapsed:has(.inf-root) #main { padding-bottom:24px; }
       } finally { this.carregando = false; }
     },
 
-    _salvarLocal() { lsSet(PLANO_LS_KEY, JSON.stringify({ planos: this.planos, itens: this.itens, andamento: this.andamento, config: this.config, dispensados: this.dispensados })); },
+    _salvarLocal() { lsSet(PLANO_LS_KEY, JSON.stringify({ planos: this.planos, itens: this.itens, andamento: this.andamento, config: this.config, dispensados: this.dispensados, obsBloq: this.obsBloq })); },
 
     // Espelho local do que o Code.gs faz (resumo, pneus e status do plano a partir das ações)
     _recalc(planoId, agora) {
@@ -3358,6 +3370,11 @@ body.nav-collapsed:has(.inf-root) #main { padding-bottom:24px; }
         const es = (d.entries || []).filter((e) => e && /^\d{3}$/.test(String(e.codigo || "")));
         if (!es.length) throw new Error("Nenhuma alteração para gravar.");
         es.forEach((e) => this.config.push({ id: novoId(), codigo: String(e.codigo), notifica: e.notifica === true, bloqueia: e.bloqueia === true, desde: e.desde || "", em: agora, por: e.por || "", limite: (e.limite === "" || e.limite == null || isNaN(Number(e.limite))) ? "" : Number(e.limite) }));
+      } else if (acao === "obs_save") {
+        const pl = limpaPlaca(d.placa); if (!pl) throw new Error("Informe a placa.");
+        const texto = String(d.texto || "").trim().slice(0, 1000);
+        const hist = ((this.obsBloq[pl] && this.obsBloq[pl].hist) || []).concat([{ texto, em: agora, por: d.por || "" }]).slice(-15);
+        if (texto) this.obsBloq[pl] = { texto, em: agora, por: d.por || "", hist }; else delete this.obsBloq[pl];
       } else if (acao === "disp_add") {
         const ch = (d.chaves || []).map(String).filter(Boolean); if (!ch.length) throw new Error("Nada para dispensar.");
         ch.forEach((c) => { if (this.dispensados.indexOf(c) < 0) this.dispensados.push(c); });
@@ -4252,16 +4269,55 @@ body.nav-collapsed:has(.inf-root) #main { padding-bottom:24px; }
     const selV = arr.find((v) => v.placa === state.blqSel) || arr[0] || null;
     const linhas = arr.length === 0 ? emptyRow(1, "Nenhum veículo bloqueado com esses filtros.") : arr.map((v) =>
       `<tr class="sug-row ${v.resolvido ? "blq-resolvido" : ""} ${selV && v.placa === selV.placa ? "sug-sel" : ""}" data-blq-placa="${escapeHtml(v.placa)}" title="Clique para ver o mapa deste veículo">
-        <td class="mono" style="font-weight:600;">${escapeHtml(v.placa)}${v.resolvido ? `<div><span class="pill pill-warning" style="font-weight:600;">${TAG_RESOLVIDO}</span></div>` : ""}</td></tr>`).join("");
+        <td class="mono" style="font-weight:600;">${escapeHtml(v.placa)}${obsDoVeiculo(v.placa).ativa ? ` <span title="Tem observação" style="font-weight:400;">💬</span>` : ""}${v.resolvido ? `<div><span class="pill pill-warning" style="font-weight:600;">${TAG_RESOLVIDO}</span></div>` : ""}</td></tr>`).join("");
     const desc = "Veículos impedidos de circular (critérios na engrenagem do Plano de Ação). Clique numa placa para ver o mapa; os laudos aparecem nos pneus.";
     return `${panelHeader("Veículos Bloqueados", desc, filiais, "")}${planoBanner()}${kpis}
       <div class="sug-layout blq-layout"><div class="sug-lista"><div class="table-wrap"><table><thead><tr><th>Veículo</th></tr></thead><tbody>${linhas}</tbody></table>
         <div class="table-note">Ação concluída: o veículo fica em amarelo (“Ação resolvida - aguardando nova inspeção”) e só sai da lista quando uma nova inspeção deixa de trazer o laudo.</div></div></div>
         <aside class="sug-mapa card detail-card">${planoMapaBloqueadoHtml(selV)}</aside>
-        <div class="card blq-chart"><div class="card-title">Bloqueados por unidade${scopeLabelText()}</div>
+        <div class="blq-dir"><div class="card blq-chart"><div class="card-title">Bloqueados por unidade${scopeLabelText()}</div>
           <div class="chart-hint">Clique no vermelho ou no amarelo para listar só aquela situação na unidade. Clique no nome da unidade (ou no total) para ver a operação inteira. Ctrl+clique soma.</div>
           <div style="margin:6px 0 4px;">${blqLegendaHtml()}</div>
-          <div id="chart-blq-bar"></div></div></div>`;
+          <div id="chart-blq-bar"></div></div>
+          ${blqObsHtml(selV, arr)}</div></div>`;
+  }
+  // ---- Observação sobre o veículo bloqueado (compartilhada; fica na base do Plano de Ação, com histórico) ----
+  // A observação vale só ATÉ o veículo ser inspecionado de novo (é quando ele sai do amarelo). Compara o dia em que foi escrita com a
+  // última inspeção do veículo (pressão ou sulco). Inspeção no mesmo dia da observação NÃO a encerra (a observação é posterior a ela).
+  const obsDia = (iso) => { const d = new Date(iso); return isNaN(d) ? String(iso || "").slice(0, 10) : `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`; };
+  function ultimaInspVeiculo(placa) { const a = planoDataMapa(placa, "pressao") || "", b = planoDataMapa(placa, "sulco") || ""; return a > b ? a : b; }
+  function obsDoVeiculo(placa) {
+    const o = PlanoStore.obsBloq[placa]; if (!o || !o.texto) return { ativa: null, encerrada: null };
+    const insp = ultimaInspVeiculo(placa);
+    return insp && insp > obsDia(o.em) ? { ativa: null, encerrada: { o, insp } } : { ativa: o, encerrada: null };
+  }
+  function blqObsHtml(selV, arr) {
+    if (!selV) return "";
+    const st = obsDoVeiculo(selV.placa), o = st.ativa;
+    const semBase = PlanoStore.baseSemObs;
+    const meta = st.encerrada ? `Observação anterior (${escapeHtml(fmtDataHora(st.encerrada.o.em))}${st.encerrada.o.por ? ` · ${escapeHtml(st.encerrada.o.por)}` : ""}) encerrada: o veículo foi inspecionado de novo em ${escapeHtml(fmtDate(st.encerrada.insp))}. Veja em "Histórico".` : o ? `Última edição: ${escapeHtml(fmtDataHora(o.em))}${o.por ? ` · por <strong>${escapeHtml(o.por)}</strong>` : ""}` : "Sem observação registrada para este veículo.";
+    const oh = o || (st.encerrada && st.encerrada.o); const hist = oh && (o ? (oh.hist || []).length > 1 : (oh.hist || []).length > 0) ? `<details><summary>Histórico (${oh.hist.length})</summary>${oh.hist.slice().reverse().map((h) => `<div class="obs-h">${h.texto ? escapeHtml(h.texto) : "<em>(observação apagada)</em>"}<small>${escapeHtml(fmtDataHora(h.em))}${h.por ? ` · ${escapeHtml(h.por)}` : ""}</small></div>`).join("")}</details>` : "";
+    const outras = arr.filter((v) => v.placa !== selV.placa && obsDoVeiculo(v.placa).ativa);
+    const lista = outras.length ? `<div class="obs-lista"><div class="chart-hint" style="margin:0 0 4px;">Outros veículos com observação (${outras.length})</div>${outras.map((v) => { const t = obsDoVeiculo(v.placa).ativa.texto; return `<button type="button" class="obs-item" data-blq-placa="${escapeHtml(v.placa)}"><b class="mono">${escapeHtml(v.placa)}</b><span>${escapeHtml(filialSigla(v.filial))}</span> ${escapeHtml(t.length > 90 ? t.slice(0, 90) + "…" : t)}</button>`; }).join("")}</div>` : "";
+    return `<div class="card blq-obs"><div class="card-title">Observação do veículo <span class="mono" style="font-weight:600;">${escapeHtml(selV.placa)}</span></div>
+      ${semBase ? `<div class="banner banner-warn" style="margin:6px 0;">A base do Google ainda está na versão antiga do <strong>Code.gs</strong>: cole o Code.gs novo e publique uma nova versão para poder gravar observações.</div>` : ""}
+      <textarea id="blq-obs-txt" maxlength="1000" placeholder="Ex.: aguardando pneu de reforma chegar da recapadora; previsão 02/12." ${semBase ? "disabled" : ""}>${escapeHtml(o ? o.texto : "")}</textarea>
+      <div class="obs-meta" id="blq-obs-meta">${meta}</div>
+      <div class="obs-btns"><button class="btn btn-primary btn-sm" data-blq-obs-salvar="${escapeHtml(selV.placa)}" ${semBase ? "disabled" : ""}>Salvar observação</button>${o ? `<button class="btn btn-sm" data-blq-obs-limpar="${escapeHtml(selV.placa)}" ${semBase ? "disabled" : ""}>Apagar</button>` : ""}<span class="obs-meta" style="margin:0;">aparece para todos · pede a senha de lançamento</span></div>
+      ${hist}${lista}</div>`;
+  }
+  async function blqObsSalvar(placa, texto) {
+    const atual = (obsDoVeiculo(placa).ativa || {}).texto || "";
+    texto = String(texto || "").trim();
+    if (texto === atual) { toast("Nada mudou."); return; }
+    if (PlanoStore.modo === "api") {
+      if (!PlanoStore.pin) { const p = window.prompt("Senha de lançamento (a mesma do Plano de Ação):", ""); if (p === null) return; PlanoStore.pin = p.trim(); lsSet("raja_plano_pin", PlanoStore.pin); }
+    }
+    if (!state.planoAutor) { const n = window.prompt("Seu nome (os outros usuários veem quem escreveu):", ""); if (n === null || !n.trim()) return; state.planoAutor = n.trim(); lsSet("raja_plano_autor", state.planoAutor); }
+    const ok = await PlanoStore.exec("obs_save", { placa, texto, por: state.planoAutor });
+    if (!ok) { if (PlanoStore.precisaPin) { PlanoStore.pin = ""; lsSet("raja_plano_pin", ""); } toast(PlanoStore.erro || "Não consegui gravar."); return; }
+    toast(texto ? "Observação salva." : "Observação apagada.");
+    render();
   }
   const BLQ_SEGS = [{ key: "bloq", label: "Bloqueados", color: "#E15759" }, { key: "resolv", label: "Ação resolvida (aguardando nova inspeção)", color: "#F1C232" }];
   function blqLegendaHtml() {
@@ -4303,6 +4359,8 @@ body.nav-collapsed:has(.inf-root) #main { padding-bottom:24px; }
     document.querySelectorAll("[data-blq-placa]").forEach((tr) => tr.addEventListener("click", () => {
       const pl = tr.getAttribute("data-blq-placa"); state.blqSel = pl; render();
     }));
+    document.querySelectorAll("[data-blq-obs-salvar]").forEach((b) => b.addEventListener("click", () => { const t = document.getElementById("blq-obs-txt"); blqObsSalvar(b.getAttribute("data-blq-obs-salvar"), t ? t.value : ""); }));
+    document.querySelectorAll("[data-blq-obs-limpar]").forEach((b) => b.addEventListener("click", () => { if (window.confirm("Apagar a observação deste veículo? (o histórico continua guardado)")) blqObsSalvar(b.getAttribute("data-blq-obs-limpar"), ""); }));
     document.querySelectorAll("[data-blq-mapa]").forEach((b) => b.addEventListener("click", () => { state.blqMapa = b.getAttribute("data-blq-mapa"); render(); }));
     document.querySelectorAll("[data-blq-st]").forEach((b) => b.addEventListener("click", (ev) => {
       const k = b.getAttribute("data-blq-st"); state.blqStatus = state.blqStatus || new Set();
@@ -4407,7 +4465,7 @@ body.nav-collapsed:has(.inf-root) #main { padding-bottom:24px; }
   async function refreshPlano() {
     if (PlanoStore.modo !== "api") return false;
     try {
-      const sig = () => JSON.stringify([PlanoStore.planos, PlanoStore.itens, PlanoStore.andamento, PlanoStore.config]);
+      const sig = () => JSON.stringify([PlanoStore.planos, PlanoStore.itens, PlanoStore.andamento, PlanoStore.config, PlanoStore.obsBloq]);
       const antes = sig();
       const r = await fetch(PLANO_API_URL + "?t=" + Date.now(), { cache: "no-store" });
       const res = await r.json(); if (!res.ok) return false;
