@@ -456,10 +456,17 @@
 .blq-dir { position:sticky; top:12px; display:flex; flex-direction:column; gap:16px; align-self:start; min-width:0; }
 .blq-obs textarea { width:100%; min-height:92px; resize:vertical; box-sizing:border-box; font:inherit; font-size:14px; line-height:1.45; padding:10px 12px; border-radius:8px; border:1px solid var(--border,#2a2f3a); background:var(--bg-elev, rgba(255,255,255,.03)); color:inherit; }
 .blq-obs textarea:focus { outline:2px solid rgba(224,138,75,.55); outline-offset:1px; }
-.blq-obs .obs-meta { font-size:12px; color:var(--text-faint); margin:6px 0 0; }
+.blq-obs .obs-meta { font-size:12px; color:var(--text-faint); }
 .blq-obs .obs-btns { display:flex; gap:8px; align-items:center; margin-top:10px; flex-wrap:wrap; }
-.blq-obs details { margin-top:12px; font-size:13px; } .blq-obs summary { cursor:pointer; color:var(--text-faint); }
-.blq-obs .obs-h { padding:6px 0; border-top:1px solid var(--border,#2a2f3a); white-space:pre-wrap; } .blq-obs .obs-h small { display:block; color:var(--text-faint); }
+.blq-obs .obs-vazio { color:var(--text-faint); font-size:13px; margin:4px 0 2px; }
+.blq-obs .obs-coment { display:flex; gap:12px; align-items:flex-start; margin-top:6px; }
+.blq-obs .obs-av { flex:0 0 34px; width:34px; height:34px; border-radius:50%; display:flex; align-items:center; justify-content:center; font-weight:700; font-size:15px; background:rgba(224,138,75,.22); color:#e08a4b; }
+.blq-obs .obs-corpo { flex:1 1 auto; min-width:0; }
+.blq-obs .obs-topo { display:flex; align-items:baseline; gap:8px; flex-wrap:wrap; }
+.blq-obs .obs-topo strong { font-size:14px; } .blq-obs .obs-topo span { font-size:12px; color:var(--text-faint); }
+.blq-obs .obs-texto { margin-top:4px; font-size:14px; line-height:1.5; white-space:pre-wrap; overflow-wrap:anywhere; padding:9px 12px; border-radius:4px 12px 12px 12px; background:rgba(255,255,255,.05); border:1px solid var(--border,#2a2f3a); }
+.blq-obs .obs-coment.antigo { opacity:.8; } .blq-obs .obs-coment.antigo .obs-av { flex-basis:26px; width:26px; height:26px; font-size:12px; } .blq-obs .obs-coment.antigo .obs-texto { font-size:13px; padding:6px 10px; }
+.blq-obs details { margin-top:14px; font-size:13px; } .blq-obs summary { cursor:pointer; color:var(--text-faint); }
 .blq-obs .obs-lista { margin-top:14px; border-top:1px solid var(--border,#2a2f3a); padding-top:8px; }
 .blq-obs .obs-item { display:block; width:100%; text-align:left; background:transparent; border:0; color:inherit; font:inherit; font-size:13px; padding:6px 4px; cursor:pointer; border-radius:6px; }
 .blq-obs .obs-item:hover { background:rgba(255,255,255,.05); } .blq-obs .obs-item b { margin-right:8px; } .blq-obs .obs-item span { color:var(--text-faint); }
@@ -4291,20 +4298,36 @@ body.nav-collapsed:has(.inf-root) #main { padding-bottom:24px; }
     const insp = ultimaInspVeiculo(placa);
     return insp && insp > obsDia(o.em) ? { ativa: null, encerrada: { o, insp } } : { ativa: o, encerrada: null };
   }
+  const obsInicial = (n) => (String(n || "").trim().charAt(0) || "?").toUpperCase();
+  const obsComentHtml = (h, antigo) => `<div class="obs-coment ${antigo ? "antigo" : ""}"><div class="obs-av" aria-hidden="true">${escapeHtml(obsInicial(h.por))}</div>
+      <div class="obs-corpo"><div class="obs-topo"><strong>${escapeHtml(h.por || "Sem nome")}</strong><span>${escapeHtml(fmtDataHora(h.em))}</span></div>
+      <div class="obs-texto">${h.texto ? escapeHtml(h.texto) : "<em>(observação apagada)</em>"}</div></div></div>`;
   function blqObsHtml(selV, arr) {
     if (!selV) return "";
     const st = obsDoVeiculo(selV.placa), o = st.ativa;
-    const semBase = PlanoStore.baseSemObs;
-    const meta = st.encerrada ? `Observação anterior (${escapeHtml(fmtDataHora(st.encerrada.o.em))}${st.encerrada.o.por ? ` · ${escapeHtml(st.encerrada.o.por)}` : ""}) encerrada: o veículo foi inspecionado de novo em ${escapeHtml(fmtDate(st.encerrada.insp))}. Veja em "Histórico".` : o ? `Última edição: ${escapeHtml(fmtDataHora(o.em))}${o.por ? ` · por <strong>${escapeHtml(o.por)}</strong>` : ""}` : "Sem observação registrada para este veículo.";
-    const oh = o || (st.encerrada && st.encerrada.o); const hist = oh && (o ? (oh.hist || []).length > 1 : (oh.hist || []).length > 0) ? `<details><summary>Histórico (${oh.hist.length})</summary>${oh.hist.slice().reverse().map((h) => `<div class="obs-h">${h.texto ? escapeHtml(h.texto) : "<em>(observação apagada)</em>"}<small>${escapeHtml(fmtDataHora(h.em))}${h.por ? ` · ${escapeHtml(h.por)}` : ""}</small></div>`).join("")}</details>` : "";
+    const semBase = PlanoStore.baseSemObs, dis = semBase ? "disabled" : "";
+    const ed = state.blqObsEd && state.blqObsEd.placa === selV.placa ? state.blqObsEd : null;
+    const oh = o || (st.encerrada && st.encerrada.o);
+    const histTodos = oh ? (oh.hist || []) : [];
+    const antigos = histTodos.slice(0, o ? -1 : undefined).reverse();   // comentários anteriores (o último, se ativo, já aparece em cima)
+    let corpo;
+    if (ed) {
+      const rasc = state.blqObsRasc && state.blqObsRasc.placa === selV.placa ? state.blqObsRasc.texto : (ed.novo ? "" : (o ? o.texto : ""));
+      corpo = `<textarea id="blq-obs-txt" maxlength="1000" placeholder="Ex.: aguardando pneu de reforma chegar da recapadora; previsão 02/12.">${escapeHtml(rasc)}</textarea>
+        <div class="obs-btns"><button class="btn btn-primary btn-sm" data-blq-obs-salvar="${escapeHtml(selV.placa)}">Salvar</button><button class="btn btn-sm" data-blq-obs-cancelar>Cancelar</button><span class="obs-meta">aparece para todos · pede a senha de lançamento${o && ed.novo ? " · a anterior fica no histórico" : ""}</span></div>`;
+    } else if (o) {
+      corpo = `${obsComentHtml(o, false)}
+        <div class="obs-btns"><button class="btn btn-sm" data-blq-obs-editar="editar" ${dis}>Editar</button><button class="btn btn-sm" data-blq-obs-editar="nova" ${dis}>Nova observação</button><button class="btn btn-sm" data-blq-obs-limpar="${escapeHtml(selV.placa)}" ${dis}>Apagar</button></div>`;
+    } else {
+      const enc = st.encerrada ? `<div class="obs-vazio">A observação anterior foi encerrada: o veículo foi inspecionado de novo em ${escapeHtml(fmtDate(st.encerrada.insp))}. Ela continua no histórico.</div>` : `<div class="obs-vazio">Sem observação registrada para este veículo.</div>`;
+      corpo = `${enc}<div class="obs-btns"><button class="btn btn-primary btn-sm" data-blq-obs-editar="nova" ${dis}>Escrever observação</button></div>`;
+    }
+    const hist = antigos.length ? `<details><summary>Observações anteriores (${antigos.length})</summary>${antigos.map((h) => obsComentHtml(h, true)).join("")}</details>` : "";
     const outras = arr.filter((v) => v.placa !== selV.placa && obsDoVeiculo(v.placa).ativa);
     const lista = outras.length ? `<div class="obs-lista"><div class="chart-hint" style="margin:0 0 4px;">Outros veículos com observação (${outras.length})</div>${outras.map((v) => { const t = obsDoVeiculo(v.placa).ativa.texto; return `<button type="button" class="obs-item" data-blq-placa="${escapeHtml(v.placa)}"><b class="mono">${escapeHtml(v.placa)}</b><span>${escapeHtml(filialSigla(v.filial))}</span> ${escapeHtml(t.length > 90 ? t.slice(0, 90) + "…" : t)}</button>`; }).join("")}</div>` : "";
     return `<div class="card blq-obs"><div class="card-title">Observação do veículo <span class="mono" style="font-weight:600;">${escapeHtml(selV.placa)}</span></div>
       ${semBase ? `<div class="banner banner-warn" style="margin:6px 0;">A base do Google ainda está na versão antiga do <strong>Code.gs</strong>: cole o Code.gs novo e publique uma nova versão para poder gravar observações.</div>` : ""}
-      <textarea id="blq-obs-txt" maxlength="1000" placeholder="Ex.: aguardando pneu de reforma chegar da recapadora; previsão 02/12." ${semBase ? "disabled" : ""}>${escapeHtml(o ? o.texto : "")}</textarea>
-      <div class="obs-meta" id="blq-obs-meta">${meta}</div>
-      <div class="obs-btns"><button class="btn btn-primary btn-sm" data-blq-obs-salvar="${escapeHtml(selV.placa)}" ${semBase ? "disabled" : ""}>Salvar observação</button>${o ? `<button class="btn btn-sm" data-blq-obs-limpar="${escapeHtml(selV.placa)}" ${semBase ? "disabled" : ""}>Apagar</button>` : ""}<span class="obs-meta" style="margin:0;">aparece para todos · pede a senha de lançamento</span></div>
-      ${hist}${lista}</div>`;
+      ${corpo}${hist}${lista}</div>`;
   }
   async function blqObsSalvar(placa, texto) {
     const atual = (obsDoVeiculo(placa).ativa || {}).texto || "";
@@ -4316,6 +4339,7 @@ body.nav-collapsed:has(.inf-root) #main { padding-bottom:24px; }
     if (!state.planoAutor) { const n = window.prompt("Seu nome (os outros usuários veem quem escreveu):", ""); if (n === null || !n.trim()) return; state.planoAutor = n.trim(); lsSet("raja_plano_autor", state.planoAutor); }
     const ok = await PlanoStore.exec("obs_save", { placa, texto, por: state.planoAutor });
     if (!ok) { if (PlanoStore.precisaPin) { PlanoStore.pin = ""; lsSet("raja_plano_pin", ""); } toast(PlanoStore.erro || "Não consegui gravar."); return; }
+    state.blqObsEd = null; state.blqObsRasc = null;
     toast(texto ? "Observação salva." : "Observação apagada.");
     render();
   }
@@ -4357,9 +4381,16 @@ body.nav-collapsed:has(.inf-root) #main { padding-bottom:24px; }
   function bindBloqueados() {
     if (state.panel !== "bloqueados") return;
     document.querySelectorAll("[data-blq-placa]").forEach((tr) => tr.addEventListener("click", () => {
-      const pl = tr.getAttribute("data-blq-placa"); state.blqSel = pl; render();
+      const pl = tr.getAttribute("data-blq-placa"); if (pl !== state.blqSel) { state.blqObsEd = null; state.blqObsRasc = null; } state.blqSel = pl; render();
     }));
     document.querySelectorAll("[data-blq-obs-salvar]").forEach((b) => b.addEventListener("click", () => { const t = document.getElementById("blq-obs-txt"); blqObsSalvar(b.getAttribute("data-blq-obs-salvar"), t ? t.value : ""); }));
+    document.querySelectorAll("[data-blq-obs-editar]").forEach((b) => b.addEventListener("click", () => { const sel = document.querySelector(".blq-obs .card-title .mono"); state.blqObsEd = { placa: sel ? sel.textContent.trim() : "", novo: b.getAttribute("data-blq-obs-editar") === "nova" }; state.blqObsRasc = null; render(); }));
+    document.querySelectorAll("[data-blq-obs-cancelar]").forEach((b) => b.addEventListener("click", () => { state.blqObsEd = null; state.blqObsRasc = null; render(); }));
+    const taObs = document.getElementById("blq-obs-txt");
+    if (taObs) {
+      taObs.addEventListener("input", () => { const sel = document.querySelector(".blq-obs .card-title .mono"); state.blqObsRasc = { placa: sel ? sel.textContent.trim() : "", texto: taObs.value }; });
+      taObs.focus(); try { taObs.setSelectionRange(taObs.value.length, taObs.value.length); } catch (e) {}
+    }
     document.querySelectorAll("[data-blq-obs-limpar]").forEach((b) => b.addEventListener("click", () => { if (window.confirm("Apagar a observação deste veículo? (o histórico continua guardado)")) blqObsSalvar(b.getAttribute("data-blq-obs-limpar"), ""); }));
     document.querySelectorAll("[data-blq-mapa]").forEach((b) => b.addEventListener("click", () => { state.blqMapa = b.getAttribute("data-blq-mapa"); render(); }));
     document.querySelectorAll("[data-blq-st]").forEach((b) => b.addEventListener("click", (ev) => {
