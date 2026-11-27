@@ -5694,7 +5694,7 @@ body.nav-collapsed:has(.inf-root) #main { padding-bottom:24px; }
     if (!DATA.estoque) return;
     const data = estUnidades(true).map((u) => ({ filial: u.filial, pronto: u.pronto, indisp: u.indisp, ref: u.ref, apl: u.apl, total: u.pronto + u.indisp + u.ref + u.apl }))
       .filter((d) => d.total > 0).sort((a, b) => b.total - a.total);
-    renderStackedBarChart("chart-est-bar", data, EST_SEGS, state.selFiliais, toggleFilialSelection, { unit: "pneu(s)", valores: true, totalTop: true });
+    renderStackedBarChart("chart-est-bar", data, EST_SEGS, state.selFiliais, toggleFilialSelection, { unit: "pneu(s)", valores: true, totalTop: true, round: true });
   }
   function renderEstoquePanel() {
     const E = DATA.estoque;
@@ -5756,7 +5756,7 @@ body.nav-collapsed:has(.inf-root) #main { padding-bottom:24px; }
       ${oc.pronto + oc.outros ? `<div class="table-note">Tamanhos sem mínimo definido (a operação não usa) não aparecem aqui: ${fmtInt(oc.pronto)} pneu(s) pronto(s) e ${fmtInt(oc.outros)} em outras situações. Eles continuam nos cartões e no gráfico; para mostrar um tamanho, preencha o mínimo dele.</div>` : ""}</div>`;
     // gráfico
     const graf = `<div class="card est-wrap"><div class="card-title">Onde estão os pneus, por unidade</div>${chartHint()}
-      <div class="est-leg">${EST_SEGS.map((g) => `<span><i style="background:${g.color}"></i>${escapeHtml(g.label)}</span>`).join("")}</div><div id="chart-est-bar"></div></div>`;
+      <div style="margin:6px 0 4px;">${EST_SEGS.map((g) => `<span class="blq-leg" style="cursor:default;"><i style="background:${g.color}"></i>${escapeHtml(g.label)}</span>`).join("")}</div><div id="chart-est-bar"></div></div>`;
     // reformadora
     const porRef = new Map();
     refT.forEach((t) => { const k = t.reformadora || "?"; if (!porRef.has(k)) porRef.set(k, { sig: k, nome: t.reformadoraNome || "", n: 0, max: 0, alerta: 0 }); const g = porRef.get(k); g.n++; g.max = Math.max(g.max, t.dias || 0); if (t.dias != null && t.dias > lim) g.alerta++; });
