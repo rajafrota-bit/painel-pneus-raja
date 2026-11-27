@@ -465,6 +465,8 @@
 .blq-obs .obs-topo { display:flex; align-items:baseline; gap:8px; flex-wrap:wrap; }
 .blq-obs .obs-topo strong { font-size:14px; } .blq-obs .obs-topo span { font-size:12px; color:var(--text-faint); }
 .blq-obs .obs-texto { margin-top:4px; font-size:14px; line-height:1.5; white-space:pre-wrap; overflow-wrap:anywhere; padding:9px 12px; border-radius:4px 12px 12px 12px; background:rgba(255,255,255,.05); border:1px solid var(--border,#2a2f3a); }
+.blq-obs .obs-clicavel { cursor:pointer; border-radius:12px; } .blq-obs .obs-clicavel:hover .obs-texto { background:rgba(255,255,255,.08); }
+.blq-obs .obs-texto.resumo { display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical; overflow:hidden; }
 .blq-obs .obs-coment.antigo { opacity:.8; } .blq-obs .obs-coment.antigo .obs-av { flex-basis:26px; width:26px; height:26px; font-size:12px; } .blq-obs .obs-coment.antigo .obs-texto { font-size:13px; padding:6px 10px; }
 .blq-obs details { margin-top:14px; font-size:13px; } .blq-obs summary { cursor:pointer; color:var(--text-faint); }
 .blq-obs .obs-lista { margin-top:14px; border-top:1px solid var(--border,#2a2f3a); padding-top:8px; }
@@ -4299,14 +4301,15 @@ body.nav-collapsed:has(.inf-root) #main { padding-bottom:24px; }
     return insp && insp > obsDia(o.em) ? { ativa: null, encerrada: { o, insp } } : { ativa: o, encerrada: null };
   }
   const obsInicial = (n) => (String(n || "").trim().charAt(0) || "?").toUpperCase();
-  const obsComentHtml = (h, antigo) => `<div class="obs-coment ${antigo ? "antigo" : ""}"><div class="obs-av" aria-hidden="true">${escapeHtml(obsInicial(h.por))}</div>
+  const obsComentHtml = (h, antigo, resumo) => `<div class="obs-coment ${antigo ? "antigo" : ""} ${resumo !== undefined ? "obs-clicavel" : ""}" ${resumo === true ? 'data-blq-obs-toggle="1" title="Clique para abrir"' : resumo === false ? 'data-blq-obs-toggle="1" title="Clique para recolher"' : ""}><div class="obs-av" aria-hidden="true">${escapeHtml(obsInicial(h.por))}</div>
       <div class="obs-corpo"><div class="obs-topo"><strong>${escapeHtml(h.por || "Sem nome")}</strong><span>${escapeHtml(fmtDataHora(h.em))}</span></div>
-      <div class="obs-texto">${h.texto ? escapeHtml(h.texto) : "<em>(observação apagada)</em>"}</div></div></div>`;
+      <div class="obs-texto ${resumo === true ? "resumo" : ""}">${h.texto ? escapeHtml(h.texto) : "<em>(observação apagada)</em>"}</div></div></div>`;
   function blqObsHtml(selV, arr) {
     if (!selV) return "";
     const st = obsDoVeiculo(selV.placa), o = st.ativa;
     const semBase = PlanoStore.baseSemObs, dis = semBase ? "disabled" : "";
     const ed = state.blqObsEd && state.blqObsEd.placa === selV.placa ? state.blqObsEd : null;
+    const aberto = state.blqObsAberto === selV.placa;
     const oh = o || (st.encerrada && st.encerrada.o);
     const histTodos = oh ? (oh.hist || []) : [];
     const antigos = histTodos.slice(0, o ? -1 : undefined).reverse();   // comentários anteriores (o último, se ativo, já aparece em cima)
@@ -4316,8 +4319,8 @@ body.nav-collapsed:has(.inf-root) #main { padding-bottom:24px; }
       corpo = `<textarea id="blq-obs-txt" maxlength="1000" placeholder="Ex.: aguardando pneu de reforma chegar da recapadora; previsão 02/12.">${escapeHtml(rasc)}</textarea>
         <div class="obs-btns"><button class="btn btn-primary btn-sm" data-blq-obs-salvar="${escapeHtml(selV.placa)}">Salvar</button><button class="btn btn-sm" data-blq-obs-cancelar>Cancelar</button><span class="obs-meta">aparece para todos · pede a senha de lançamento${o && ed.novo ? " · a anterior fica no histórico" : ""}</span></div>`;
     } else if (o) {
-      corpo = `${obsComentHtml(o, false)}
-        <div class="obs-btns"><button class="btn btn-sm" data-blq-obs-editar="editar" ${dis}>Editar</button><button class="btn btn-sm" data-blq-obs-editar="nova" ${dis}>Nova observação</button><button class="btn btn-sm" data-blq-obs-limpar="${escapeHtml(selV.placa)}" ${dis}>Apagar</button></div>`;
+      corpo = `${obsComentHtml(o, false, !aberto)}
+        ${aberto ? `<div class="obs-btns"><button class="btn btn-sm" data-blq-obs-editar="editar" ${dis}>Editar</button><button class="btn btn-sm" data-blq-obs-editar="nova" ${dis}>Nova observação</button><button class="btn btn-sm" data-blq-obs-limpar="${escapeHtml(selV.placa)}" ${dis}>Apagar</button></div>` : ""}`;
     } else {
       const enc = st.encerrada ? `<div class="obs-vazio">A observação anterior foi encerrada: o veículo foi inspecionado de novo em ${escapeHtml(fmtDate(st.encerrada.insp))}. Ela continua no histórico.</div>` : `<div class="obs-vazio">Sem observação registrada para este veículo.</div>`;
       corpo = `${enc}<div class="obs-btns"><button class="btn btn-primary btn-sm" data-blq-obs-editar="nova" ${dis}>Escrever observação</button></div>`;
@@ -4339,7 +4342,7 @@ body.nav-collapsed:has(.inf-root) #main { padding-bottom:24px; }
     if (!state.planoAutor) { const n = window.prompt("Seu nome (os outros usuários veem quem escreveu):", ""); if (n === null || !n.trim()) return; state.planoAutor = n.trim(); lsSet("raja_plano_autor", state.planoAutor); }
     const ok = await PlanoStore.exec("obs_save", { placa, texto, por: state.planoAutor });
     if (!ok) { if (PlanoStore.precisaPin) { PlanoStore.pin = ""; lsSet("raja_plano_pin", ""); } toast(PlanoStore.erro || "Não consegui gravar."); return; }
-    state.blqObsEd = null; state.blqObsRasc = null;
+    state.blqObsEd = null; state.blqObsRasc = null; state.blqObsAberto = texto ? placa : null;
     toast(texto ? "Observação salva." : "Observação apagada.");
     render();
   }
@@ -4381,10 +4384,20 @@ body.nav-collapsed:has(.inf-root) #main { padding-bottom:24px; }
   function bindBloqueados() {
     if (state.panel !== "bloqueados") return;
     document.querySelectorAll("[data-blq-placa]").forEach((tr) => tr.addEventListener("click", () => {
-      const pl = tr.getAttribute("data-blq-placa"); if (pl !== state.blqSel) { state.blqObsEd = null; state.blqObsRasc = null; } state.blqSel = pl; render();
+      const pl = tr.getAttribute("data-blq-placa"); if (pl !== state.blqSel) { state.blqObsEd = null; state.blqObsRasc = null; } state.blqObsAberto = tr.classList.contains("obs-item") ? pl : null; state.blqSel = pl; render();
     }));
     document.querySelectorAll("[data-blq-obs-salvar]").forEach((b) => b.addEventListener("click", () => { const t = document.getElementById("blq-obs-txt"); blqObsSalvar(b.getAttribute("data-blq-obs-salvar"), t ? t.value : ""); }));
     document.querySelectorAll("[data-blq-obs-editar]").forEach((b) => b.addEventListener("click", () => { const sel = document.querySelector(".blq-obs .card-title .mono"); state.blqObsEd = { placa: sel ? sel.textContent.trim() : "", novo: b.getAttribute("data-blq-obs-editar") === "nova" }; state.blqObsRasc = null; render(); }));
+    document.querySelectorAll("[data-blq-obs-toggle]").forEach((c) => c.addEventListener("click", () => { const sel = document.querySelector(".blq-obs .card-title .mono"); const pl = sel ? sel.textContent.trim() : ""; state.blqObsAberto = state.blqObsAberto === pl ? null : pl; render(); }));
+    if (!window.__blqObsFora) {
+      window.__blqObsFora = true;
+      // clicar fora do card de observação recolhe o comentário (se estiver escrevendo, não mexe: o rascunho fica)
+      document.addEventListener("click", (ev) => {
+        if (state.panel !== "bloqueados" || !state.blqObsAberto || state.blqObsEd) return;
+        if (ev.target && ev.target.closest && ev.target.closest(".blq-obs")) return;
+        state.blqObsAberto = null; render();
+      });
+    }
     document.querySelectorAll("[data-blq-obs-cancelar]").forEach((b) => b.addEventListener("click", () => { state.blqObsEd = null; state.blqObsRasc = null; render(); }));
     const taObs = document.getElementById("blq-obs-txt");
     if (taObs) {
